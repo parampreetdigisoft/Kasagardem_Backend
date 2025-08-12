@@ -34,8 +34,9 @@ const options = {
   },
   apis: [
     "./src/modules/auth/*.js",
-    "./src/modules/roles/*.js", // if plural folder
-  ], // Location of files with Swagger comments
+    "./src/modules/roles/*.js",
+    "./src/modules/userProfile/*.js",
+  ],
 };
 
 const specs = swaggerJsdoc(options);

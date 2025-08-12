@@ -1,11 +1,12 @@
 const express = require("express");
 const cors = require("cors");
 const errorHandler = require("./core/middleware/errorHandler");
+const setupSwagger = require("./swagger");
 
 // Import routes
 const authRoutes = require("./modules/auth/authRoutes");
 const roleRoutes = require("./modules/roles/roleRoutes");
-const setupSwagger = require("./swagger");
+const userProfileRoutes = require("./modules/userProfile/userProfileRoutes");
 
 const app = express();
 
@@ -19,11 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/roles", roleRoutes);
-
-// Health check
-app.get("/health", (req, res) => {
-  res.json({ status: "OK", message: "Server is running!" });
-});
+app.use("/api/v1/profiles", userProfileRoutes);
 
 // Error handler (must be last middleware)
 app.use(errorHandler);

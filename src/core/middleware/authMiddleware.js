@@ -54,8 +54,7 @@ const auth = async (req, res, next) => {
       "Authentication successful",
       {
         ...requestInfo,
-        userId: decoded.userId || decoded.id,
-        email: decoded.email,
+        email: decoded.userEmail,
         role: decoded.role,
         tokenExp: decoded.exp
           ? new Date(decoded.exp * 1000).toISOString()
