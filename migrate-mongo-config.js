@@ -1,4 +1,4 @@
-const config = require('./src/core/config/env');
+const config = require("./src/core/config/env");
 
 module.exports = {
   mongodb: {
@@ -6,11 +6,11 @@ module.exports = {
     options: {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-    }
+    },
   },
-  migrationsDir: 'migrations',
-  changelogCollectionName: 'changelog',
-  migrationFileExtension: '.js',
+  migrationsDir: "migrations",
+  changelogCollectionName: "changelog",
+  migrationFileExtension: ".js",
   useFileHash: false,
-  moduleSystem: 'commonjs',
+  moduleSystem: "commonjs",
 };

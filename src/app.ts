@@ -1,0 +1,54 @@
+import express from "express";
+import cors from "cors";
+import errorHandler from "./core/middleware/errorHandler";
+import setupSwagger from "./swagger";
+import path from "path";
+
+// Import routes
+import authRoutes from "./modules/auth/authRoutes";
+import roleRoutes from "./modules/roles/roleRoutes";
+import userProfileRoutes from "./modules/userProfile/userProfileRoutes";
+import plantRoutes from "./modules/plants/plantRoutes";
+
+const app = express();
+
+setupSwagger(app);
+
+// Middleware
+const corsOptions = {
+  origin: "*", // Allow all origins
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ["Authorization"],
+  credentials: true, // Set to true for cookies or HTTP auth
+};
+
+app.use(cors(corsOptions));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
+app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/roles", roleRoutes);
+app.use("/api/v1/profiles", userProfileRoutes);
+app.use("/api/v1/plants", plantRoutes);
+
+//Add this middleware so you can access uploaded files in browser:
+// Now if a file is saved as:
+// /uploads/plants/abc123.png
+// you can open it in browser at:
+// http://localhost:8080/uploads/plants/abc123.png
+app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
+
+// Error handler (must be last middleware)
+app.use(errorHandler);
+
+// 404 handler
+app.use(/.*/, (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+  });
+});
+
+export default app;
