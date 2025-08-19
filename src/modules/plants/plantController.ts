@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import Plant, { IPlant } from "./plantModel";
 import PlantHistory from "./plantHistoryModel";
 import User, { IUserDocument } from "../auth/authModel";
@@ -20,6 +20,7 @@ import {
   PlantSuggestion,
   SimilarImage,
 } from "../../interface/Types";
+import { AuthRequest } from "../../core/middleware/authMiddleware";
 
 /**
  * Helper function to save plant history.
@@ -65,23 +66,29 @@ export const savePlantHistory = async (
 };
 
 /**
- * Create a new plant
- * @param req
- * @param res
- * @param next
+ * Creates a new plant entry for the authenticated user.
+ *
+ * @param req - Express request object, with optional `user` property containing `userId` and `userEmail`.
+ * @param res - Express response object used to send responses.
+ * @param next - Express next function to pass errors to error-handling middleware.
+ *
+ * @returns A promise that resolves with a HTTP response indicating success or failure.
  */
 export const createPlant = async (
-  req: Request & { user?: { userId?: string; userEmail?: string } },
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    if (!req.user?.userEmail) {
-      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
-      return;
-    }
-
-    const email = req.user.userEmail;
+    const email = userPayload?.userEmail;
 
     await info("Plant creation attempt", {
       email,
@@ -155,7 +162,7 @@ export const createPlant = async (
           } as CustomError);
 
     await error("Plant creation error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "createPlant",
@@ -173,12 +180,20 @@ export const createPlant = async (
  * @returns {Promise<void>} Responds with a paginated list of user plants or an error response.
  */
 export const getUserPlants = async (
-  req: Request & { user?: { userEmail?: string } },
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    const email = req.user?.userEmail;
+    const email = userPayload?.userEmail;
 
     if (!email) {
       res
@@ -279,7 +294,7 @@ export const getUserPlants = async (
           } as CustomError);
 
     await error("Plants retrieval error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "getUserPlants",
@@ -297,12 +312,20 @@ export const getUserPlants = async (
  * @returns {Promise<void>} Responds with the plant details if found, otherwise an error response.
  */
 export const getPlantById = async (
-  req: Request & { user?: { userEmail?: string } },
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    const email = req.user?.userEmail;
+    const email = userPayload?.userEmail;
     const { id } = req.params;
 
     if (!email) {
@@ -379,7 +402,7 @@ export const getPlantById = async (
           } as CustomError);
 
     await error("Plant retrieval error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       plantId: req.params?.id,
       error: errorObj.message,
       stack: errorObj.stack,
@@ -398,18 +421,20 @@ export const getPlantById = async (
  * @returns {Promise<Response | void>} Returns the updated plant if successful, or an error response.
  */
 export const updatePlant = async (
-  req: Request & { user?: { userEmail?: string } },
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<Response | void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    if (!req.user?.userEmail) {
-      return res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse("Unauthorized"));
-    }
-
-    const email = req.user.userEmail;
+    const email = userPayload?.userEmail;
     const { id } = req.params;
 
     await info("Plant update attempt", {
@@ -486,7 +511,7 @@ export const updatePlant = async (
           } as CustomError);
 
     await error("Plant update error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       plantId: req.params?.id,
       error: errorObj.message,
       stack: errorObj.stack,
@@ -506,20 +531,21 @@ export const updatePlant = async (
  * @returns {Promise<void>} Resolves with a success response if deletion is successful, or passes an error to the middleware.
  */
 export const deletePlant = async (
-  req: Request & { user?: { userEmail?: string } },
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    const email = req.user?.userEmail;
+    const email = userPayload?.userEmail;
     const { id } = req.params;
-
-    if (!email) {
-      res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse("Unauthorized - User email missing"));
-      return;
-    }
 
     await info("Plant deletion attempt", {
       email,
@@ -594,7 +620,7 @@ export const deletePlant = async (
           } as CustomError);
 
     await error("Plant deletion error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       plantId: req.params?.id,
       error: errorObj.message,
       stack: errorObj.stack,
@@ -615,17 +641,20 @@ export const deletePlant = async (
  * @returns {Promise<void>} Resolves with identification results or passes an error to the middleware.
  */
 export const identifyPlant = async (
-  req: Request & { user?: { userEmail?: string } },
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    if (!req.user?.userEmail) {
-      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
-      return;
-    }
-
-    const email = req.user.userEmail;
+    const email = userPayload?.userEmail;
     const { images, location } = req.body as {
       images: string[];
       location?: { latitude?: number; longitude?: number };
@@ -712,7 +741,7 @@ export const identifyPlant = async (
           } as CustomError);
 
     await error("Plant identification error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "identifyPlant",
@@ -733,18 +762,20 @@ export const identifyPlant = async (
  * or calls `next` with an error if something goes wrong.
  */
 export const getPersonalizedTips = async (
-  req: Request & { user?: { userEmail?: string } },
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<Response | void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    if (!req.user?.userEmail) {
-      return res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse("Unauthorized"));
-    }
-
-    const email = req.user.userEmail;
+    const email = userPayload?.userEmail;
 
     await info("Personalized tips request", {
       email,
@@ -856,7 +887,7 @@ export const getPersonalizedTips = async (
           } as CustomError);
 
     await error("Personalized tips error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "getPersonalizedTips",
@@ -880,8 +911,7 @@ export const getPersonalizedTips = async (
  *  or calls `next` with an error if saving fails.
  */
 export const savePlantHistoryEndpoint = async (
-  req: Request & {
-    user?: { userEmail?: string };
+  req: AuthRequest & {
     body: {
       plantId?: string;
       action: string;
@@ -891,15 +921,16 @@ export const savePlantHistoryEndpoint = async (
   res: Response,
   next: NextFunction
 ): Promise<Response | void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    // Guard clause for missing user email
-    if (!req.user?.userEmail) {
-      return res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse("Unauthorized"));
-    }
-
-    const email = req.user.userEmail;
+    const email = userPayload?.userEmail;
     const { plantId, action, metadata } = req.body;
 
     await info("Plant history save attempt", {
@@ -969,7 +1000,7 @@ export const savePlantHistoryEndpoint = async (
           } as CustomError);
 
     await error("Plant history save error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       actionType: "savePlantHistory",
@@ -993,22 +1024,22 @@ export const savePlantHistoryEndpoint = async (
  *  or calls `next` with an error if retrieval fails.
  */
 export const getUserPlantHistory = async (
-  req: Request & {
-    user?: { userEmail?: string };
+  req: AuthRequest & {
     query: { page?: string; limit?: string; action?: string; plantId?: string };
   },
   res: Response,
   next: NextFunction
 ): Promise<Response | void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    // Guard clause for missing user email
-    if (!req.user?.userEmail) {
-      return res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse("Unauthorized"));
-    }
-
-    const email = req.user.userEmail;
+    const email = userPayload?.userEmail;
     const { page = "1", limit = "20", action, plantId } = req.query;
 
     await info("Plant history retrieval attempt", {
@@ -1081,7 +1112,7 @@ export const getUserPlantHistory = async (
           } as CustomError);
 
     await error("Plant history retrieval error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "getUserPlantHistory",

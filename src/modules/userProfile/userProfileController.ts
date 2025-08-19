@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import UserProfile, { IUserProfile } from "./userProfileModel";
 import User, { IUserDocument } from "../auth/authModel";
 import {
@@ -8,13 +8,7 @@ import {
 import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { info, error, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
-
-// Extend Express Request to include user from auth middleware
-interface AuthenticatedRequest extends Request {
-  user?: {
-    userEmail: string;
-  };
-}
+import { AuthRequest } from "../../core/middleware/authMiddleware";
 
 /**
  * Handles the creation of a new user profile.
@@ -30,28 +24,30 @@ interface AuthenticatedRequest extends Request {
  * @returns A promise that resolves to void.
  */
 export const createUserProfile = async (
-  req: AuthenticatedRequest,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    const email = req.user?.userEmail;
-    if (!email) {
-      res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse("Unauthorized request"));
-      return;
-    }
-
     await info("User profile creation attempt", {
-      email,
+      email: userPayload?.userEmail,
       action: "createUserProfile",
     });
 
-    const userExists: IUserDocument | null = await User.findOne({ email });
+    const userExists: IUserDocument | null = await User.findOne({
+      email: userPayload?.userEmail,
+    });
     if (!userExists) {
       await error("Profile creation failed - User not found", {
-        email,
+        email: userPayload?.userEmail,
         action: "createUserProfile",
       });
       res
@@ -66,7 +62,7 @@ export const createUserProfile = async (
 
     if (existingProfile) {
       await warn("Profile creation failed - Profile already exists", {
-        email,
+        email: userPayload?.userEmail,
         userId: userExists._id,
         action: "createUserProfile",
       });
@@ -80,7 +76,7 @@ export const createUserProfile = async (
     await UserProfile.create(profileData);
 
     await info("User profile created successfully", {
-      email,
+      email: userPayload?.userEmail,
       userId: userExists._id,
       action: "createUserProfile",
       profileFields: Object.keys(req.body),
@@ -101,7 +97,7 @@ export const createUserProfile = async (
           } as CustomError);
 
     await error("Profile creation error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "createUserProfile",
@@ -124,28 +120,30 @@ export const createUserProfile = async (
  * @returns A promise that resolves to void.
  */
 export const getCurrentUserProfile = async (
-  req: AuthenticatedRequest,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    const email = req.user?.userEmail;
-    if (!email) {
-      res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse("Unauthorized request"));
-      return;
-    }
-
     await info("User profile retrieval attempt", {
-      email,
+      email: userPayload?.userEmail,
       action: "getCurrentUserProfile",
     });
 
-    const user: IUserDocument | null = await User.findOne({ email });
+    const user: IUserDocument | null = await User.findOne({
+      email: userPayload?.userEmail,
+    });
     if (!user) {
       await error("Profile retrieval failed - User not found", {
-        email,
+        email: userPayload?.userEmail,
         action: "getCurrentUserProfile",
       });
       res
@@ -162,7 +160,7 @@ export const getCurrentUserProfile = async (
 
     if (!userProfile) {
       await warn("Profile retrieval failed - Profile not found", {
-        email,
+        email: userPayload?.userEmail,
         userId: user._id,
         action: "getCurrentUserProfile",
       });
@@ -173,7 +171,7 @@ export const getCurrentUserProfile = async (
     }
 
     await info("User profile retrieved successfully", {
-      email,
+      email: userPayload?.userEmail,
       userId: user._id,
       action: "getCurrentUserProfile",
     });
@@ -190,7 +188,7 @@ export const getCurrentUserProfile = async (
           } as CustomError);
 
     await error("Profile retrieval error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "getCurrentUserProfile",
@@ -213,29 +211,31 @@ export const getCurrentUserProfile = async (
  * @returns A promise that resolves to void.
  */
 export const updateUserProfile = async (
-  req: AuthenticatedRequest,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    const email = req.user?.userEmail;
-    if (!email) {
-      res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse("Unauthorized request"));
-      return;
-    }
-
     await info("User profile update attempt", {
-      email,
+      email: userPayload?.userEmail,
       action: "updateUserProfile",
       updateFields: Object.keys(req.body),
     });
 
-    const user: IUserDocument | null = await User.findOne({ email });
+    const user: IUserDocument | null = await User.findOne({
+      email: userPayload?.userEmail,
+    });
     if (!user) {
       await error("Profile update failed - User not found", {
-        email,
+        email: userPayload?.userEmail,
         action: "updateUserProfile",
       });
       res
@@ -252,7 +252,7 @@ export const updateUserProfile = async (
 
     if (!updatedProfile) {
       await warn("Profile update failed - Profile not found", {
-        email,
+        email: userPayload?.userEmail,
         userId: user._id,
         action: "updateUserProfile",
       });
@@ -263,7 +263,7 @@ export const updateUserProfile = async (
     }
 
     await info("User profile updated successfully", {
-      email,
+      email: userPayload?.userEmail,
       userId: user._id,
       action: "updateUserProfile",
       updatedFields: Object.keys(req.body),
@@ -284,7 +284,7 @@ export const updateUserProfile = async (
           } as CustomError);
 
     await error("Profile update error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "updateUserProfile",
@@ -308,28 +308,30 @@ export const updateUserProfile = async (
  * @returns A promise that resolves to void.
  */
 export const deleteUserProfile = async (
-  req: AuthenticatedRequest,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
   try {
-    const email = req.user?.userEmail;
-    if (!email) {
-      res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse("Unauthorized request"));
-      return;
-    }
-
     await info("User profile deletion attempt", {
-      email,
+      email: userPayload?.userEmail,
       action: "deleteUserProfile",
     });
 
-    const user: IUserDocument | null = await User.findOne({ email });
+    const user: IUserDocument | null = await User.findOne({
+      email: userPayload?.userEmail,
+    });
     if (!user) {
       await error("Profile deletion failed - User not found", {
-        email,
+        email: userPayload?.userEmail,
         action: "deleteUserProfile",
       });
       res
@@ -344,7 +346,7 @@ export const deleteUserProfile = async (
 
     if (!deletedProfile) {
       await warn("Profile deletion failed - Profile not found", {
-        email,
+        email: userPayload?.userEmail,
         userId: user._id,
         action: "deleteUserProfile",
       });
@@ -355,7 +357,7 @@ export const deleteUserProfile = async (
     }
 
     await info("User profile deleted successfully", {
-      email,
+      email: userPayload?.userEmail,
       userId: user._id,
       action: "deleteUserProfile",
     });
@@ -375,7 +377,7 @@ export const deleteUserProfile = async (
           } as CustomError);
 
     await error("Profile deletion error", {
-      email: req.user?.userEmail,
+      email: userPayload?.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "deleteUserProfile",

@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import Role, { IRoleDocument } from "./roleModel";
 import {
   successResponse,
@@ -8,6 +8,7 @@ import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { error, info, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
 import User from "../auth/authModel";
+import { AuthRequest } from "../../core/middleware/authMiddleware";
 
 /**
  * Creates a new role in the system.
@@ -23,17 +24,21 @@ import User from "../auth/authModel";
  * @returns A promise that resolves with no value (`void`).
  */
 export const createRole = async (
-  req: Request & { user?: { userEmail?: string } },
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  if (!req.user?.userEmail) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
     return;
   }
 
   // Fetch user by email
-  const user = await User.findOne({ email: req.user.userEmail });
+  const user = await User.findOne({ email: userPayload?.userEmail });
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
@@ -95,23 +100,28 @@ export const createRole = async (
 };
 
 /**
- * Get all roles.
- * @param req
- * @param res
- * @param next
+ * Retrieves all roles.
+ * @param req - Express request object containing role data (`name`, `description`) in the body
+ *              and the authenticated user in `req.user`.
+ * @param res - Express response object used to send HTTP responses.
+ * @param next - Express next middleware function used to handle errors.
  */
 export const getRoles = async (
-  req: Request & { user?: { userEmail?: string } },
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  if (!req.user?.userEmail) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
     return;
   }
 
   // Fetch user by email
-  const user = await User.findOne({ email: req.user.userEmail });
+  const user = await User.findOne({ email: userPayload?.userEmail });
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
@@ -156,25 +166,30 @@ export const getRoles = async (
 
 /**
  * Update an existing role by ID.
- * @param req
- * @param res
- * @param next
+ * @param req - Express request object containing role data (`name`, `description`) in the body
+ *              and the authenticated user in `req.user`.
+ * @param res - Express response object used to send HTTP responses.
+ * @param next - Express next middleware function used to handle errors.
  */
 export const updateRole = async (
-  req: Request & { user?: { userEmail?: string } },
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   const roleId = req.params.id;
   const updateData = req.body;
 
-  if (!req.user?.userEmail) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
     return;
   }
 
   // Fetch user by email
-  const user = await User.findOne({ email: req.user.userEmail });
+  const user = await User.findOne({ email: userPayload?.userEmail });
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
@@ -247,24 +262,29 @@ export const updateRole = async (
 
 /**
  * Delete a role by ID.
- * @param req
- * @param res
- * @param next
+ * @param req - Express request object containing role data (`name`, `description`) in the body
+ *              and the authenticated user in `req.user`.
+ * @param res - Express response object used to send HTTP responses.
+ * @param next - Express next middleware function used to handle errors.
  */
 export const deleteRole = async (
-  req: Request & { user?: { userEmail?: string } },
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   const roleId = req.params.id;
 
-  if (!req.user?.userEmail) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userEmail?: string } | undefined;
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
     return;
   }
 
   // Fetch user by email
-  const user = await User.findOne({ email: req.user.userEmail });
+  const user = await User.findOne({ email: userPayload?.userEmail });
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
