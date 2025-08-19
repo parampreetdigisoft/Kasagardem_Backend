@@ -11,9 +11,13 @@
     "migrate": "migrate-mongo up",
     "migrate:down": "migrate-mongo down",
     "migrate:status": "migrate-mongo status",
+    "prepare": "husky install",
     "lint": "eslint . --ext .js,.ts",
     "lint:fix": "eslint . --ext .js,.ts --fix",
     "type-check": "tsc --noEmit"
+  },
+  "lint-staged": {
+    "*.{js,ts}": "eslint --fix"
   },
   "keywords": [],
   "author": "",
@@ -51,6 +55,8 @@
     "eslint-plugin-jsdoc": "^53.0.1",
     "eslint-plugin-prettier": "^5.5.4",
     "globals": "^16.3.0",
+    "husky": "^8.0.0",
+    "lint-staged": "^16.1.5",
     "nodemon": "^3.1.10",
     "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
