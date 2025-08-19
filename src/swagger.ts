@@ -37,7 +37,9 @@ const options = {
     "./src/modules/auth/*.ts",
     "./src/modules/roles/*.ts",
     "./src/modules/userProfile/*.ts",
-    "./src/modules/plants/*.ts",
+    "./src/modules/plants/homeScreen/*.ts",
+    "./src/modules/plants/plantDetection/*.ts",
+    "./src/modules/plants/diseaseDetection/*.ts",
   ],
 };
 

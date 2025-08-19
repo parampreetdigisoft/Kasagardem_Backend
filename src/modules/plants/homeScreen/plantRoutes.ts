@@ -5,7 +5,6 @@ import {
   getPlantById,
   updatePlant,
   deletePlant,
-  identifyPlant,
   getPersonalizedTips,
   savePlantHistoryEndpoint,
   getUserPlantHistory,
@@ -14,11 +13,10 @@ import {
   createPlantValidation,
   updatePlantValidation,
   plantQueryValidation,
-  plantIdentifyValidation,
   plantHistoryValidation,
 } from "./plantValidations";
-import validateRequest from "../../core/middleware/validateRequest";
-import auth from "../../core/middleware/authMiddleware";
+import validateRequest from "../../../core/middleware/validateRequest";
+import auth from "../../../core/middleware/authMiddleware";
 
 const router = Router();
 /**
@@ -27,6 +25,54 @@ const router = Router();
  *   name: Plants
  *   description: Plant management endpoints
  */
+
+/**
+ * @swagger
+ * /api/v1/plants/home/tips:
+ *   get:
+ *     summary: Get personalized plant care tips
+ *     tags: [Plants]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Personalized tips retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tips:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           type:
+ *                             type: string
+ *                             example: "watering_reminder"
+ *                           priority:
+ *                             type: string
+ *                             enum: [low, medium, high]
+ *                             example: "high"
+ *                           title:
+ *                             type: string
+ *                             example: "Plants Need Watering"
+ *                           description:
+ *                             type: string
+ *                             example: "You have 3 plant(s) that need watering today."
+ *                           actionUrl:
+ *                             type: string
+ *                             example: "/plants/watering-schedule"
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/tips", auth, getPersonalizedTips);
 
 /**
  * @swagger
@@ -165,7 +211,7 @@ const router = Router();
 
 /**
  * @swagger
- * /api/v1/plants:
+ * /api/v1/plants/home:
  *   post:
  *     summary: Create a new plant
  *     tags: [Plants]
@@ -202,7 +248,7 @@ router.post("/", auth, validateRequest(createPlantValidation), createPlant);
 
 /**
  * @swagger
- * /api/v1/plants:
+ * /api/v1/plants/home:
  *   get:
  *     summary: Get user's plants with pagination and filtering
  *     tags: [Plants]
@@ -298,7 +344,7 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/plants/{id}:
+ * /api/v1/plants/home/{id}:
  *   get:
  *     summary: Get a specific plant by ID
  *     tags: [Plants]
@@ -333,7 +379,7 @@ router.get("/:id", auth, getPlantById);
 
 /**
  * @swagger
- * /api/v1/plants/{id}:
+ * /api/v1/plants/home/{id}:
  *   put:
  *     summary: Update a specific plant
  *     tags: [Plants]
@@ -377,7 +423,7 @@ router.put("/:id", auth, validateRequest(updatePlantValidation), updatePlant);
 
 /**
  * @swagger
- * /api/v1/plants/{id}:
+ * /api/v1/plants/home/{id}:
  *   delete:
  *     summary: Delete a specific plant
  *     tags: [Plants]
@@ -413,164 +459,7 @@ router.delete("/:id", auth, deletePlant);
 
 /**
  * @swagger
- * /api/v1/plants/identify:
- *   post:
- *     summary: Identify a plant from images
- *     tags: [Plants]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - images
- *             properties:
- *               images:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: byte   # Base64-encoded string
- *                 minItems: 1
- *                 example:
- *                   - "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA..."
- *               location:
- *                 type: object
- *                 properties:
- *                   latitude:
- *                     type: number
- *                     example: 40.7128
- *                   longitude:
- *                     type: number
- *                     example: -74.0060
- *     responses:
- *       200:
- *         description: Plant identification results
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
- *                   properties:
- *                     confidence:
- *                       type: number
- *                       example: 0.85
- *                     suggestions:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           scientificName:
- *                             type: string
- *                             example: "Rosa rubiginosa"
- *                           commonNames:
- *                             type: array
- *                             items:
- *                               type: string
- *                             example: ["Sweet Briar", "Eglantine"]
- *                           confidence:
- *                             type: number
- *                             example: 0.85
- *                           description:
- *                             type: string
- *                             example: "A species of rose native to Europe and western Asia."
- *                     careRecommendations:
- *                       type: object
- *                       properties:
- *                         watering:
- *                           type: object
- *                           properties:
- *                             frequency:
- *                               type: string
- *                               example: "weekly"
- *                             amount:
- *                               type: string
- *                               example: "moderate"
- *                         sunlight:
- *                           type: string
- *                           example: "full-sun"
- *                         temperature:
- *                           type: object
- *                           properties:
- *                             min:
- *                               type: number
- *                               example: 15
- *                             max:
- *                               type: number
- *                               example: 25
- *                             unit:
- *                               type: string
- *                               example: "celsius"
- *       400:
- *         description: Validation error
- *       401:
- *         description: Unauthorized
- */
-router.post(
-  "/identify",
-  auth,
-  validateRequest(plantIdentifyValidation),
-  identifyPlant
-);
-
-/**
- * @swagger
- * /api/v1/plants/tips:
- *   get:
- *     summary: Get personalized plant care tips
- *     tags: [Plants]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Personalized tips retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
- *                   properties:
- *                     tips:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           type:
- *                             type: string
- *                             example: "watering_reminder"
- *                           priority:
- *                             type: string
- *                             enum: [low, medium, high]
- *                             example: "high"
- *                           title:
- *                             type: string
- *                             example: "Plants Need Watering"
- *                           description:
- *                             type: string
- *                             example: "You have 3 plant(s) that need watering today."
- *                           actionUrl:
- *                             type: string
- *                             example: "/plants/watering-schedule"
- *       401:
- *         description: Unauthorized
- */
-router.get("/tips", auth, getPersonalizedTips);
-
-/**
- * @swagger
- * /api/v1/plants/history:
+ * /api/v1/plants/home/history:
  *   post:
  *     summary: Save user plant interaction history
  *     tags: [Plants]
@@ -623,7 +512,7 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/plants/history:
+ * /api/v1/plants/home/history:
  *   get:
  *     summary: Get user's plant interaction history
  *     tags: [Plants]

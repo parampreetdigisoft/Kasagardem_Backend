@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { ICareInstructions, ILocation } from "../../interface/Types";
+import { ICareInstructions, ILocation } from "../../../interface/Types";
 
 export interface IPlant extends Document {
   userId: mongoose.Types.ObjectId;

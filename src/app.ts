@@ -8,7 +8,9 @@ import path from "path";
 import authRoutes from "./modules/auth/authRoutes";
 import roleRoutes from "./modules/roles/roleRoutes";
 import userProfileRoutes from "./modules/userProfile/userProfileRoutes";
-import plantRoutes from "./modules/plants/plantRoutes";
+import plantRoutes from "./modules/plants/homeScreen/plantRoutes";
+import plantDetectionRoutes from "./modules/plants/plantDetection/plantDetectionRoutes";
+import plantDiseaseDetectionRoutes from "./modules/plants/diseaseDetection/diseaseDetectionRoutes";
 
 const app = express();
 
@@ -31,7 +33,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/roles", roleRoutes);
 app.use("/api/v1/profiles", userProfileRoutes);
-app.use("/api/v1/plants", plantRoutes);
+app.use("/api/v1/plants/home", plantRoutes);
+app.use("/api/v1/plants/plantsDetection", plantDetectionRoutes);
+app.use("/api/v1/plants/plantDisease", plantDiseaseDetectionRoutes);
 
 //Add this middleware so you can access uploaded files in browser:
 // Now if a file is saved as:

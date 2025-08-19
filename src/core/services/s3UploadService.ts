@@ -1,6 +1,4 @@
-// src/core/services/s3UploadService.ts
 import AWS from "aws-sdk";
-import { v4 as uuidv4 } from "uuid";
 import config from "../config/env";
 
 const s3 = new AWS.S3({
@@ -42,6 +40,8 @@ const simpleUpload = async (
  * Uses a simple upload for small files and multipart upload with retry logic for larger files.
  *
  * @param base64Image - The base64 string representing the image, including MIME type prefix.
+ * @param plantName - save plant name image
+ * @param userId - save images in user folder wrt user id
  * @param folder - Optional S3 folder to store the file in. Defaults to "plants".
  * @param maxRetries - Optional number of retry attempts for multipart uploads. Defaults to 3.
  * @returns A promise that resolves to the public URL of the uploaded file.
@@ -49,6 +49,8 @@ const simpleUpload = async (
  */
 export const uploadBase64ToS3 = async (
   base64Image: string,
+  plantName: string,
+  userId: string,
   folder = "plants",
   maxRetries = 3
 ): Promise<string> => {
@@ -63,10 +65,9 @@ export const uploadBase64ToS3 = async (
       throw new Error("Invalid base64 structure");
     }
 
-    const fileExt = mimeType.split("/")[1] || "png";
     const buffer = Buffer.from(base64Data, "base64");
 
-    const fileName = `${folder}/${uuidv4()}.${fileExt}`;
+    const fileName = `${userId}/${folder}/${plantName}`;
 
     // Use simple upload for small files
     if (buffer.length < CHUNK_SIZE) {
