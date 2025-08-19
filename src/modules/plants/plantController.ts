@@ -688,15 +688,23 @@ export const identifyPlant = async (
       },
       {
         headers: {
-          "Api-Key": process.env.PLANT_ID_API_KEY || "",
+          "Api-Key": config.KASAGARDEM_PLANTAPI_KEY || "",
           "Content-Type": "application/json",
         },
       }
     );
 
     const result = apiResponse.data;
-    const suggestions = result?.result?.classification?.suggestions || [];
-    const topSuggestion = suggestions[0] || null;
+    const suggestions: PlantSuggestion[] =
+      result?.result?.classification?.suggestions || [];
+
+    const topSuggestion: PlantSuggestion | null =
+      suggestions.reduce<PlantSuggestion | null>((prev, curr) => {
+        if (!prev) return curr;
+        return Math.abs(curr.probability - 1) < Math.abs(prev.probability - 1)
+          ? curr
+          : prev;
+      }, suggestions[0] || null);
 
     const identification = {
       confidence: topSuggestion?.probability || 0,

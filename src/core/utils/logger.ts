@@ -2,23 +2,7 @@
 import { MongoClient, Db, ObjectId } from "mongodb";
 import config from "../config/env";
 import { MongoValidationError } from "../../interface/Error";
-
-interface LogOptions {
-  userId?: string | ObjectId;
-  sessionId?: string;
-  source?: string;
-}
-
-interface LogEntry {
-  level: string;
-  message: string;
-  timestamp: string;
-  meta: Record<string, unknown>;
-  createdAt: Date;
-  source: string;
-  userId?: ObjectId;
-  sessionId?: string;
-}
+import { LogEntry, LogOptions } from "../../interface/Types";
 
 /**
  * Logger class for writing logs to a MongoDB collection.

@@ -432,8 +432,10 @@ router.delete("/:id", auth, deletePlant);
  *                 type: array
  *                 items:
  *                   type: string
+ *                   format: byte   # Base64-encoded string
  *                 minItems: 1
- *                 example: ["https://example.com/plant-image.jpg"]
+ *                 example:
+ *                   - "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA..."
  *               location:
  *                 type: object
  *                 properties:
@@ -443,21 +445,6 @@ router.delete("/:id", auth, deletePlant);
  *                   longitude:
  *                     type: number
  *                     example: -74.0060
- *               hints:
- *                 type: object
- *                 properties:
- *                   size:
- *                     type: string
- *                     enum: [small, medium, large]
- *                     example: "medium"
- *                   habitat:
- *                     type: string
- *                     enum: [indoor, outdoor, wild, garden]
- *                     example: "indoor"
- *                   season:
- *                     type: string
- *                     enum: [spring, summer, fall, winter]
- *                     example: "summer"
  *     responses:
  *       200:
  *         description: Plant identification results

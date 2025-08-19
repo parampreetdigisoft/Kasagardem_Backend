@@ -1,9 +1,5 @@
 import mongoose, { Document, Schema, Model } from "mongoose";
-
-export interface IRole {
-  name: string;
-  description?: string;
-}
+import { IRole } from "../../interface/Types";
 
 export interface IRoleDocument extends IRole, Document {
   _id: mongoose.Types.ObjectId;

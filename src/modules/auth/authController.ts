@@ -11,6 +11,7 @@ import { info, error, warn } from "../../core/utils/logger";
 import { TokenPayload, LoginTicket } from "google-auth-library";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
 import { CustomError } from "../../interface/Error";
+import config from "../../core/config/env";
 
 /**
  * Registers a new user in the system.
@@ -341,7 +342,7 @@ export const googleAuth = async (
     try {
       ticket = await oauth2Client.verifyIdToken({
         idToken,
-        audience: process.env.GOOGLE_CLIENT_ID as string, // ✅ cast to string
+        audience: config.GOOGLE_CLIENT_ID as string,
       });
     } catch {
       res

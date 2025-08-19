@@ -1,49 +1,5 @@
-// models/plantModel.ts
 import mongoose, { Document, Schema } from "mongoose";
-
-// --------------------
-// Interfaces
-// --------------------
-interface IWatering {
-  frequency?: string;
-  amount?: string;
-  notes?: string;
-}
-
-interface ITemperature {
-  min?: number;
-  max?: number;
-  unit?: "celsius" | "fahrenheit";
-}
-
-interface IHumidity {
-  level?: "low" | "medium" | "high";
-  percentage?: number;
-}
-
-interface IFertilizing {
-  frequency?: string;
-  type?: string;
-  notes?: string;
-}
-
-interface ICareInstructions {
-  watering?: IWatering;
-  sunlight?: "full-sun" | "partial-sun" | "shade" | "indirect-light";
-  temperature?: ITemperature;
-  humidity?: IHumidity;
-  fertilizing?: IFertilizing;
-}
-
-interface ICoordinates {
-  latitude?: number;
-  longitude?: number;
-}
-
-interface ILocation {
-  name?: string;
-  coordinates?: ICoordinates;
-}
+import { ICareInstructions, ILocation } from "../../interface/Types";
 
 export interface IPlant extends Document {
   userId: mongoose.Types.ObjectId;
@@ -65,8 +21,8 @@ export interface IPlant extends Document {
   status?: "healthy" | "needs-attention" | "sick" | "dead";
   location?: ILocation;
   plantedDate?: Date;
-  lastWatered?: Date | null; // 👈 fix
-  nextWateringDue?: Date | null; // 👈 fix
+  lastWatered?: Date | null;
+  nextWateringDue?: Date | null;
   tags?: string[];
   isPublic?: boolean;
   notes?: string;

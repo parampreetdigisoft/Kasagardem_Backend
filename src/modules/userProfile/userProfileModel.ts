@@ -1,19 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-
-export interface IAddress {
-  street?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  zipCode?: string;
-}
-
-export interface ISocialLinks {
-  facebook?: string;
-  twitter?: string;
-  linkedin?: string;
-  instagram?: string;
-}
+import { IAddress, ISocialLinks } from "../../interface/Types";
 
 export interface IUserProfile extends Document {
   userId: mongoose.Types.ObjectId;

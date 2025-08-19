@@ -1,14 +1,6 @@
 import mongoose, { Document, Schema, Model } from "mongoose";
 import bcrypt from "bcryptjs";
-
-export interface IUser {
-  name: string;
-  email?: string;
-  password?: string;
-  roleId: mongoose.Types.ObjectId;
-  phoneNumber?: string;
-  googleId?: string;
-}
+import { IUser } from "../../interface/Types";
 
 export interface IUserDocument extends IUser, Document {
   _id: mongoose.Types.ObjectId;

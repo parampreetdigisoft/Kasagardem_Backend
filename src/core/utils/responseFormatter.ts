@@ -1,16 +1,4 @@
-// src/core/utils/responseFormatter.ts
-
-export interface ErrorResponse {
-  success: false;
-  message: string;
-  errors?: Record<string, unknown> | null;
-}
-
-export interface SuccessResponse<T> {
-  success: true;
-  message: string;
-  data: T;
-}
+import { ErrorResponse, SuccessResponse } from "../../interface/Types";
 
 /**
  * Formats a standardized success response object.
