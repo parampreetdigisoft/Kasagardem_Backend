@@ -1,8 +1,9 @@
-const config = require("./src/core/config/env");
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, ".env") });
 
 module.exports = {
   mongodb: {
-    url: config.MONGODB_URI,
+    url: process.env.MONGODB_URI,
     options: {
       useNewUrlParser: true,
       useUnifiedTopology: true,

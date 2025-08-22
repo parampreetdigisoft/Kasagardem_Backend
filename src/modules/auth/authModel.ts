@@ -1,10 +1,16 @@
 import mongoose, { Document, Schema, Model } from "mongoose";
 import bcrypt from "bcryptjs";
-import { IUser } from "../../interface/Types";
+import { IUser } from "../../interface/user";
+import { createUserDto } from "../../dto/userDto";
+import { ZodError } from "zod";
 
 export interface IUserDocument extends IUser, Document {
   _id: mongoose.Types.ObjectId;
   comparePassword(candidatePassword: string): Promise<boolean>;
+}
+
+export interface IUserModel extends Model<IUserDocument> {
+  createValidated(data: unknown): Promise<IUserDocument>;
 }
 
 const userSchema = new Schema<IUserDocument>(
@@ -19,10 +25,11 @@ const userSchema = new Schema<IUserDocument>(
     email: {
       type: String,
       /**
-       * Determines whether a field is required based on whether the user signed up with Google.
+       * Determines whether this field is required based on the user's authentication method.
+       * If the user has not signed in with Google (`googleId` is not set), this field is required.
        *
        * @this IUserDocument - The current user document context.
-       * @returns {boolean} - Returns true if `googleId` is not present, meaning the field is required.
+       * @returns {boolean} True if the field is required, false otherwise.
        */
       required: function (this: IUserDocument): boolean {
         return !this.googleId;
@@ -38,11 +45,10 @@ const userSchema = new Schema<IUserDocument>(
     password: {
       type: String,
       /**
-       * Determines whether a value is required based on the user's authentication method.
-       *
+       * Determines if this field is required based on the user's authentication method.
        * If the user has not signed in with Google (`googleId` is not set), this field is required.
        *
-       * @this IUserDocument
+       * @this IUserDocument - The current user document context.
        * @returns {boolean} True if the field is required, false otherwise.
        */
       required: function (this: IUserDocument): boolean {
@@ -65,10 +71,22 @@ const userSchema = new Schema<IUserDocument>(
       ],
     },
     googleId: { type: String, unique: true, sparse: true },
+
+    // PASSWORD RESET FIELDS:
+    passwordResetToken: {
+      type: String,
+      select: false, // Don't include in regular queries for security
+    },
+    passwordResetExpires: {
+      type: Date,
+      select: false, // Don't include in regular queries
+    },
   },
   { timestamps: true }
 );
 
+//#region Satic Methods
+// Pre-save: hash password if modified
 userSchema.pre<IUserDocument>("save", async function (next) {
   if (!this.isModified("password")) return next();
   if (this.password) {
@@ -78,10 +96,10 @@ userSchema.pre<IUserDocument>("save", async function (next) {
 });
 
 /**
- * Compares the given candidate password with the user's stored password.
+ * Compares a given plain-text password with the user's stored hashed password.
  *
- * @param {string} candidatePassword - The plain text password provided by the user.
- * @returns {Promise<boolean>} A promise that resolves to true if the password matches, false otherwise.
+ * @param candidatePassword - The plain text password to compare.
+ * @returns {Promise<boolean>} Resolves to true if the password matches, false otherwise.
  */
 userSchema.methods.comparePassword = async function (
   candidatePassword: string
@@ -89,7 +107,37 @@ userSchema.methods.comparePassword = async function (
   return bcrypt.compare(candidatePassword, this.password!);
 };
 
-const User: Model<IUserDocument> = mongoose.model<IUserDocument>(
+/**
+ * Static method to create a user after validating with Zod DTO.
+ * Validates the input data strictly and removes any extra fields before saving.
+ *
+ * @param data - The unvalidated user data to create.
+ * @returns {Promise<IUserDocument>} The created and saved user document.
+ * @throws {ZodError} If validation fails.
+ * @throws {Error} For other errors such as MongoDB duplicate key errors.
+ */
+userSchema.statics.createValidated = async function (
+  data: unknown
+): Promise<IUserDocument> {
+  try {
+    // Validate & strip extra fields
+    const parsedData = createUserDto.parse(data);
+
+    // Create user using validated data
+    const user = new this(parsedData) as IUserDocument;
+    await user.save(); // triggers pre-save hooks
+    return user;
+  } catch (err) {
+    if (err instanceof ZodError) {
+      throw err; // Let controller handle Zod validation errors
+    }
+    throw err; // Other errors (e.g., MongoDB duplicate key)
+  }
+};
+
+//#endregion
+
+const User: IUserModel = mongoose.model<IUserDocument, IUserModel>(
   "User",
   userSchema
 );

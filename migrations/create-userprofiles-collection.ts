@@ -15,6 +15,7 @@ export default {
       $jsonSchema: {
         bsonType: "object",
         required: ["userId"],
+        additionalProperties: false,
         properties: {
           userId: {
             bsonType: "objectId",
@@ -40,6 +41,7 @@ export default {
           },
           address: {
             bsonType: "object",
+            additionalProperties: false,
             properties: {
               street: { bsonType: "string" },
               city: { bsonType: "string" },
@@ -64,11 +66,12 @@ export default {
       await db.command({
         collMod: "userprofiles",
         validator: userProfileValidator,
-        validationLevel: "moderate",
+        validationLevel: "strict", // 🔒
       });
     } else {
       await db.createCollection("userprofiles", {
         validator: userProfileValidator,
+        validationLevel: "strict", // 🔒
       });
     }
 

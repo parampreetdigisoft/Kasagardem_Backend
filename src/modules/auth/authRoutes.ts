@@ -1,8 +1,22 @@
 import { Router } from "express";
-import { register, login, getProfile, googleAuth } from "./authController";
-import { registerValidation, loginValidation } from "./authValidations";
+import {
+  register,
+  login,
+  googleAuth,
+  resetPassword,
+  sendPasswordResetToken,
+  resendPasswordResetToken,
+  verifyPasswordResetToken,
+} from "./authController";
+import {
+  registerValidation,
+  loginValidation,
+  resetPasswordValidation,
+  sendPasswordResetTokenValidation,
+  resendPasswordResetTokenValidation,
+  verifyPasswordResetTokenValidation,
+} from "./authValidations";
 import validateRequest from "../../core/middleware/validateRequest";
-import auth from "../../core/middleware/authMiddleware";
 
 const router = Router();
 
@@ -39,7 +53,7 @@ const router = Router();
  *                 example: john@example.com
  *               password:
  *                 type: string
- *                 example: secret123
+ *                 example: Secret@123#
  *               roleId:
  *                 type: string
  *                 description: ID of the role assigned to the user
@@ -85,22 +99,6 @@ router.post("/register", validateRequest(registerValidation), register);
  *         description: Invalid credentials
  */
 router.post("/login", validateRequest(loginValidation), login);
-
-/**
- * @swagger
- * /api/v1/auth/profile:
- *   get:
- *     summary: Get user profile (protected)
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Profile retrieved successfully
- *       401:
- *         description: Unauthorized, token missing or invalid
- */
-router.get("/profile", auth, getProfile);
 
 /**
  * @swagger
@@ -153,5 +151,150 @@ router.get("/profile", auth, getProfile);
  *         description: Email already registered with different method
  */
 router.post("/google", googleAuth);
+
+/**
+ * @swagger
+ * /api/v1/auth/resetPassword:
+ *   patch:
+ *     summary: Reset password
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - token
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 description: Registered email of the user
+ *                 example: john@example.com
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *                 description: New password for the user
+ *                 example: newSecret123
+ *               token:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: User not found
+ */
+
+router.patch(
+  "/resetPassword",
+  validateRequest(resetPasswordValidation),
+  resetPassword
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/sendVerificationToken:
+ *   post:
+ *     summary: Send 4-digit verification token to email
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: john@example.com
+ *     responses:
+ *       200:
+ *         description: Verification token sent successfully
+ *       404:
+ *         description: User not found
+ *       400:
+ *         description: Email already verified
+ */
+router.post(
+  "/sendVerificationToken",
+  validateRequest(sendPasswordResetTokenValidation),
+  sendPasswordResetToken
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/resendVerificationToken:
+ *   post:
+ *     summary: Resend verification token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: john@example.com
+ *     responses:
+ *       200:
+ *         description: New verification token sent
+ *       404:
+ *         description: User not found
+ *       429:
+ *         description: Rate limit exceeded
+ */
+router.post(
+  "/resendVerificationToken",
+  validateRequest(resendPasswordResetTokenValidation),
+  resendPasswordResetToken
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/verifyToken:
+ *   post:
+ *     summary: Verify password reset token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - token
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: john@example.com
+ *               token:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Token verified successfully
+ *       400:
+ *         description: Invalid or expired token
+ *       404:
+ *         description: User not found
+ */
+
+router.post(
+  "/verifyToken",
+  validateRequest(verifyPasswordResetTokenValidation),
+  verifyPasswordResetToken
+);
 
 export default router;

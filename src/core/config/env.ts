@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import { Config } from "../../interface/Types";
+import { Config } from "../../interface/config";
 
 dotenv.config();
 
@@ -35,6 +35,10 @@ const config: Config = {
   AWS_SECRET_ACCESS_KEY: getEnv("AWS_SECRET_ACCESS_KEY"),
   AWS_REGION: getEnv("AWS_REGION"),
   AWS_S3_BUCKET: getEnv("AWS_S3_BUCKET"),
+  EMAIL_PASS: getEnv("EMAIL_PASS"),
+  EMAIL_USER: getEnv("EMAIL_USER"),
+  EMAIL_FROM: getEnv("EMAIL_FROM"),
+  RESEND_API_KEY: getEnv("RESEND_API_KEY"),
 };
 
 export default config;

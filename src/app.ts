@@ -8,13 +8,20 @@ import path from "path";
 import authRoutes from "./modules/auth/authRoutes";
 import roleRoutes from "./modules/roles/roleRoutes";
 import userProfileRoutes from "./modules/userProfile/userProfileRoutes";
-import plantRoutes from "./modules/plants/homeScreen/plantRoutes";
 import plantDetectionRoutes from "./modules/plants/plantDetection/plantDetectionRoutes";
 import plantDiseaseDetectionRoutes from "./modules/plants/diseaseDetection/diseaseDetectionRoutes";
+import plantCareInformationRoutes from "./modules/plants/plantCareInformation/plantCareInformationRoutes";
+import ApiService from "./core/services/apiService";
+import config from "./core/config/env";
 
 const app = express();
-
 setupSwagger(app);
+
+// Create an instance of ApiService for plant identification
+export const plantApiService = new ApiService(config.KASAGARDEM_PLANTAPI_URL, {
+  "Api-Key": config.KASAGARDEM_PLANTAPI_KEY || "",
+  "Content-Type": "application/json",
+});
 
 // Middleware
 const corsOptions = {
@@ -33,9 +40,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/roles", roleRoutes);
 app.use("/api/v1/profiles", userProfileRoutes);
-app.use("/api/v1/plants/home", plantRoutes);
 app.use("/api/v1/plants/plantsDetection", plantDetectionRoutes);
 app.use("/api/v1/plants/plantDisease", plantDiseaseDetectionRoutes);
+app.use("/api/v1/plants/plantInformation", plantCareInformationRoutes);
 
 //Add this middleware so you can access uploaded files in browser:
 // Now if a file is saved as:

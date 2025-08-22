@@ -34,12 +34,16 @@ export default {
 
     if (collections.length === 0) {
       // Collection doesn't exist, create it
-      await db.createCollection(collectionName, { validator });
+      await db.createCollection(collectionName, {
+        validator,
+        validationLevel: "strict",
+      });
     } else {
       // Collection exists, update the validator
       await db.command({
         collMod: collectionName,
         validator: validator,
+        validationLevel: "strict", // 🔒
       });
     }
 

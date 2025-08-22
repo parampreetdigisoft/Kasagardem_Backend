@@ -1,7 +1,10 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { IAddress, ISocialLinks } from "../../interface/Types";
+import { IAddress, ISocialLinks } from "../../interface/index";
+import { createUserProfileDto } from "../../dto/userProfileDto";
+import { ZodError } from "zod";
 
 export interface IUserProfile extends Document {
+  _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   profileImage?: string;
   dateOfBirth?: Date;
@@ -15,6 +18,7 @@ export interface IUserProfile extends Document {
   updatedAt?: Date;
 }
 
+// Schema definition
 const userProfileSchema = new Schema<IUserProfile>(
   {
     userId: {
@@ -69,7 +73,71 @@ const userProfileSchema = new Schema<IUserProfile>(
   }
 );
 
-const UserProfile = mongoose.model<IUserProfile>(
+// --------------------
+// Static Methods
+// --------------------
+
+/**
+ * Create a UserProfile after validating with Zod DTO.
+ * @param data - Unvalidated profile data
+ * @returns Created UserProfile document
+ * @throws ZodError if validation fails
+ */
+userProfileSchema.statics.createValidated = async function (
+  data: unknown
+): Promise<IUserProfile> {
+  try {
+    const parsedData = createUserProfileDto.parse(data);
+
+    const profile = new this(parsedData) as IUserProfile;
+    await profile.save();
+    return profile;
+  } catch (err) {
+    if (err instanceof ZodError) {
+      throw err;
+    }
+    throw err;
+  }
+};
+
+/**
+ * Update a UserProfile with strict validation.
+ * @param profileId - The profile's _id
+ * @param data - Unvalidated update data
+ * @returns Updated UserProfile document or null if not found
+ * @throws ZodError if validation fails
+ */
+userProfileSchema.statics.updateValidated = async function (
+  profileId: string,
+  data: unknown
+): Promise<IUserProfile | null> {
+  try {
+    const parsedData = createUserProfileDto.parse(data);
+
+    const updatedProfile = await this.findByIdAndUpdate(profileId, parsedData, {
+      new: true,
+      runValidators: true,
+    });
+
+    return updatedProfile;
+  } catch (err) {
+    if (err instanceof ZodError) {
+      throw err;
+    }
+    throw err;
+  }
+};
+
+// Model type with static methods
+interface IUserProfileModel extends mongoose.Model<IUserProfile> {
+  createValidated(data: unknown): Promise<IUserProfile>;
+  updateValidated(
+    profileId: string,
+    data: unknown
+  ): Promise<IUserProfile | null>;
+}
+
+const UserProfile = mongoose.model<IUserProfile, IUserProfileModel>(
   "UserProfile",
   userProfileSchema
 );

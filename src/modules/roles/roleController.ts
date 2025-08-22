@@ -9,6 +9,7 @@ import { error, info, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
 import User from "../auth/authModel";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
+import { ZodError } from "zod";
 
 /**
  * Creates a new role in the system.
@@ -28,7 +29,6 @@ export const createRole = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract user info from JWT populated by auth middleware
   const userPayload = req.user as { userEmail?: string } | undefined;
   if (!userPayload?.userEmail) {
     res
@@ -37,8 +37,7 @@ export const createRole = async (
     return;
   }
 
-  // Fetch user by email
-  const user = await User.findOne({ email: userPayload?.userEmail });
+  const user = await User.findOne({ email: userPayload.userEmail });
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
@@ -50,9 +49,10 @@ export const createRole = async (
     await info(
       "Role creation attempt started",
       { roleName: name, hasDescription: !!description },
-      { userId: user._id, source: "role.createRole" } // use fetched user's _id
+      { userId: user._id, source: "role.createRole" }
     );
 
+    // Check if role already exists
     const existing = await Role.findOne({ name });
     if (existing) {
       await warn(
@@ -65,7 +65,8 @@ export const createRole = async (
       return;
     }
 
-    const newRole: IRoleDocument = await Role.create({ name, description });
+    // ✅ Use createValidated to enforce DTO rules
+    const newRole = await Role.createValidated({ name, description });
 
     await info(
       "Role creation successful",
@@ -81,24 +82,42 @@ export const createRole = async (
       .status(HTTP_STATUS.CREATED)
       .json(successResponse(null, MESSAGES.ROLE_CREATED));
   } catch (err: unknown) {
+    // Handle Zod validation errors
+    if (err instanceof ZodError) {
+      const formattedErrors = err.issues.map((e) => ({
+        field: e.path.join("."),
+        message: e.message,
+      }));
+      await warn(
+        "Role creation failed - validation errors",
+        { errors: formattedErrors },
+        { userId: user._id, source: "role.createRole" }
+      );
+      res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: "Validation failed",
+        errors: formattedErrors,
+      });
+      return;
+    }
+
     const errorObj: CustomError =
       err instanceof Error
         ? (err as CustomError)
-        : ({
+        : {
             name: "UnknownError",
             message:
               typeof err === "string" ? err : "An unknown error occurred",
-          } as CustomError);
+          };
 
     await error(
       "Role creation failed with unexpected error",
-      { error: errorObj.message, stack: errorObj.stack },
+      { error: errorObj.message, stack: errorObj.stack, userId: user._id },
       { userId: user._id, source: "role.createRole" }
     );
     next(errorObj);
   }
 };
-
 /**
  * Retrieves all roles.
  * @param req - Express request object containing role data (`name`, `description`) in the body
@@ -179,7 +198,6 @@ export const updateRole = async (
   const roleId = req.params.id;
   const updateData = req.body;
 
-  // Extract user info from JWT populated by auth middleware
   const userPayload = req.user as { userEmail?: string } | undefined;
   if (!userPayload?.userEmail) {
     res
@@ -188,8 +206,7 @@ export const updateRole = async (
     return;
   }
 
-  // Fetch user by email
-  const user = await User.findOne({ email: userPayload?.userEmail });
+  const user = await User.findOne({ email: userPayload.userEmail });
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
@@ -198,18 +215,12 @@ export const updateRole = async (
   try {
     await info(
       "Role update attempt started",
-      {
-        roleId,
-        updateFields: Object.keys(updateData),
-        updateData,
-      },
+      { roleId, updateFields: Object.keys(updateData), updateData },
       { userId: user._id, source: "role.updateRole" }
     );
 
-    const updatedRole = await Role.findByIdAndUpdate(roleId, updateData, {
-      new: true,
-      runValidators: true,
-    });
+    // ✅ Use updateValidated for strict DTO validation
+    const updatedRole = await Role.updateValidated(roleId, updateData);
 
     if (!updatedRole) {
       await warn(
@@ -241,19 +252,42 @@ export const updateRole = async (
       .status(HTTP_STATUS.OK)
       .json(successResponse(null, MESSAGES.ROLE_UPDATED));
   } catch (err: unknown) {
-    // Type guard to safely convert unknown to CustomError
+    if (err instanceof ZodError) {
+      const formattedErrors = err.issues.map((e) => ({
+        field: e.path.join("."),
+        message: e.message,
+      }));
+      await warn(
+        "Role update failed - validation errors",
+        { errors: formattedErrors, roleId },
+        { userId: user._id, source: "role.updateRole" }
+      );
+      res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: "Validation failed",
+        errors: formattedErrors,
+      });
+      return;
+    }
+
     const errorObj: CustomError =
       err instanceof Error
         ? (err as CustomError)
-        : ({
+        : {
             name: "UnknownError",
             message:
               typeof err === "string" ? err : "An unknown error occurred",
-          } as CustomError);
+          };
 
     await error(
       "Role update failed with unexpected error",
-      { roleId, updateData, error: errorObj.message, stack: errorObj.stack },
+      {
+        roleId,
+        updateData,
+        error: errorObj.message,
+        stack: errorObj.stack,
+        userId: user._id,
+      },
       { userId: user._id, source: "role.updateRole" }
     );
     next(errorObj);

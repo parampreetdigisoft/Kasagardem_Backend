@@ -14,6 +14,7 @@ export default {
         bsonType: "object",
         // password is no longer required because of googleId presence
         required: ["name", "email", "roleId"], // password NOT required here
+        additionalProperties: false, // ❌ Reject extra fields
         properties: {
           name: {
             bsonType: "string",
@@ -46,6 +47,15 @@ export default {
             bsonType: "string",
             description: "Google ID string if user registered via Google",
           },
+          // PASSWORD RESET FIELDS:
+          passwordResetToken: {
+            bsonType: "string",
+            description: "Hashed token used for password reset",
+          },
+          passwordResetExpires: {
+            bsonType: "date",
+            description: "Expiration date of password reset token",
+          },
           createdAt: { bsonType: "date", description: "must be a date" },
           updatedAt: { bsonType: "date", description: "must be a date" },
         },
@@ -59,12 +69,13 @@ export default {
       await db.command({
         collMod: "users",
         validator: userValidator,
-        validationLevel: "moderate",
+        validationLevel: "strict", // 🔒 reject invalid docs immediately
       });
     } else {
       // Collection does not exist: create collection with validator
       await db.createCollection("users", {
         validator: userValidator,
+        validationLevel: "strict", // 🔒
       });
     }
 
@@ -80,6 +91,40 @@ export default {
         { googleId: 1 },
         { unique: true, sparse: true, background: true }
       );
+
+    // Index for password reset token lookups
+    await db.collection("users").createIndex(
+      { passwordResetToken: 1 },
+      {
+        sparse: true, // Only index documents that have this field
+        background: true,
+        name: "passwordResetToken_1",
+      }
+    );
+
+    // Compound index for password reset token + expiry (optimizes reset queries)
+    await db.collection("users").createIndex(
+      {
+        passwordResetToken: 1,
+        passwordResetExpires: 1,
+      },
+      {
+        sparse: true, // Only index documents that have these fields
+        background: true,
+        name: "passwordReset_compound_1",
+      }
+    );
+
+    // TTL index to automatically cleanup expired password reset tokens
+    await db.collection("users").createIndex(
+      { passwordResetExpires: 1 },
+      {
+        expireAfterSeconds: 0, // Delete immediately when date is reached
+        sparse: true, // Only apply to documents with this field
+        background: true,
+        name: "passwordResetExpires_ttl_1",
+      }
+    );
   },
 
   /**

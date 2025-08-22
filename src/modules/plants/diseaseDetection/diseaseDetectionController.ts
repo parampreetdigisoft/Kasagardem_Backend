@@ -6,13 +6,16 @@ import {
 } from "../../../core/utils/responseFormatter";
 import { HTTP_STATUS, MESSAGES } from "../../../core/utils/constants";
 import { info, error } from "../../../core/utils/logger";
-import config from "../../../core/config/env";
-import axios from "axios";
-import { CustomError } from "../../../interface/Error";
-import { DiseaseSuggestion, SimilarImage } from "../../../interface/Types";
+import { CustomError } from "../../../interface/error";
+import {
+  DiseaseSuggestion,
+  PlantHealthAssesmentResponse,
+  SimilarImage,
+} from "../../../interface";
 import { AuthRequest } from "../../../core/middleware/authMiddleware";
 import { savePlantHistory } from "../homeScreen/plantController";
 import { saveBase64ToLocal } from "../../../core/services/localUploadService";
+import { plantApiService } from "../../../app";
 
 /**
  * Detects plant diseases based on uploaded images and optional location data.
@@ -29,32 +32,40 @@ export const detectPlantDisease = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract user info from JWT populated by auth middleware
-  const userPayload = req.user as { userEmail?: string } | undefined;
-  if (!userPayload?.userEmail) {
+  //#region Authentication & Validation
+  const userEmail = (req.user as { userEmail?: string } | undefined)?.userEmail; // Extract email from JWT
+  if (!userEmail) {
+    // Check authentication
     res
       .status(HTTP_STATUS.UNAUTHORIZED)
       .json(errorResponse("Unauthorized request"));
     return;
   }
 
-  try {
-    const email = userPayload?.userEmail;
-    const { images, location } = req.body as {
-      images: string[];
-      location?: { latitude?: number; longitude?: number };
-    };
+  const { images, location } = req.body as {
+    // Destructure request body
+    images: string[];
+    location?: { latitude?: number; longitude?: number };
+  };
+  //#endregion
 
+  try {
+    //#region Logging & User Verification
     await info("Plant disease detection attempt", {
-      email,
+      // Log detection attempt
+      email: userEmail,
       action: "detectPlantDisease",
       imageCount: images?.length || 0,
     });
 
-    const user = (await User.findOne({ email })) as IUserDocument | null;
+    const user = (await User.findOne({
+      email: userEmail,
+    })) as IUserDocument | null; // Find user in DB
     if (!user) {
+      // Validate user exists
       await error("Plant disease detection failed - User not found", {
-        email,
+        // Log error
+        email: userEmail,
         action: "detectPlantDisease",
       });
       res
@@ -62,63 +73,71 @@ export const detectPlantDisease = async (
         .json(errorResponse(MESSAGES.PROFILE_USER_NOTFOUND));
       return;
     }
+    //#endregion
 
-    // Call health assessment API instead of identification API
-    const apiResponse = await axios.post(
-      `${config.KASAGARDEM_PLANTAPI_URL}/health_assessment`,
-      {
-        images,
-        latitude: location?.latitude,
-        longitude: location?.longitude,
-        similar_images: true,
-      },
-      {
-        headers: {
-          "Api-Key": config.KASAGARDEM_PLANTAPI_KEY || "",
-          "Content-Type": "application/json",
-        },
-      }
+    //#region External API Call using ApiService
+    const apiResponse = await plantApiService.withRetry(
+      () =>
+        plantApiService.post<PlantHealthAssesmentResponse>(
+          "health_assessment",
+          {
+            images, // Base64 encoded images
+            latitude: location?.latitude, // GPS coordinates
+            longitude: location?.longitude,
+            similar_images: true, // Request similar disease images
+          }
+        ),
+      3, // Max retries for better reliability
+      1000 // Initial delay in ms
     );
 
-    const result = apiResponse.data;
-    const isHealthy = result?.result?.is_healthy?.binary || false;
-    const healthProbability = result?.result?.is_healthy?.probability || 0;
+    const result = apiResponse.data as PlantHealthAssesmentResponse; // Extract data from ApiService response with proper typing
+    //#endregion
+
+    //#region Disease Analysis
+    const isHealthy = result?.result?.is_healthy?.binary || false; // Plant health status
     const diseaseSuggestions: DiseaseSuggestion[] =
-      result?.result?.disease?.suggestions || [];
+      result?.result?.disease?.suggestions || []; // Disease predictions
 
-    const topDisease: DiseaseSuggestion | null =
-      diseaseSuggestions.reduce<DiseaseSuggestion | null>((prev, curr) => {
-        if (!prev) return curr;
-        return curr.probability > prev.probability ? curr : prev;
-      }, diseaseSuggestions[0] || null);
+    const topDisease = diseaseSuggestions.reduce<DiseaseSuggestion | null>(
+      (
+        prev,
+        curr // Find highest confidence disease
+      ) => (!prev || curr.probability > prev.probability ? curr : prev),
+      null
+    );
+    //#endregion
 
-    // Handle images - Save disease detection images to local storage
-    const savedImageUrls: string[] = [];
-    if (images && Array.isArray(images) && images.length > 0) {
+    //#region Image Storage
+    const savedImageUrls: string[] = []; // Store local image paths
+    if (images?.length) {
+      // Process uploaded images
       const imagePromises = images.map(async (img: string, index: number) => {
-        // Use top disease name or a generic name for disease detection images
         const imageName =
-          topDisease?.name || `disease_detection_${Date.now()}_${index}`;
-        const localPath = await saveBase64ToLocal(
+          topDisease?.name || `disease_detection_${Date.now()}_${index}`; // Generate filename
+        return saveBase64ToLocal(
           img,
           imageName,
           user._id.toString(),
-          "disease_detections" // Different folder for disease detection images
-        );
-        return localPath;
+          "disease_detections"
+        ); // Save to local storage
       });
-      savedImageUrls.push(...(await Promise.all(imagePromises)));
+      savedImageUrls.push(...(await Promise.all(imagePromises))); // Wait for all saves
     }
+    //#endregion
 
+    //#region Response Preparation
     const diseaseDetection = {
-      isHealthy,
-      healthProbability,
-      confidence: topDisease?.probability || 0,
+      isHealthy, // Boolean health status
+      healthProbability: result?.result?.is_healthy?.probability || 0, // Health confidence
+      confidence: topDisease?.probability || 0, // Top disease confidence
       diseases: diseaseSuggestions.map((disease: DiseaseSuggestion) => ({
+        // Map disease suggestions
         id: disease.id,
         name: disease.name,
         confidence: disease.probability,
         similarImages: disease.similar_images?.map((img: SimilarImage) => ({
+          // Map similar images
           url: img.url,
           urlSmall: img.url_small,
           similarity: img.similarity,
@@ -127,22 +146,26 @@ export const detectPlantDisease = async (
         })),
         details: disease.details,
       })),
-      question: result?.result?.disease?.question || null,
-      isPlant: result?.result?.is_plant?.probability || null,
-      status: result?.status,
-      savedImages: savedImageUrls, // Include saved image URLs in response
+      question: result?.result?.disease?.question || null, // Follow-up question
+      isPlant: result?.result?.is_plant?.probability || null, // Plant detection confidence
+      status: result?.status, // API response status
+      savedImages: savedImageUrls, // Local image URLs
     };
+    //#endregion
 
+    //#region History & Logging
     await savePlantHistory(user._id.toString(), null, "disease_detected", {
+      // Save to user history
       imageCount: images.length,
       isHealthy,
       topDisease: topDisease?.name,
       confidence: topDisease?.probability,
-      savedImages: savedImageUrls, // Include saved images in history
+      savedImages: savedImageUrls,
     });
 
     await info("Plant disease detection completed", {
-      email,
+      // Log success
+      email: userEmail,
       userId: user._id,
       action: "detectPlantDisease",
       isHealthy,
@@ -151,11 +174,12 @@ export const detectPlantDisease = async (
       savedImagesCount: savedImageUrls.length,
     });
 
-    res.status(HTTP_STATUS.OK).json(successResponse(diseaseDetection));
+    res.status(HTTP_STATUS.OK).json(successResponse(diseaseDetection)); // Send success response
+    //#endregion
   } catch (err: unknown) {
-    // Type guard to safely convert unknown to CustomError
+    //#region Error Handling
     const errorObj: CustomError =
-      err instanceof Error
+      err instanceof Error // Type-safe error conversion
         ? (err as CustomError)
         : ({
             name: "UnknownError",
@@ -164,11 +188,14 @@ export const detectPlantDisease = async (
           } as CustomError);
 
     await error("Plant disease detection error", {
-      email: userPayload?.userEmail,
+      // Log error details
+      email: userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "detectPlantDisease",
     });
-    next(errorObj);
+
+    next(errorObj); // Pass to error middleware
+    //#endregion
   }
 };

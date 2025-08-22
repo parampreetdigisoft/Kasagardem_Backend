@@ -63,3 +63,75 @@ export const googleAuthValidation = Joi.object({
     .optional(),
   roleId: Joi.string().length(24).hex().required(),
 });
+
+// Send Password Reset Token Validation
+export const sendPasswordResetTokenValidation = Joi.object({
+  email: Joi.string()
+    .email({ tlds: { allow: false } })
+    .required()
+    .messages({
+      "string.email": "Please provide a valid email address",
+      "string.empty": "Email is required",
+      "any.required": "Email is required",
+    }),
+});
+
+// Reset Password Validation (final step)
+export const resetPasswordValidation = Joi.object({
+  email: Joi.string()
+    .email({ tlds: { allow: false } })
+    .required()
+    .messages({
+      "string.email": "Please provide a valid email address",
+      "string.empty": "Email is required",
+      "any.required": "Email is required",
+    }),
+  password: Joi.string()
+    .min(6)
+    .required()
+    .custom(passwordComplexity, "Password complexity validation"),
+  token: Joi.string()
+    .length(6)
+    .pattern(/^\d{6}$/)
+    .required()
+    .messages({
+      "string.length": "Password reset token must be exactly 6 digits",
+      "string.pattern.base": "Password reset token must contain only numbers",
+      "string.empty": "Password reset token is required",
+      "any.required": "Password reset token is required",
+    }),
+});
+
+// Resend Password Reset Token Validation (same as send)
+export const resendPasswordResetTokenValidation = Joi.object({
+  email: Joi.string()
+    .email({ tlds: { allow: false } })
+    .required()
+    .messages({
+      "string.email": "Please provide a valid email address",
+      "string.empty": "Email is required",
+      "any.required": "Email is required",
+    }),
+});
+
+// Verify Password Reset Token Validation
+export const verifyPasswordResetTokenValidation = Joi.object({
+  email: Joi.string()
+    .email({ tlds: { allow: false } })
+    .required()
+    .messages({
+      "string.email": "Please provide a valid email address",
+      "string.empty": "Email is required",
+      "any.required": "Email is required",
+    }),
+  token: Joi.string()
+    .length(6)
+    .pattern(/^\d{6}$/)
+    .required()
+    .messages({
+      "string.length": "Password reset token must be exactly 6 digits",
+      "string.pattern.base": "Password reset token must contain only numbers",
+      "string.empty": "Password reset token is required",
+      "any.required": "Password reset token is required",
+    }),
+});

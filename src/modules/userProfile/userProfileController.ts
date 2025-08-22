@@ -215,27 +215,29 @@ export const updateUserProfile = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract user info from JWT populated by auth middleware
   const userPayload = req.user as { userEmail?: string } | undefined;
+
   if (!userPayload?.userEmail) {
     res
       .status(HTTP_STATUS.UNAUTHORIZED)
       .json(errorResponse("Unauthorized request"));
     return;
   }
+
   try {
     await info("User profile update attempt", {
-      email: userPayload?.userEmail,
+      email: userPayload.userEmail,
       action: "updateUserProfile",
       updateFields: Object.keys(req.body),
     });
 
+    // 1️⃣ Find user
     const user: IUserDocument | null = await User.findOne({
-      email: userPayload?.userEmail,
+      email: userPayload.userEmail,
     });
     if (!user) {
       await error("Profile update failed - User not found", {
-        email: userPayload?.userEmail,
+        email: userPayload.userEmail,
         action: "updateUserProfile",
       });
       res
@@ -244,26 +246,46 @@ export const updateUserProfile = async (
       return;
     }
 
-    const updatedProfile = await UserProfile.findOneAndUpdate(
-      { userId: user._id },
-      req.body,
-      { new: true, runValidators: true }
-    ).populate("userId", "name email");
-
-    if (!updatedProfile) {
+    // 2️⃣ Find profile for that user
+    const profile = await UserProfile.findOne({ userId: user._id });
+    if (!profile) {
       await warn("Profile update failed - Profile not found", {
-        email: userPayload?.userEmail,
+        email: userPayload.userEmail,
         userId: user._id,
         action: "updateUserProfile",
       });
       res
         .status(HTTP_STATUS.NOT_FOUND)
-        .json(errorResponse(MESSAGES.PROFILE_USER_NOTFOUND));
+        .json(errorResponse("User profile not found"));
+      return;
+    }
+
+    // 2️⃣ Validate + Update profile using static method
+    const updatedProfile = await UserProfile.updateValidated(
+      profile._id.toString(),
+      {
+        ...req.body,
+        userId: user._id.toString(),
+        dateOfBirth: req.body.dateOfBirth
+          ? new Date(req.body.dateOfBirth)
+          : undefined,
+      }
+    );
+
+    if (!updatedProfile) {
+      await warn("Profile update failed - Profile not found", {
+        email: userPayload.userEmail,
+        userId: user._id,
+        action: "updateUserProfile",
+      });
+      res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .json(errorResponse("User profile not found"));
       return;
     }
 
     await info("User profile updated successfully", {
-      email: userPayload?.userEmail,
+      email: userPayload.userEmail,
       userId: user._id,
       action: "updateUserProfile",
       updatedFields: Object.keys(req.body),
@@ -271,24 +293,23 @@ export const updateUserProfile = async (
 
     res
       .status(HTTP_STATUS.OK)
-      .json(successResponse(null, MESSAGES.PROFILE_UPDATED));
+      .json(successResponse(updatedProfile, MESSAGES.PROFILE_UPDATED));
   } catch (err: unknown) {
-    // Type guard to safely convert unknown to CustomError
+    // ← Use 'unknown' as required by TypeScript
+    // Type guard to safely work with the error
     const errorObj: CustomError =
       err instanceof Error
         ? (err as CustomError)
         : ({
             name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
+            message: "An unknown error occurred",
           } as CustomError);
 
-    await error("Profile update error", {
+    await error("Profile updation error", {
       email: userPayload?.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "updateUserProfile",
-      updateFields: Object.keys(req.body || {}),
     });
     next(errorObj);
   }

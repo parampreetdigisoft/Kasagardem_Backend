@@ -1,4 +1,3 @@
-// services/apiService.ts
 import axios, {
   AxiosInstance,
   AxiosRequestConfig,
@@ -8,7 +7,7 @@ import axios, {
 import FormData from "form-data";
 import { info, warn, error } from "../utils/logger";
 import type { AxiosProgressEvent } from "axios";
-import { ApiError } from "../../interface/Error";
+import { ApiError } from "../../interface/error";
 
 interface ApiResponse<T = unknown> {
   data: T;
@@ -47,8 +46,15 @@ class ApiService {
     defaultHeaders: Record<string, string> = {},
     defaultTimeout: number = 30000
   ) {
+    // FIXED: Ensure proper URL joining by normalizing baseURL
+    const normalizedBaseURL = baseURL
+      ? baseURL.endsWith("/")
+        ? baseURL.slice(0, -1)
+        : baseURL
+      : "";
+
     this.axiosInstance = axios.create({
-      baseURL,
+      baseURL: normalizedBaseURL,
       timeout: defaultTimeout,
       headers: {
         "Content-Type": "application/json",
@@ -63,6 +69,7 @@ class ApiService {
           method: config.method?.toUpperCase(),
           url: config.url,
           baseURL: config.baseURL,
+          fullURL: `${config.baseURL}${config.url}`, // Add full URL logging
           headers: this.sanitizeHeaders(config.headers || {}),
           params: config.params,
           data: config.data ? "Present" : "None",
@@ -85,6 +92,7 @@ class ApiService {
         info("API Response Success", {
           method: response.config.method?.toUpperCase(),
           url: response.config.url,
+          fullURL: `${response.config.baseURL}${response.config.url}`, // Add full URL logging
           status: response.status,
           statusText: response.statusText,
           responseTime: response.headers["x-response-time"],
@@ -96,6 +104,7 @@ class ApiService {
         const errorInfo: Record<string, unknown> = {
           method: errorObj.config?.method?.toUpperCase(),
           url: errorObj.config?.url,
+          fullURL: `${errorObj.config?.baseURL}${errorObj.config?.url}`, // Add full URL logging
           message: errorObj.message,
           status: errorObj.response?.status,
           statusText: errorObj.response?.statusText,
@@ -171,7 +180,9 @@ class ApiService {
     config: AxiosRequestConfig & { query?: Record<string, unknown> } = {}
   ): Promise<ApiResponse<T>> {
     try {
-      const response = await this.axiosInstance.get<T>(url, {
+      // FIXED: Ensure proper URL formatting
+      const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+      const response = await this.axiosInstance.get<T>(normalizedUrl, {
         ...config,
         params: config.params ?? config.query, // safe fallback
       });
@@ -194,7 +205,13 @@ class ApiService {
     config: AxiosRequestConfig = {}
   ): Promise<ApiResponse<T>> {
     try {
-      const response = await this.axiosInstance.post<T>(url, data, config);
+      // FIXED: Ensure proper URL formatting
+      const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+      const response = await this.axiosInstance.post<T>(
+        normalizedUrl,
+        data,
+        config
+      );
       return this.formatResponse(response);
     } catch (error) {
       throw this.handleError(error, "POST", url);
@@ -216,7 +233,13 @@ class ApiService {
     config: AxiosRequestConfig = {}
   ): Promise<ApiResponse<T>> {
     try {
-      const response = await this.axiosInstance.put<T>(url, data, config);
+      // FIXED: Ensure proper URL formatting
+      const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+      const response = await this.axiosInstance.put<T>(
+        normalizedUrl,
+        data,
+        config
+      );
       return this.formatResponse(response);
     } catch (error) {
       throw this.handleError(error, "PUT", url);
@@ -239,7 +262,13 @@ class ApiService {
     config: AxiosRequestConfig = {}
   ): Promise<ApiResponse<T>> {
     try {
-      const response = await this.axiosInstance.patch<T>(url, data, config);
+      // FIXED: Ensure proper URL formatting
+      const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+      const response = await this.axiosInstance.patch<T>(
+        normalizedUrl,
+        data,
+        config
+      );
       return this.formatResponse(response);
     } catch (error) {
       throw this.handleError(error, "PATCH", url);
@@ -257,7 +286,12 @@ class ApiService {
     config: AxiosRequestConfig = {}
   ): Promise<ApiResponse<T>> {
     try {
-      const response = await this.axiosInstance.delete<T>(url, config);
+      // FIXED: Ensure proper URL formatting
+      const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+      const response = await this.axiosInstance.delete<T>(
+        normalizedUrl,
+        config
+      );
       return this.formatResponse(response);
     } catch (error) {
       throw this.handleError(error, "DELETE", url);
@@ -291,30 +325,36 @@ class ApiService {
         }
       });
 
-      const response = await this.axiosInstance.post<T>(url, formData, {
-        ...config,
-        headers: {
-          "Content-Type": "multipart/form-data",
-          ...config.headers,
-        },
-        onUploadProgress:
-          config.onUploadProgress ||
-          ((progressEvent: AxiosProgressEvent): void => {
-            if (progressEvent.total) {
-              const percentCompleted = Math.round(
-                (progressEvent.loaded! * 100) / progressEvent.total!
-              );
+      // FIXED: Ensure proper URL formatting
+      const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+      const response = await this.axiosInstance.post<T>(
+        normalizedUrl,
+        formData,
+        {
+          ...config,
+          headers: {
+            "Content-Type": "multipart/form-data",
+            ...config.headers,
+          },
+          onUploadProgress:
+            config.onUploadProgress ||
+            ((progressEvent: AxiosProgressEvent): void => {
+              if (progressEvent.total) {
+                const percentCompleted = Math.round(
+                  (progressEvent.loaded! * 100) / progressEvent.total!
+                );
 
-              // info returns Promise<void>, we use void to ignore it in the callback
-              void info("Upload Progress", {
-                url,
-                progress: `${percentCompleted}%`,
-                loaded: progressEvent.loaded,
-                total: progressEvent.total,
-              });
-            }
-          }),
-      });
+                // info returns Promise<void>, we use void to ignore it in the callback
+                void info("Upload Progress", {
+                  url,
+                  progress: `${percentCompleted}%`,
+                  loaded: progressEvent.loaded,
+                  total: progressEvent.total,
+                });
+              }
+            }),
+        }
+      );
 
       return this.formatResponse(response);
     } catch (error) {
@@ -335,7 +375,9 @@ class ApiService {
     config: AxiosRequestConfig = {}
   ): Promise<ApiResponse<T>> {
     try {
-      const response = await this.axiosInstance.get<T>(url, {
+      // FIXED: Ensure proper URL formatting
+      const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+      const response = await this.axiosInstance.get<T>(normalizedUrl, {
         ...config,
         responseType: "stream",
         onDownloadProgress:
@@ -509,7 +551,12 @@ class ApiService {
    * @param baseURL The new base URL to set for API requests.
    */
   setBaseURL(baseURL: string): void {
-    this.axiosInstance.defaults.baseURL = baseURL;
+    const normalizedBaseURL = baseURL
+      ? baseURL.endsWith("/")
+        ? baseURL.slice(0, -1)
+        : baseURL
+      : "";
+    this.axiosInstance.defaults.baseURL = normalizedBaseURL;
   }
 
   /**
@@ -630,32 +677,6 @@ class ApiService {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Performs a health check against the specified endpoint to verify service availability.
-   *
-   * @param url - The endpoint to check. Defaults to "/health".
-   * @returns A promise that resolves to `true` if the service is healthy (status 2xx),
-   *          otherwise `false`.
-   */
-  async healthCheck(url = "/health"): Promise<boolean> {
-    try {
-      const response = await this.get(url, { timeout: 5000 });
-      return response.status >= 200 && response.status < 300;
-    } catch (error: unknown) {
-      const errObj: Error =
-        error instanceof Error
-          ? error
-          : new Error(typeof error === "string" ? error : "Unknown error");
-
-      void warn("Health check failed", {
-        url,
-        error: errObj.message,
-      });
-
-      return false;
-    }
   }
 }
 

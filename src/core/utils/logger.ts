@@ -2,7 +2,7 @@
 import { MongoClient, Db, ObjectId } from "mongodb";
 import config from "../config/env";
 import { MongoValidationError } from "../../interface/Error";
-import { LogEntry, LogOptions } from "../../interface/Types";
+import { LogEntry, LogOptions } from "../../interface/logs";
 
 /**
  * Logger class for writing logs to a MongoDB collection.

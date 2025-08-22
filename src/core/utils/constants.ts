@@ -9,6 +9,7 @@ export const HTTP_STATUS = {
   NOT_FOUND: 404,
   CONFLICT: 409,
   INTERNAL_SERVER_ERROR: 500,
+  TOO_MANY_REQUESTS: 429,
 } as const;
 
 export const MESSAGES = {
@@ -48,6 +49,18 @@ export const MESSAGES = {
   TIPS_RETRIEVED: "Personalized tips retrieved successfully",
   IDENTIFICATION_COMPLETED: "Plant identification completed",
   //#endregion
+
+  CONVERSATION_COMPLETED: "Plant conversation completed successfully",
+  CONVERSATION_FAILED: "Plant conversation failed",
+  NO_ANSWER_RECEIVED:
+    "No answer received from the plant identification service",
+
+  PASSWORD_RESET_SENT: "Password reset email sent successfully",
+  PASSWORD_RESET_SUCCESS: "Password has been reset successfully",
+  VERIFICATION_TOKEN_SENT: "Verification token sent to your email",
+  EMAIL_VERIFICATION_SUCCESS: "Email verified successfully",
+  PASSWORD_RESET_TOKEN_SENT: "Password reset token email sent successfully",
+  PASSWORD_RESET_TOKEN_VERIFIED: "Password reset token verified successfully",
 } as const;
 
 // 🔹 Types for stronger typing in services/controllers

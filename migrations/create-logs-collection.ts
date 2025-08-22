@@ -2,7 +2,7 @@ import { Db } from "mongodb";
 
 export default {
   /**
-   * Migration to create or update the "logs" collection with schema validation.
+   * Migration to create or update the "logs" collection with strict schema validation.
    * @param db - The MongoDB database instance.
    */
   async up(db: Db): Promise<void> {
@@ -12,42 +12,43 @@ export default {
       $jsonSchema: {
         bsonType: "object",
         required: ["level", "message", "timestamp", "createdAt"],
+        additionalProperties: false, // 🚫 no extra fields allowed at root
         properties: {
           level: {
             bsonType: "string",
             enum: ["info", "error", "warn", "debug"],
-            description:
-              "must be one of: info, error, warn, debug and is required",
+            description: "must be one of: info, error, warn, debug",
           },
           message: {
             bsonType: "string",
             minLength: 1,
             maxLength: 5000,
-            description:
-              "must be a string between 1-5000 characters and is required",
+            description: "log message, 1–5000 characters",
           },
           timestamp: {
-            bsonType: "string",
-            description: "must be an ISO string timestamp and is required",
+            bsonType: "date", // ✅ use `date` instead of string for consistency
+            description: "when the log event occurred",
           },
           meta: {
-            bsonType: "object",
+            bsonType: ["object", "null"], // keep flexible for structured metadata
             description: "optional metadata object",
           },
           createdAt: {
             bsonType: "date",
-            description: "must be a date and is required",
+            description: "when the log document was created",
           },
           source: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
+            maxLength: 200,
             description: "optional source/module that generated the log",
           },
           userId: {
-            bsonType: "objectId",
-            description: "optional ObjectId referencing users collection",
+            bsonType: ["objectId", "null"],
+            description: "optional reference to users collection",
           },
           sessionId: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
+            maxLength: 200,
             description: "optional session identifier",
           },
         },
@@ -58,15 +59,16 @@ export default {
       await db.command({
         collMod: "logs",
         validator: logValidator,
-        validationLevel: "moderate",
+        validationLevel: "strict", // 🔒 reject invalid docs
       });
     } else {
       await db.createCollection("logs", {
         validator: logValidator,
+        validationLevel: "strict",
       });
     }
 
-    // Only create indexes if they don't exist
+    // Indexes
     const logsCollection = db.collection("logs");
     const existingIndexes = await logsCollection.listIndexes().toArray();
     const indexNames = existingIndexes.map((idx) => idx.name);

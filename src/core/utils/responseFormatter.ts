@@ -1,4 +1,5 @@
-import { ErrorResponse, SuccessResponse } from "../../interface/Types";
+import { ErrorResponse } from "../../interface/Error";
+import { SuccessResponse } from "../../interface/success";
 
 /**
  * Formats a standardized success response object.

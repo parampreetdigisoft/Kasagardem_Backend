@@ -9,9 +9,11 @@ import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { generateToken, oauth2Client } from "../../core/utils/usableMethods";
 import { info, error, warn } from "../../core/utils/logger";
 import { TokenPayload, LoginTicket } from "google-auth-library";
-import { AuthRequest } from "../../core/middleware/authMiddleware";
 import { CustomError } from "../../interface/Error";
 import config from "../../core/config/env";
+import { ZodError, ZodIssue } from "zod";
+import { sendPasswordResetEmail } from "../../core/services/emailService";
+import crypto from "crypto";
 
 /**
  * Registers a new user in the system.
@@ -63,8 +65,8 @@ export const register = async (
       return;
     }
 
-    // Create new user
-    const newUser: IUserDocument = await User.create({
+    // Create new user using validated DTO method
+    const newUser: IUserDocument = await User.createValidated({
       name,
       email,
       password,
@@ -82,7 +84,28 @@ export const register = async (
       .status(HTTP_STATUS.CREATED)
       .json(successResponse(null, MESSAGES.USER_CREATED));
   } catch (err: unknown) {
-    // Convert unknown error to a typed CustomError
+    // Handle validation errors from Zod
+    if (err instanceof ZodError) {
+      const formattedErrors = err.issues.map((e: ZodIssue) => ({
+        field: e.path.join("."),
+        message: e.message,
+      }));
+
+      await warn(
+        "Registration failed - validation errors",
+        { errors: formattedErrors },
+        { source: "auth.register" }
+      );
+
+      res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: "Validation failed",
+        errors: formattedErrors,
+      });
+      return;
+    }
+
+    // Handle MongoDB duplicate key error
     const errorObj: CustomError & { keyPattern?: Record<string, unknown> } =
       err instanceof Error
         ? { ...err }
@@ -92,7 +115,6 @@ export const register = async (
               typeof err === "string" ? err : "An unknown error occurred",
           };
 
-    // Handle MongoDB duplicate key error
     if (errorObj.code === 11000 && errorObj.keyPattern?.email) {
       await warn(
         "Registration failed - duplicate email constraint",
@@ -209,81 +231,6 @@ export const login = async (
       "Login failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack },
       { source: "auth.login" }
-    );
-
-    next(errorObj);
-  }
-};
-
-/**
- * Retrieves the profile of the authenticated user.
- *
- * This endpoint requires authentication. The user's email is extracted
- * from the JWT token populated by the auth middleware.
- *
- * @param {AuthRequest} req - Express request object with authenticated user info in `req.user`.
- * @param {Response} res - Express response object used to send the response.
- * @param {NextFunction} next - Express next middleware function for error handling.
- * @returns {Promise<void>} Returns a promise that resolves when the profile retrieval completes.
- */
-export const getProfile = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    await info("Get profile request started", { source: "auth.getProfile" });
-
-    // Extract user info from JWT populated by auth middleware
-    const userPayload = req.user as { userEmail?: string } | undefined; // JwtPayload or your custom type
-
-    if (!userPayload?.userEmail) {
-      await warn("Get profile failed - missing user info in token", {
-        source: "auth.getProfile",
-      });
-      res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse(MESSAGES.UNAUTHORIZED));
-      return;
-    }
-
-    // Fetch user from DB
-    const user: IUserDocument | null = await User.findOne({
-      email: userPayload.userEmail,
-    });
-
-    if (!user) {
-      await warn(
-        "Get profile failed - user not found",
-        { requestedEmail: userPayload.userEmail },
-        { source: "auth.getProfile" }
-      );
-      res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("User not found"));
-      return;
-    }
-
-    await info(
-      "Get profile successful",
-      { userId: user._id, email: user.email },
-      { source: "auth.getProfile" }
-    );
-
-    res
-      .status(HTTP_STATUS.OK)
-      .json(successResponse(user, MESSAGES.PROFILE_SUCCESS));
-  } catch (err: unknown) {
-    const errorObj: CustomError =
-      err instanceof Error
-        ? { ...err }
-        : { name: "UnknownError", message: "An unknown error occurred" };
-
-    await error(
-      "Get profile failed with unexpected error",
-      {
-        error: errorObj.message,
-        stack: errorObj.stack,
-      },
-      { source: "auth.getProfile" }
     );
 
     next(errorObj);
@@ -422,6 +369,380 @@ export const googleAuth = async (
       "Google auth failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack },
       { source: "auth.googleAuth" }
+    );
+
+    next(errorObj);
+  }
+};
+
+/**
+ * Sends a password reset token to user's email.
+ *
+ * @param {Request} req - Express request object containing user email.
+ * @param {Response} res - Express response object used to send the response.
+ * @param {NextFunction} next - Express next middleware function for error handling.
+ * @returns {Promise<void>} Returns a promise that resolves when reset email is sent.
+ */
+export const sendPasswordResetToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    await info(
+      "Password reset token request started",
+      { email },
+      { source: "auth.sendPasswordResetToken" }
+    );
+
+    const user = (await User.findOne({ email })) as IUserDocument | null;
+
+    if (!user) {
+      await warn(
+        "Password reset token request failed - user not found",
+        { email },
+        { source: "auth.sendPasswordResetToken" }
+      );
+      res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .json(errorResponse("User not found with this email address"));
+      return;
+    }
+
+    // Generate 6-digit reset token
+    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Hash the token before storing (for security)
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    // Set token expiry (5 minutes)
+    const resetTokenExpiry = new Date(Date.now() + 5 * 60 * 1000);
+
+    // Save reset token to user
+    user.passwordResetToken = hashedToken;
+    user.passwordResetExpires = resetTokenExpiry;
+    await user.save({ validateBeforeSave: false });
+
+    // Send email with 6-digit token
+    try {
+      await sendPasswordResetEmail(user.email!, resetToken, user.name);
+
+      await info(
+        "Password reset token sent successfully",
+        { email, userId: user._id },
+        { userId: user._id.toString(), source: "auth.sendPasswordResetToken" }
+      );
+
+      res.status(HTTP_STATUS.OK).json(
+        successResponse(
+          {
+            message: "Password reset token sent to your email",
+            expiresIn: "15 minutes",
+          },
+          MESSAGES.PASSWORD_RESET_TOKEN_SENT
+        )
+      );
+    } catch (emailError) {
+      // Reset the token fields if email fails
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+
+      await error(
+        "Failed to send password reset token email",
+        { email, userId: user._id, error: emailError },
+        { userId: user._id.toString(), source: "auth.sendPasswordResetToken" }
+      );
+
+      res
+        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        .json(errorResponse("Failed to send password reset email"));
+      return;
+    }
+  } catch (err: unknown) {
+    const errorObj: CustomError =
+      err instanceof Error
+        ? { ...err }
+        : {
+            name: "UnknownError",
+            message:
+              typeof err === "string" ? err : "An unknown error occurred",
+          };
+
+    await error(
+      "Send password reset token failed with unexpected error",
+      { error: errorObj.message, stack: errorObj.stack },
+      { source: "auth.sendPasswordResetToken" }
+    );
+
+    next(errorObj);
+  }
+};
+/**
+ * Resends password reset token if the previous one expired or user needs a new one.
+ *
+ * @param {Request} req - Express request object containing user email.
+ * @param {Response} res - Express response object used to send the response.
+ * @param {NextFunction} next - Express next middleware function for error handling.
+ * @returns {Promise<void>} Returns a promise that resolves when reset email is resent.
+ */
+export const resendPasswordResetToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    await info(
+      "Resend password reset token request started",
+      { email },
+      { source: "auth.resendPasswordResetToken" }
+    );
+
+    const user = (await User.findOne({ email })) as IUserDocument | null;
+
+    if (!user) {
+      await warn(
+        "Resend password reset failed - user not found",
+        { email },
+        { source: "auth.resendPasswordResetToken" }
+      );
+      res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .json(errorResponse("User not found with this email address"));
+      return;
+    }
+
+    // Check rate limiting: prevent spam (optional - only if existing token is still valid)
+    if (user.passwordResetExpires && user.passwordResetExpires > new Date()) {
+      const timeLeft = Math.ceil(
+        (user.passwordResetExpires.getTime() - Date.now()) / (60 * 1000)
+      );
+      res
+        .status(HTTP_STATUS.TOO_MANY_REQUESTS)
+        .json(
+          errorResponse(
+            `Please wait ${timeLeft} minutes before requesting a new token`
+          )
+        );
+      return;
+    }
+
+    // Generate new 6-digit reset token
+    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Hash the token before storing
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    const resetTokenExpiry = new Date(Date.now() + 5 * 60 * 1000);
+
+    user.passwordResetToken = hashedToken;
+    user.passwordResetExpires = resetTokenExpiry;
+    await user.save({ validateBeforeSave: false });
+
+    await sendPasswordResetEmail(user.email!, resetToken, user.name);
+
+    await info(
+      "Password reset token resent successfully",
+      { email, userId: user._id },
+      { userId: user._id.toString(), source: "auth.resendPasswordResetToken" }
+    );
+
+    res.status(HTTP_STATUS.OK).json(
+      successResponse(
+        {
+          message: "New password reset token sent to your email",
+          expiresIn: "15 minutes",
+        },
+        MESSAGES.PASSWORD_RESET_TOKEN_SENT
+      )
+    );
+  } catch (err: unknown) {
+    const errorObj: CustomError =
+      err instanceof Error
+        ? { ...err }
+        : {
+            name: "UnknownError",
+            message:
+              typeof err === "string" ? err : "An unknown error occurred",
+          };
+
+    await error(
+      "Resend password reset token failed with unexpected error",
+      { error: errorObj.message, stack: errorObj.stack },
+      { source: "auth.resendPasswordResetToken" }
+    );
+
+    next(errorObj);
+  }
+};
+
+/**
+ * Verifies the password reset token sent to user's email.
+ *
+ * @param {Request} req - Express request object containing email and reset token.
+ * @param {Response} res - Express response object used to send the response.
+ * @param {NextFunction} next - Express next middleware function for error handling.
+ * @returns {Promise<void>} Returns a promise that resolves when token verification is complete.
+ */
+export const verifyPasswordResetToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email, token } = req.body;
+
+    await info(
+      "Password reset token verification attempt started",
+      { email, token },
+      { source: "auth.verifyPasswordResetToken" }
+    );
+
+    // Hash the provided token to compare with stored hash
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = (await User.findOne({
+      email,
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: Date.now() },
+    })) as IUserDocument | null;
+
+    if (!user) {
+      await warn(
+        "Password reset token verification failed - invalid or expired token",
+        { email, token },
+        { source: "auth.verifyPasswordResetToken" }
+      );
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("Invalid or expired password reset token"));
+      return;
+    }
+
+    await info(
+      "Password reset token verification successful",
+      { email, userId: user._id },
+      { userId: user._id.toString(), source: "auth.verifyPasswordResetToken" }
+    );
+
+    res.status(HTTP_STATUS.OK).json(
+      successResponse(
+        {
+          message: "Password reset token verified successfully",
+          email: user.email,
+          userId: user._id,
+        },
+        MESSAGES.PASSWORD_RESET_TOKEN_VERIFIED
+      )
+    );
+  } catch (err: unknown) {
+    const errorObj: CustomError =
+      err instanceof Error
+        ? { ...err }
+        : {
+            name: "UnknownError",
+            message:
+              typeof err === "string" ? err : "An unknown error occurred",
+          };
+
+    await error(
+      "Password reset token verification failed with unexpected error",
+      { error: errorObj.message, stack: errorObj.stack },
+      { source: "auth.verifyPasswordResetToken" }
+    );
+
+    next(errorObj);
+  }
+};
+
+/**
+ * Resets user password after token verification.
+ *
+ * @param {Request} req - Express request object containing email, token, and new password.
+ * @param {Response} res - Express response object used to send the response.
+ * @param {NextFunction} next - Express next middleware function for error handling.
+ * @returns {Promise<void>} Returns a promise that resolves when password reset is complete.
+ */
+export const resetPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email, password, token } = req.body;
+
+    await info(
+      "Password reset attempt started",
+      { email },
+      { source: "auth.resetPassword" }
+    );
+
+    // Hash the provided token to compare with stored hash
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = (await User.findOne({
+      email,
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: Date.now() },
+    })) as IUserDocument | null;
+
+    if (!user) {
+      await warn(
+        "Password reset failed - invalid or expired token",
+        { email },
+        { source: "auth.resetPassword" }
+      );
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("Invalid or expired password reset token"));
+      return;
+    }
+
+    // Update password and clear reset token fields
+    user.password = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save(); // This will trigger password hashing in pre-save hook
+
+    await info(
+      "Password reset successful",
+      { email, userId: user._id },
+      { userId: user._id.toString(), source: "auth.resetPassword" }
+    );
+
+    res.status(HTTP_STATUS.OK).json(
+      successResponse(
+        {
+          message: "Password has been reset successfully",
+          email: user.email,
+        },
+        MESSAGES.PASSWORD_RESET_SUCCESS
+      )
+    );
+  } catch (err: unknown) {
+    const errorObj: CustomError =
+      err instanceof Error
+        ? { ...err }
+        : {
+            name: "UnknownError",
+            message:
+              typeof err === "string" ? err : "An unknown error occurred",
+          };
+
+    await error(
+      "Password reset failed with unexpected error",
+      { error: errorObj.message, stack: errorObj.stack },
+      { source: "auth.resetPassword" }
     );
 
     next(errorObj);

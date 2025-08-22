@@ -28,3 +28,9 @@ export interface ApiError extends Error {
   method: string;
   url: string;
 }
+
+export interface ErrorResponse {
+  success: false;
+  message: string;
+  errors?: Record<string, unknown> | null;
+}

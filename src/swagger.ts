@@ -14,7 +14,7 @@ const options = {
     servers: [
       {
         url: config.APPDEV_URL,
-        description: "Local server",
+        description: "Server",
       },
     ],
     components: {
@@ -37,9 +37,9 @@ const options = {
     "./src/modules/auth/*.ts",
     "./src/modules/roles/*.ts",
     "./src/modules/userProfile/*.ts",
-    "./src/modules/plants/homeScreen/*.ts",
     "./src/modules/plants/plantDetection/*.ts",
     "./src/modules/plants/diseaseDetection/*.ts",
+    "./src/modules/plants/plantCareInformation/*.ts",
   ],
 };
 
