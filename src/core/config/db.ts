@@ -9,7 +9,7 @@ import config from "./env";
  */
 const connectDB = async (): Promise<void> => {
   if (!config.MONGODB_URI) {
-    throw new Error("❌ MONGODB_URI is not defined in environment variables");
+    throw new Error("MONGODB_URI is not defined in environment variables");
   }
   try {
     await mongoose.connect(config.MONGODB_URI, {
@@ -20,7 +20,7 @@ const connectDB = async (): Promise<void> => {
     });
     console.error("✅ MongoDB connected successfully");
   } catch (error) {
-    console.error("❌ MongoDB connection failed", error);
+    console.error("MongoDB connection failed", error);
     process.exit(1);
   }
 };

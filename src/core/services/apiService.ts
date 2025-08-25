@@ -7,7 +7,7 @@ import axios, {
 import FormData from "form-data";
 import { info, warn, error } from "../utils/logger";
 import type { AxiosProgressEvent } from "axios";
-import { ApiError } from "../../interface/error";
+import { ApiError } from "../../interface/Error";
 
 interface ApiResponse<T = unknown> {
   data: T;

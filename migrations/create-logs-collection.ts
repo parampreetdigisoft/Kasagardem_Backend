@@ -26,7 +26,7 @@ export default {
             description: "log message, 1–5000 characters",
           },
           timestamp: {
-            bsonType: "date", // ✅ use `date` instead of string for consistency
+            bsonType: "date", // use `date` instead of string for consistency
             description: "when the log event occurred",
           },
           meta: {
@@ -59,7 +59,7 @@ export default {
       await db.command({
         collMod: "logs",
         validator: logValidator,
-        validationLevel: "strict", // 🔒 reject invalid docs
+        validationLevel: "strict", // reject invalid docs
       });
     } else {
       await db.createCollection("logs", {

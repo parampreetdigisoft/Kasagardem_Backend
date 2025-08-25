@@ -14,7 +14,7 @@ export default {
         bsonType: "object",
         // password is no longer required because of googleId presence
         required: ["name", "email", "roleId"], // password NOT required here
-        additionalProperties: false, // ❌ Reject extra fields
+        additionalProperties: false, // Reject extra fields
         properties: {
           name: {
             bsonType: "string",
@@ -69,13 +69,13 @@ export default {
       await db.command({
         collMod: "users",
         validator: userValidator,
-        validationLevel: "strict", // 🔒 reject invalid docs immediately
+        validationLevel: "strict", // reject invalid docs immediately
       });
     } else {
       // Collection does not exist: create collection with validator
       await db.createCollection("users", {
         validator: userValidator,
-        validationLevel: "strict", // 🔒
+        validationLevel: "strict", 
       });
     }
 

@@ -23,7 +23,7 @@ const router = Router();
 
 /**
  * @swagger
- * /api/v1/profiles:
+ * /api/v1/userProfile:
  *   post:
  *     summary: Create user profile
  *     tags: [UserProfile]
@@ -93,7 +93,7 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/profiles:
+ * /api/v1/userProfile:
  *   get:
  *     summary: Get current user's profile
  *     tags: [UserProfile]
@@ -111,7 +111,7 @@ router.get("/", auth, getCurrentUserProfile);
 
 /**
  * @swagger
- * /api/v1/profiles:
+ * /api/v1/userProfile:
  *   put:
  *     summary: Update current user's profile
  *     tags: [UserProfile]
@@ -182,7 +182,7 @@ router.put(
 
 /**
  * @swagger
- * /api/v1/profiles:
+ * /api/v1/userProfile:
  *   delete:
  *     summary: Delete current user's profile
  *     tags: [UserProfile]

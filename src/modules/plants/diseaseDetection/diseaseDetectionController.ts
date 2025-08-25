@@ -7,15 +7,12 @@ import {
 import { HTTP_STATUS, MESSAGES } from "../../../core/utils/constants";
 import { info, error } from "../../../core/utils/logger";
 import { CustomError } from "../../../interface/error";
-import {
-  DiseaseSuggestion,
-  PlantHealthAssesmentResponse,
-  SimilarImage,
-} from "../../../interface";
+import { SimilarImage } from "../../../interface";
 import { AuthRequest } from "../../../core/middleware/authMiddleware";
 import { savePlantHistory } from "../homeScreen/plantController";
 import { saveBase64ToLocal } from "../../../core/services/localUploadService";
 import { plantApiService } from "../../../app";
+import { DiseaseSuggestion, PlantHealthAssesmentResponse } from "../../../interface/plantDisease";
 
 /**
  * Detects plant diseases based on uploaded images and optional location data.

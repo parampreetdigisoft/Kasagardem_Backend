@@ -6,7 +6,7 @@ import {
 } from "../../core/utils/responseFormatter";
 import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { error, info, warn } from "../../core/utils/logger";
-import { CustomError } from "../../interface/Error";
+import { CustomError } from "../../interface/error";
 import User from "../auth/authModel";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
 import { ZodError } from "zod";

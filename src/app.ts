@@ -36,12 +36,17 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// USer Authentication Routes
 app.use("/api/v1/auth", authRoutes);
+// User Role Routes
 app.use("/api/v1/roles", roleRoutes);
-app.use("/api/v1/profiles", userProfileRoutes);
+// User Profile Routes
+app.use("/api/v1/userProfile", userProfileRoutes);
+// Plant Detection Routes
 app.use("/api/v1/plants/plantsDetection", plantDetectionRoutes);
+// Plant Disease Detection Routes
 app.use("/api/v1/plants/plantDisease", plantDiseaseDetectionRoutes);
+// Plant Care Information Routes
 app.use("/api/v1/plants/plantInformation", plantCareInformationRoutes);
 
 //Add this middleware so you can access uploaded files in browser:

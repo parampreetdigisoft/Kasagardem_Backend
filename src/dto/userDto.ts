@@ -35,7 +35,7 @@ export const createUserDto = z
     createdAt: z.date().optional(),
     updatedAt: z.date().optional(),
   })
-  .strict() // ❌ Reject extra fields
+  .strict() // Reject extra fields
   .refine(
     (data) => data.password || data.googleId,
     "Either password or googleId must be provided"

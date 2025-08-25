@@ -6,7 +6,6 @@ import {
 } from "../../../core/utils/responseFormatter";
 import { error, info } from "../../../core/utils/logger";
 import User, { IUserDocument } from "../../auth/authModel";
-import { ConversationRequest, ConversationResponse } from "../../../interface";
 import { savePlantHistory } from "../homeScreen/plantController";
 import { CustomError } from "../../../interface/error";
 import { AuthRequest } from "../../../core/middleware/authMiddleware";

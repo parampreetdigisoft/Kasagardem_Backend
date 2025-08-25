@@ -63,7 +63,7 @@ export const MESSAGES = {
   PASSWORD_RESET_TOKEN_VERIFIED: "Password reset token verified successfully",
 } as const;
 
-// 🔹 Types for stronger typing in services/controllers
+// Types for stronger typing in services/controllers
 export type HttpStatusCode = (typeof HTTP_STATUS)[keyof typeof HTTP_STATUS];
 export type MessageKey = keyof typeof MESSAGES;
 export type MessageValue = (typeof MESSAGES)[MessageKey];

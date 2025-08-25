@@ -1,10 +1,5 @@
 import express, { Router } from "express";
-import {
-  createRole,
-  getRoles,
-  updateRole,
-  deleteRole,
-} from "./roleController";
+import { createRole, getRoles, updateRole, deleteRole } from "./roleController";
 import auth from "../../core/middleware/authMiddleware";
 import validateRequest from "../../core/middleware/validateRequest";
 import { roleValidation } from "./roleValidations";

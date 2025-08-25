@@ -11,8 +11,7 @@ import { CustomError } from "../../../interface/error";
 import {
   PlantCreateIdentificationResponse,
   PlantSuggestion,
-  SimilarImage,
-} from "../../../interface";
+} from "../../../interface/plantDetection";
 import { AuthRequest } from "../../../core/middleware/authMiddleware";
 import { savePlantHistory } from "../homeScreen/plantController";
 import { saveBase64ToLocal } from "../../../core/services/localUploadService";
@@ -20,6 +19,7 @@ import { plantApiService } from "../../../app";
 import Plant, { IPlantDocument } from "../plantModel";
 import mongoose from "mongoose";
 import { IPreparedResponse } from "../../../interface/plantDetection";
+import { SimilarImage } from "../../../interface/index";
 
 /**
  * Validate and get user

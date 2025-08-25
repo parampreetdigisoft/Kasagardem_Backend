@@ -1,4 +1,4 @@
-import { ErrorResponse } from "../../interface/Error";
+import { ErrorResponse } from "../../interface/error";
 import { SuccessResponse } from "../../interface/success";
 
 /**

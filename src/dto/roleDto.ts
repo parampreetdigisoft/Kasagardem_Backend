@@ -9,7 +9,7 @@ export const createRoleDto = z
       .max(30, "Name cannot exceed 30 characters"),
     description: z.string().optional(),
   })
-  .strict(); // 🔒 disallow unknown fields
+  .strict(); // disallow unknown fields
 
 // Optional: TypeScript type
 export type CreateRoleDto = z.infer<typeof createRoleDto>;

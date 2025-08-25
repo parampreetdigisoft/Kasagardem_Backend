@@ -66,12 +66,12 @@ export default {
       await db.command({
         collMod: "userprofiles",
         validator: userProfileValidator,
-        validationLevel: "strict", // 🔒
+        validationLevel: "strict", 
       });
     } else {
       await db.createCollection("userprofiles", {
         validator: userProfileValidator,
-        validationLevel: "strict", // 🔒
+        validationLevel: "strict", 
       });
     }
 

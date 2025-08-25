@@ -38,7 +38,6 @@ const config: Config = {
   EMAIL_PASS: getEnv("EMAIL_PASS"),
   EMAIL_USER: getEnv("EMAIL_USER"),
   EMAIL_FROM: getEnv("EMAIL_FROM"),
-  RESEND_API_KEY: getEnv("RESEND_API_KEY"),
 };
 
 export default config;

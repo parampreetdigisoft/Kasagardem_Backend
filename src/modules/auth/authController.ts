@@ -9,7 +9,7 @@ import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { generateToken, oauth2Client } from "../../core/utils/usableMethods";
 import { info, error, warn } from "../../core/utils/logger";
 import { TokenPayload, LoginTicket } from "google-auth-library";
-import { CustomError } from "../../interface/Error";
+import { CustomError } from "../../interface/error";
 import config from "../../core/config/env";
 import { ZodError, ZodIssue } from "zod";
 import { sendPasswordResetEmail } from "../../core/services/emailService";
@@ -442,7 +442,7 @@ export const sendPasswordResetToken = async (
         successResponse(
           {
             message: "Password reset token sent to your email",
-            expiresIn: "15 minutes",
+            expiresIn: "5 minutes",
           },
           MESSAGES.PASSWORD_RESET_TOKEN_SENT
         )

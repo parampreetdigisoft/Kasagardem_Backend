@@ -14,7 +14,7 @@ export default {
     const plantValidator = {
       $jsonSchema: {
         bsonType: "object",
-        required: ["userId", "name"], // ✅ Fixed: scientificName is not actually required in model
+        required: ["userId", "name"], // Fixed: scientificName is not actually required in model
         additionalProperties: false,
         properties: {
           userId: {
@@ -224,7 +224,7 @@ export default {
           isPublic: { bsonType: ["bool", "null"] },
           notes: { bsonType: ["string", "null"], maxLength: 500 },
 
-          /** --- ✅ MISSING: Timestamp fields --- **/
+          /** --- MISSING: Timestamp fields --- **/
           createdAt: { bsonType: ["date", "null"] },
           updatedAt: { bsonType: ["date", "null"] },
         },
@@ -258,12 +258,12 @@ export default {
       .collection("plants")
       .createIndex({ "location.coordinates": "2dsphere" });
 
-    // ✅ FIXED: Remove unique constraint on scientificName since model uses sparse
+    // FIXED: Remove unique constraint on scientificName since model uses sparse
     await db
       .collection("plants")
       .createIndex({ scientificName: 1 }, { sparse: true });
 
-    // ✅ MISSING: Additional indexes from Mongoose model
+    // MISSING: Additional indexes from Mongoose model
     await db.collection("plants").createIndex({ entityId: 1 });
     await db.collection("plants").createIndex({ probability: -1 });
 
