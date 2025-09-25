@@ -1,283 +1,194 @@
 import { Db } from "mongodb";
 
 export default {
-  /**
-   * Migration step: creates the `plants` collection with validation rules
-   * if it does not already exist.
-   *
-   * @param db - The MongoDB database instance
-   * @returns A promise that resolves when the migration is applied
-   */
   async up(db: Db): Promise<void> {
-    const collections = await db.listCollections({ name: "plants" }).toArray();
+    const collectionName = "plants";
+    const collections = await db
+      .listCollections({ name: collectionName })
+      .toArray();
 
-    const plantValidator = {
+    const validator = {
       $jsonSchema: {
         bsonType: "object",
-        required: ["userId", "name"], // Fixed: scientificName is not actually required in model
+        required: ["scientific_name", "common_name"],
         additionalProperties: false,
         properties: {
-          userId: {
+          _id: {
             bsonType: "objectId",
-            description: "must be an ObjectId referencing users collection",
+            description: "auto-generated unique identifier",
           },
-          name: { bsonType: "string", minLength: 1, maxLength: 100 },
-          scientificName: { bsonType: ["string", "null"], maxLength: 150 },
-          commonNames: {
-            bsonType: ["array", "null"],
-            items: { bsonType: "string" },
+          scientific_name: {
+            bsonType: "string",
+            description: "Scientific/botanical name of the plant",
           },
-          category: {
-            bsonType: ["string", "null"],
-            enum: [
-              "indoor",
-              "outdoor",
-              "herb",
-              "flower",
-              "tree",
-              "succulent",
-              "vegetable",
-              "fruit",
-            ],
+          common_name: {
+            bsonType: "string",
+            description: "Common name of the plant",
           },
-          images: {
-            bsonType: ["array", "null"],
-            items: { bsonType: "string" },
+          image_search_url: {
+            bsonType: "string",
+            description: "URL for plant image or search query",
           },
-          description: { bsonType: ["string", "null"], maxLength: 1000 },
-
-          /** --- API identification fields --- **/
-          probability: {
-            bsonType: ["number", "null"],
-            minimum: 0,
-            maximum: 1,
+          space_types: {
+            bsonType: "array",
+            description:
+              "Types of spaces where plant can grow (indoor, outdoor, balcony, etc.)",
+            items: {
+              bsonType: "string",
+            },
           },
-          similarImages: {
-            bsonType: ["array", "null"],
+          area_sizes: {
+            bsonType: "array",
+            description: "Suitable area sizes (small, medium, large, etc.)",
+            items: {
+              bsonType: "string",
+            },
+          },
+          challenges: {
+            bsonType: "array",
+            description: "Growing challenges or difficulties",
+            items: {
+              bsonType: "string",
+            },
+          },
+          tech_preferences: {
+            bsonType: "array",
+            description:
+              "Technology preferences for growing (hydroponics, smart sensors, etc.)",
+            items: {
+              bsonType: "string",
+            },
+          },
+          locations: {
+            bsonType: "array",
+            description:
+              "Geographic locations or climate zones where plant thrives",
             items: {
               bsonType: "object",
-              additionalProperties: false,
+              required: ["type", "value"],
               properties: {
-                id: { bsonType: ["string", "null"] },
-                url: { bsonType: ["string", "null"] },
-                url_small: { bsonType: ["string", "null"] },
-                similarity: {
-                  bsonType: ["number", "null"],
-                  minimum: 0,
-                  maximum: 1,
+                type: {
+                  bsonType: "string",
+                  description:
+                    "Location type: climate_zone, country, region, etc.",
                 },
-                license_name: { bsonType: ["string", "null"] },
-                license_url: { bsonType: ["string", "null"] },
-                citation: { bsonType: ["string", "null"] },
+                value: {
+                  bsonType: "string",
+                  description: "Location value",
+                },
               },
+              additionalProperties: false,
             },
           },
-          entityId: { bsonType: ["string", "null"] },
-          language: { bsonType: ["string", "null"] },
-          isPlant: {
-            bsonType: ["object", "null"],
-            additionalProperties: false,
-            properties: {
-              probability: {
-                bsonType: ["number", "null"],
-                minimum: 0,
-                maximum: 1,
-              },
-              binary: { bsonType: ["bool", "null"] },
-              threshold: {
-                bsonType: ["number", "null"],
-                minimum: 0,
-                maximum: 1,
-              },
-            },
+          description: {
+            bsonType: "string",
+            description: "Detailed description of the plant",
           },
-          identificationMeta: {
-            bsonType: ["object", "null"],
-            additionalProperties: false,
-            properties: {
-              accessToken: { bsonType: ["string", "null"] },
-              modelVersion: { bsonType: ["string", "null"] },
-              customId: { bsonType: ["string", "null"] },
-              created: { bsonType: ["date", "null"] },
-              completed: { bsonType: ["date", "null"] },
-              status: { bsonType: ["string", "null"] },
-            },
-          },
-
-          /** --- ✅ MISSING: Plant suggestions field --- **/
-          suggestions: {
-            bsonType: ["array", "null"],
+          care_notes: {
+            bsonType: "array",
+            description: "Care instructions and notes",
             items: {
-              bsonType: "object",
-              additionalProperties: false,
-              properties: {
-                scientificName: { bsonType: "string" },
-                probability: {
-                  bsonType: "number",
-                  minimum: 0,
-                  maximum: 1,
-                },
-                similarImages: {
-                  bsonType: ["array", "null"],
-                  items: {
-                    bsonType: "object",
-                    additionalProperties: false,
-                    properties: {
-                      id: { bsonType: ["string", "null"] },
-                      url: { bsonType: ["string", "null"] },
-                      url_small: { bsonType: ["string", "null"] },
-                      similarity: {
-                        bsonType: ["number", "null"],
-                        minimum: 0,
-                        maximum: 1,
-                      },
-                      license_name: { bsonType: ["string", "null"] },
-                      license_url: { bsonType: ["string", "null"] },
-                      citation: { bsonType: ["string", "null"] },
-                    },
-                  },
-                },
-              },
+              bsonType: "string",
             },
           },
-
-          /** --- Care fields --- **/
-          careInstructions: {
-            bsonType: ["object", "null"],
-            additionalProperties: false,
-            properties: {
-              watering: {
-                bsonType: ["object", "null"],
-                additionalProperties: false,
-                properties: {
-                  frequency: { bsonType: ["string", "null"] },
-                  amount: { bsonType: ["string", "null"] },
-                  notes: { bsonType: ["string", "null"] },
-                },
-              },
-              sunlight: {
-                bsonType: ["string", "null"],
-                enum: ["full-sun", "partial-sun", "shade", "indirect-light"],
-              },
-              temperature: {
-                bsonType: ["object", "null"],
-                additionalProperties: false,
-                properties: {
-                  min: { bsonType: ["number", "null"] },
-                  max: { bsonType: ["number", "null"] },
-                  unit: {
-                    bsonType: ["string", "null"],
-                    enum: ["celsius", "fahrenheit"],
-                  },
-                },
-              },
-              humidity: {
-                bsonType: ["object", "null"],
-                additionalProperties: false,
-                properties: {
-                  level: {
-                    bsonType: ["string", "null"],
-                    enum: ["low", "medium", "high"],
-                  },
-                  percentage: {
-                    bsonType: ["number", "null"],
-                    minimum: 0,
-                    maximum: 100,
-                  },
-                },
-              },
-              fertilizing: {
-                bsonType: ["object", "null"],
-                additionalProperties: false,
-                properties: {
-                  frequency: { bsonType: ["string", "null"] },
-                  type: { bsonType: ["string", "null"] },
-                  notes: { bsonType: ["string", "null"] },
-                },
-              },
-            },
+          native: {
+            bsonType: "bool",
+            description: "Whether the plant is native (yes/no)",
           },
-
-          status: {
-            bsonType: ["string", "null"],
-            enum: ["healthy", "needs-attention", "sick", "dead"],
+          light: {
+            bsonType: "string",
+            description: "Light requirements as single string",
           },
-          location: {
-            bsonType: ["object", "null"],
-            additionalProperties: false,
-            properties: {
-              name: { bsonType: ["string", "null"] },
-              coordinates: {
-                bsonType: ["object", "null"],
-                additionalProperties: false,
-                properties: {
-                  latitude: { bsonType: ["number", "null"] },
-                  longitude: { bsonType: ["number", "null"] },
-                },
-              },
-            },
+          water_needs: {
+            bsonType: "string",
+            description: "Water requirements as single string",
           },
-          plantedDate: { bsonType: ["date", "null"] },
-          lastWatered: { bsonType: ["date", "null"] },
-          nextWateringDue: { bsonType: ["date", "null"] },
-          tags: { bsonType: ["array", "null"], items: { bsonType: "string" } },
-          isPublic: { bsonType: ["bool", "null"] },
-          notes: { bsonType: ["string", "null"], maxLength: 500 },
-
-          /** --- MISSING: Timestamp fields --- **/
-          createdAt: { bsonType: ["date", "null"] },
-          updatedAt: { bsonType: ["date", "null"] },
+          maintenance_level: {
+            bsonType: "string",
+            description:
+              "Overall maintenance difficulty level as single string",
+          },
+          growth_form: {
+            bsonType: "string",
+            description: "Plant growth form as single string",
+          },
+          isDeleted: {
+            bsonType: "bool",
+            description: "Soft delete flag",
+          },
+          createdAt: {
+            bsonType: "date",
+            description: "Record creation timestamp",
+          },
+          updatedAt: {
+            bsonType: "date",
+            description: "Record last update timestamp",
+          },
+          __v: {
+            bsonType: "int",
+            description: "Internal mongoose version key",
+          },
         },
       },
     };
 
-    if (collections.length > 0) {
-      await db.command({
-        collMod: "plants",
-        validator: plantValidator,
+    if (collections.length === 0) {
+      await db.createCollection(collectionName, {
+        validator,
         validationLevel: "strict",
       });
     } else {
-      await db.createCollection("plants", {
-        validator: plantValidator,
+      // Update existing collection validator
+      await db.command({
+        collMod: collectionName,
+        validator,
         validationLevel: "strict",
       });
+
+      // Ensure all existing documents have isDeleted field
+      await db
+        .collection(collectionName)
+        .updateMany(
+          { isDeleted: { $exists: false } },
+          { $set: { isDeleted: false } }
+        );
     }
 
-    // Indexes
-    await db.collection("plants").createIndex({ userId: 1 });
-    await db.collection("plants").createIndex({
-      name: "text",
-      scientificName: "text",
-      description: "text",
-    });
-    await db.collection("plants").createIndex({ category: 1 });
-    await db.collection("plants").createIndex({ status: 1 });
-    await db.collection("plants").createIndex({ nextWateringDue: 1 });
-    await db
-      .collection("plants")
-      .createIndex({ "location.coordinates": "2dsphere" });
-
-    // FIXED: Remove unique constraint on scientificName since model uses sparse
-    await db
-      .collection("plants")
-      .createIndex({ scientificName: 1 }, { sparse: true });
-
-    // MISSING: Additional indexes from Mongoose model
-    await db.collection("plants").createIndex({ entityId: 1 });
-    await db.collection("plants").createIndex({ probability: -1 });
-
-    // Compound indexes
-    await db.collection("plants").createIndex({ userId: 1, scientificName: 1 });
-    await db.collection("plants").createIndex({ userId: 1, status: 1 });
+    // Create useful indexes
+    await db.collection(collectionName).createIndexes([
+      { key: { scientific_name: 1 }, unique: true },
+      {
+        key: {
+          common_name: "text",
+          scientific_name: "text",
+          description: "text",
+        },
+      },
+      { key: { maintenance_level: 1 } },
+      { key: { light: 1 } },
+      { key: { water_needs: 1 } },
+      { key: { growth_form: 1 } },
+      { key: { isDeleted: 1 } },
+      { key: { createdAt: -1 } },
+    ]);
   },
 
-  /**
-   * Rollback migration: drops the `plants` collection.
-   *
-   * @param db - The MongoDB database instance
-   */
   async down(db: Db): Promise<void> {
-    await db.collection("plants").drop();
+    const collectionName = "plants";
+    const collections = await db
+      .listCollections({ name: collectionName })
+      .toArray();
+
+    if (collections.length > 0) {
+      // Drop indexes first
+      await db.collection(collectionName).dropIndexes();
+
+      // Remove validation but keep collection & data
+      await db.command({
+        collMod: collectionName,
+        validator: {},
+        validationLevel: "off",
+      });
+    }
   },
 };

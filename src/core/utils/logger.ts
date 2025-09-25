@@ -1,7 +1,7 @@
 // src/core/utils/logger.ts
 import { MongoClient, Db, ObjectId } from "mongodb";
 import config from "../config/env";
-import { MongoValidationError } from "../../interface/Error";
+import { MongoValidationError } from "../../interface/error";
 import { LogEntry, LogOptions } from "../../interface/logs";
 
 /**
@@ -97,7 +97,7 @@ class Logger {
     meta: Record<string, unknown> = {},
     options: LogOptions = {}
   ): Promise<void> {
-    const timestamp = new Date().toISOString();
+    const timestamp = new Date();
     const createdAt = new Date();
 
     try {

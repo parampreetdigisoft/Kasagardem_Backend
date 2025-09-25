@@ -55,12 +55,29 @@ export const MESSAGES = {
   NO_ANSWER_RECEIVED:
     "No answer received from the plant identification service",
 
+  //#region Password Messages
   PASSWORD_RESET_SENT: "Password reset email sent successfully",
   PASSWORD_RESET_SUCCESS: "Password has been reset successfully",
   VERIFICATION_TOKEN_SENT: "Verification token sent to your email",
   EMAIL_VERIFICATION_SUCCESS: "Email verified successfully",
   PASSWORD_RESET_TOKEN_SENT: "Password reset token email sent successfully",
   PASSWORD_RESET_TOKEN_VERIFIED: "Password reset token verified successfully",
+  //#endregion
+
+  //#region Question Messages
+  QUESTION_CREATED: "Question created successfully",
+  QUESTION_UPDATED: "Question updated successfully",
+  QUESTION_DELETED: "Question deleted successfully",
+  QUESTIONS_RETRIEVED: "Question retreived successfully",
+  //#endregion
+
+  //#region Rules Messages
+  RULES_RETRIEVED: "Rules retrieved successfully",
+  RULE_CREATED: "Rule created successfully",
+  RULE_UPDATED: "Rule updated successfully",
+  RULE_DELETED: "Rule deleted successfully",
+  RULE_NOT_FOUND: "Rule not found",
+  //#endregion
 } as const;
 
 // Types for stronger typing in services/controllers

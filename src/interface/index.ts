@@ -20,3 +20,11 @@ export interface ISocialLinks {
   linkedin?: string;
   instagram?: string;
 }
+
+export enum FieldIndex {
+  space_types = 0,
+  area_sizes = 1,
+  challenges = 2,
+  tech_preferences = 3,
+  locations = 4,
+}

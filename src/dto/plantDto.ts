@@ -1,150 +1,168 @@
 import { z } from "zod";
+import { Types } from "mongoose"; // for ObjectId
 
-// SimilarImage Schema
-export const SimilarImageSchema = z
+// Custom ObjectId validation
+const objectIdSchema = z.union([
+  z.string().refine((val) => Types.ObjectId.isValid(val), {
+    message: "Invalid ObjectId format",
+  }),
+  z.instanceof(Types.ObjectId),
+]);
+
+// Sub-schema for location items
+const locationItemSchema = z
   .object({
-    id: z.string().nullable().optional(),
-    url: z.string().nullable().optional(),
-    url_small: z.string().nullable().optional(),
-    similarity: z.number().min(0).max(1).nullable().optional(),
-    license_name: z.string().nullable().optional(),
-    license_url: z.string().nullable().optional(),
-    citation: z.string().nullable().optional(),
+    type: z.string().min(1, "Location type is required"),
+    value: z.string().min(1, "Location value is required"),
+  })
+  .strict(); // No additional properties allowed to match MongoDB additionalProperties: false
+
+// DTO - matches MongoDB schema structure exactly
+export const createPlantDto = z
+  .object({
+    scientific_name: z.string().min(1, "Scientific name is required").trim(), // Required field
+
+    common_name: z.string().min(1, "Common name is required").trim(), // Required field
+
+    image_search_url: z.string().url("Invalid URL format").optional(), // Optional field
+
+    space_types: z
+      .array(z.string().min(1, "Space type cannot be empty"))
+      .optional(), // Array of strings
+
+    area_sizes: z
+      .array(z.string().min(1, "Area size cannot be empty"))
+      .optional(), // Array of strings
+
+    challenges: z
+      .array(z.string().min(1, "Challenge cannot be empty"))
+      .optional(), // Array of strings
+
+    tech_preferences: z
+      .array(z.string().min(1, "Tech preference cannot be empty"))
+      .optional(), // Array of strings
+
+    locations: z.array(locationItemSchema).optional(), // Array of location objects
+
+    description: z.string().min(1, "Description cannot be empty").optional(), // Optional string
+
+    care_notes: z
+      .array(z.string().min(1, "Care note cannot be empty"))
+      .optional(), // Array of strings
+
+    native: z.boolean().optional(), // Boolean - true/false for yes/no
+
+    light: z.string().min(1, "Light requirement cannot be empty").optional(), // Single string
+
+    water_needs: z.string().min(1, "Water needs cannot be empty").optional(), // Single string
+
+    maintenance_level: z
+      .string()
+      .min(1, "Maintenance level cannot be empty")
+      .optional(), // Single string
+
+    growth_form: z.string().min(1, "Growth form cannot be empty").optional(), // Single string
+
+
+    isDeleted: z.boolean().optional().default(false), // Optional with default
+
+    // Optional fields that might be set by the application/mongoose
+    createdAt: z.date().optional(),
+    updatedAt: z.date().optional(),
+    __v: z.number().int().optional(), // Mongoose version key
+  })
+  .strict(); // No additional properties allowed to match MongoDB additionalProperties: false
+
+// Update DTO - all fields optional except _id
+export const updatePlantDto = z
+  .object({
+    _id: objectIdSchema, // Required for updates
+
+    scientific_name: z
+      .string()
+      .min(1, "Scientific name cannot be empty")
+      .trim()
+      .optional(),
+
+    common_name: z
+      .string()
+      .min(1, "Common name cannot be empty")
+      .trim()
+      .optional(),
+
+    image_search_url: z.string().url("Invalid URL format").optional(),
+
+    space_types: z
+      .array(z.string().min(1, "Space type cannot be empty"))
+      .optional(),
+
+    area_sizes: z
+      .array(z.string().min(1, "Area size cannot be empty"))
+      .optional(),
+
+    challenges: z
+      .array(z.string().min(1, "Challenge cannot be empty"))
+      .optional(),
+
+    tech_preferences: z
+      .array(z.string().min(1, "Tech preference cannot be empty"))
+      .optional(),
+
+    locations: z.array(locationItemSchema).optional(),
+
+    description: z.string().min(1, "Description cannot be empty").optional(),
+
+    care_notes: z
+      .array(z.string().min(1, "Care note cannot be empty"))
+      .optional(),
+
+    native: z.boolean().optional(),
+
+    light: z.string().min(1, "Light requirement cannot be empty").optional(),
+
+    water_needs: z.string().min(1, "Water needs cannot be empty").optional(),
+
+    maintenance_level: z
+      .string()
+      .min(1, "Maintenance level cannot be empty")
+      .optional(),
+
+    growth_form: z.string().min(1, "Growth form cannot be empty").optional(),
+
+
+    isDeleted: z.boolean().optional(),
+
+    // Optional fields that might be set by the application/mongoose
+    updatedAt: z.date().optional(),
+    __v: z.number().int().optional(),
   })
   .strict();
 
-// Suggestion Schema
-export const SuggestionSchema = z
+// Query/Filter DTO for searching plants
+export const plantQueryDto = z
   .object({
-    scientificName: z.string(),
-    probability: z.number().min(0).max(1),
-    similarImages: z.array(SimilarImageSchema).nullable().optional(),
+    scientific_name: z.string().optional(),
+    common_name: z.string().optional(),
+    space_types: z.union([z.string(), z.array(z.string())]).optional(),
+    area_sizes: z.union([z.string(), z.array(z.string())]).optional(),
+    challenges: z.union([z.string(), z.array(z.string())]).optional(),
+    tech_preferences: z.union([z.string(), z.array(z.string())]).optional(),
+    native: z.boolean().optional(),
+    light: z.string().optional(),
+    water_needs: z.string().optional(),
+    maintenance_level: z.string().optional(),
+    growth_form: z.string().optional(),
+    isDeleted: z.boolean().optional().default(false),
+    // Pagination
+    page: z.number().int().positive().optional().default(1),
+    limit: z.number().int().positive().max(100).optional().default(10),
+    // Sorting
+    sort: z.string().optional().default("createdAt"),
+    order: z.enum(["asc", "desc"]).optional().default("desc"),
   })
   .strict();
 
-// Care Instructions Schema
-export const CareInstructionsSchema = z
-  .object({
-    watering: z
-      .object({
-        frequency: z.string().nullable().optional(),
-        amount: z.string().nullable().optional(),
-        notes: z.string().nullable().optional(),
-      })
-      .nullable()
-      .optional(),
-    sunlight: z
-      .enum(["full-sun", "partial-sun", "shade", "indirect-light"])
-      .nullable()
-      .optional(),
-    temperature: z
-      .object({
-        min: z.number().nullable().optional(),
-        max: z.number().nullable().optional(),
-        unit: z.enum(["celsius", "fahrenheit"]).nullable().optional(),
-      })
-      .nullable()
-      .optional(),
-    humidity: z
-      .object({
-        level: z.enum(["low", "medium", "high"]).nullable().optional(),
-        percentage: z.number().min(0).max(100).nullable().optional(),
-      })
-      .nullable()
-      .optional(),
-    fertilizing: z
-      .object({
-        frequency: z.string().nullable().optional(),
-        type: z.string().nullable().optional(),
-        notes: z.string().nullable().optional(),
-      })
-      .nullable()
-      .optional(),
-  })
-  .strict();
-
-// Location Schema
-export const LocationSchema = z
-  .object({
-    name: z.string().nullable().optional(),
-    coordinates: z
-      .object({
-        latitude: z.number().nullable().optional(),
-        longitude: z.number().nullable().optional(),
-      })
-      .nullable()
-      .optional(),
-  })
-  .nullable()
-  .optional();
-
-// Main Plant DTO
-export const PlantDto = z
-  .object({
-    userId: z.string(), // Validate as ObjectId string
-    name: z.string().min(1).max(100),
-    scientificName: z.string().max(150).nullable().optional(),
-    commonNames: z.array(z.string()).nullable().optional(),
-    category: z
-      .enum([
-        "indoor",
-        "outdoor",
-        "herb",
-        "flower",
-        "tree",
-        "succulent",
-        "vegetable",
-        "fruit",
-      ])
-      .nullable()
-      .optional(),
-    images: z.array(z.string()).nullable().optional(),
-    description: z.string().max(1000).nullable().optional(),
-
-    probability: z.number().min(0).max(1).nullable().optional(),
-    similarImages: z.array(SimilarImageSchema).nullable().optional(),
-    entityId: z.string().nullable().optional(),
-    language: z.string().nullable().optional(),
-
-    isPlant: z
-      .object({
-        probability: z.number().min(0).max(1).nullable().optional(),
-        binary: z.boolean().nullable().optional(),
-        threshold: z.number().min(0).max(1).nullable().optional(),
-      })
-      .nullable()
-      .optional(),
-
-    identificationMeta: z
-      .object({
-        accessToken: z.string().nullable().optional(),
-        modelVersion: z.string().nullable().optional(),
-        customId: z.string().nullable().optional(),
-        created: z.date().nullable().optional(),
-        completed: z.date().nullable().optional(),
-        status: z.string().nullable().optional(),
-      })
-      .nullable()
-      .optional(),
-
-    suggestions: z.array(SuggestionSchema).nullable().optional(),
-    careInstructions: CareInstructionsSchema.nullable().optional(),
-    status: z
-      .enum(["healthy", "needs-attention", "sick", "dead"])
-      .nullable()
-      .optional(),
-    location: LocationSchema,
-    plantedDate: z.date().nullable().optional(),
-    lastWatered: z.date().nullable().optional(),
-    nextWateringDue: z.date().nullable().optional(),
-    tags: z.array(z.string()).nullable().optional(),
-    isPublic: z.boolean().nullable().optional(),
-    notes: z.string().max(500).nullable().optional(),
-
-    createdAt: z.date().nullable().optional(),
-    updatedAt: z.date().nullable().optional(),
-  })
-  .strict(); // STRICT -> disallow extra fields
-
-// Export type
-export type PlantDtoType = z.infer<typeof PlantDto>;
+// Type exports
+export type CreatePlantDto = z.infer<typeof createPlantDto>;
+export type UpdatePlantDto = z.infer<typeof updatePlantDto>;
+export type PlantQueryDto = z.infer<typeof plantQueryDto>;

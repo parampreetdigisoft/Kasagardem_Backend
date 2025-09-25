@@ -11,9 +11,13 @@ export default {
     const logValidator = {
       $jsonSchema: {
         bsonType: "object",
-        required: ["level", "message", "timestamp", "createdAt"],
+        required: ["_id", "level", "message", "timestamp", "createdAt"],
         additionalProperties: false, // 🚫 no extra fields allowed at root
         properties: {
+          _id: {
+            bsonType: "objectId",
+            description: "auto-generated unique identifier",
+          },
           level: {
             bsonType: "string",
             enum: ["info", "error", "warn", "debug"],
@@ -26,11 +30,11 @@ export default {
             description: "log message, 1–5000 characters",
           },
           timestamp: {
-            bsonType: "date", // use `date` instead of string for consistency
+            bsonType: "date",
             description: "when the log event occurred",
           },
           meta: {
-            bsonType: ["object", "null"], // keep flexible for structured metadata
+            bsonType: ["object", "null"],
             description: "optional metadata object",
           },
           createdAt: {
@@ -59,7 +63,7 @@ export default {
       await db.command({
         collMod: "logs",
         validator: logValidator,
-        validationLevel: "strict", // reject invalid docs
+        validationLevel: "strict",
       });
     } else {
       await db.createCollection("logs", {

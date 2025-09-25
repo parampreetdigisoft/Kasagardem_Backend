@@ -46,7 +46,7 @@ export const register = async (
         { source: "auth.register" }
       );
       res
-        .status(HTTP_STATUS.BAD_REQUEST)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse(MESSAGES.ROLE_INVALID_ID));
       return;
     }
@@ -60,7 +60,7 @@ export const register = async (
         { source: "auth.register" }
       );
       res
-        .status(HTTP_STATUS.CONFLICT)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse(MESSAGES.USER_EXISTS));
       return;
     }
@@ -170,7 +170,7 @@ export const login = async (
         { source: "auth.login" }
       );
       res
-        .status(HTTP_STATUS.UNAUTHORIZED)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse(MESSAGES.INVALID_CREDENTIALS));
       return;
     }
@@ -183,7 +183,7 @@ export const login = async (
         { userId: user._id.toString(), source: "auth.login" }
       );
       res
-        .status(HTTP_STATUS.UNAUTHORIZED)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse(MESSAGES.INVALID_CREDENTIALS));
       return;
     }
@@ -199,7 +199,7 @@ export const login = async (
         { userId: user._id.toString(), source: "auth.login" }
       );
       res
-        .status(HTTP_STATUS.UNAUTHORIZED)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse("Role not found"));
       return;
     }
@@ -264,14 +264,14 @@ export const googleAuth = async (
 
     if (!idToken) {
       res
-        .status(HTTP_STATUS.BAD_REQUEST)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse("Google ID token is required"));
       return;
     }
 
     if (!roleId) {
       res
-        .status(HTTP_STATUS.BAD_REQUEST)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse("Role ID is required"));
       return;
     }
@@ -279,7 +279,7 @@ export const googleAuth = async (
     const roleExists = (await Role.findById(roleId)) as IRoleDocument | null;
     if (!roleExists) {
       res
-        .status(HTTP_STATUS.BAD_REQUEST)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse(MESSAGES.ROLE_INVALID_ID));
       return;
     }
@@ -293,7 +293,7 @@ export const googleAuth = async (
       });
     } catch {
       res
-        .status(HTTP_STATUS.UNAUTHORIZED)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse("Invalid Google token"));
       return;
     }
@@ -301,7 +301,7 @@ export const googleAuth = async (
     const payload: TokenPayload | undefined = ticket.getPayload();
     if (!payload) {
       res
-        .status(HTTP_STATUS.UNAUTHORIZED)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse("Invalid Google token payload"));
       return;
     }
@@ -310,7 +310,7 @@ export const googleAuth = async (
 
     if (!email_verified) {
       res
-        .status(HTTP_STATUS.BAD_REQUEST)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse("Google email not verified"));
       return;
     }
@@ -335,7 +335,7 @@ export const googleAuth = async (
 
     if (user && !user.googleId) {
       res
-        .status(HTTP_STATUS.CONFLICT)
+        .status(HTTP_STATUS.OK)
         .json(
           errorResponse(
             "Email already registered. Please login with email/password or contact support to link accounts."
@@ -406,7 +406,7 @@ export const sendPasswordResetToken = async (
         { source: "auth.sendPasswordResetToken" }
       );
       res
-        .status(HTTP_STATUS.NOT_FOUND)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse("User not found with this email address"));
       return;
     }
@@ -483,6 +483,7 @@ export const sendPasswordResetToken = async (
     next(errorObj);
   }
 };
+
 /**
  * Resends password reset token if the previous one expired or user needs a new one.
  *
@@ -514,7 +515,7 @@ export const resendPasswordResetToken = async (
         { source: "auth.resendPasswordResetToken" }
       );
       res
-        .status(HTTP_STATUS.NOT_FOUND)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse("User not found with this email address"));
       return;
     }
@@ -525,7 +526,7 @@ export const resendPasswordResetToken = async (
         (user.passwordResetExpires.getTime() - Date.now()) / (60 * 1000)
       );
       res
-        .status(HTTP_STATUS.TOO_MANY_REQUESTS)
+        .status(HTTP_STATUS.OK)
         .json(
           errorResponse(
             `Please wait ${timeLeft} minutes before requesting a new token`
@@ -624,7 +625,7 @@ export const verifyPasswordResetToken = async (
         { source: "auth.verifyPasswordResetToken" }
       );
       res
-        .status(HTTP_STATUS.BAD_REQUEST)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse("Invalid or expired password reset token"));
       return;
     }
@@ -693,7 +694,6 @@ export const resetPassword = async (
     const user = (await User.findOne({
       email,
       passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() },
     })) as IUserDocument | null;
 
     if (!user) {
@@ -703,7 +703,7 @@ export const resetPassword = async (
         { source: "auth.resetPassword" }
       );
       res
-        .status(HTTP_STATUS.BAD_REQUEST)
+        .status(HTTP_STATUS.OK)
         .json(errorResponse("Invalid or expired password reset token"));
       return;
     }

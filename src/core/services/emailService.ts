@@ -32,7 +32,7 @@ export const sendPasswordResetEmail = async (
   const transporter = createTransporter();
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || "noreply@yourapp.com",
+    from: process.env.EMAIL_FROM,
     to: email,
     subject: "Password Reset - Your 6-Digit Code",
     html: passwordResetEmailTemplate(resetToken, userName),

@@ -37,9 +37,12 @@ const options = {
     "./src/modules/auth/*.ts",
     "./src/modules/roles/*.ts",
     "./src/modules/userProfile/*.ts",
-    "./src/modules/plants/plantDetection/*.ts",
-    "./src/modules/plants/diseaseDetection/*.ts",
-    "./src/modules/plants/plantCareInformation/*.ts",
+    "./src/modules/admin/questions/*.ts",
+    "./src/modules/admin/rules/*.ts",
+    "./src/modules/partnerProfile/*.ts",
+    "./src/modules/answers/*.ts",
+    "./src/modules/plant/*.ts",
+    "./src/modules/stateCity/*.ts",
   ],
 };
 

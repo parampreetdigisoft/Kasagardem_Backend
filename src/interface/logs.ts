@@ -10,7 +10,7 @@ export interface LogOptions {
 export interface LogEntry {
   level: string;
   message: string;
-  timestamp: string;
+  timestamp: Date;
   meta: Record<string, unknown>;
   createdAt: Date;
   source: string;

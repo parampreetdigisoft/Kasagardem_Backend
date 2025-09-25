@@ -16,7 +16,12 @@ export default {
       $jsonSchema: {
         bsonType: "object",
         required: ["name"],
+        additionalProperties: false,
         properties: {
+          _id: {
+            bsonType: "objectId",
+            description: "auto-generated unique identifier",
+          },
           name: {
             bsonType: "string",
             minLength: 2,
@@ -27,6 +32,12 @@ export default {
           description: {
             bsonType: "string",
             description: "optional description",
+          },
+          createdAt: { bsonType: "date" },
+          updatedAt: { bsonType: "date" },
+          __v: {
+            bsonType: "int",
+            description: "internal mongoose version key",
           },
         },
       },
@@ -62,7 +73,8 @@ export default {
   },
 
   /**
-   * Drops the "roles" collection if it exists.
+   * Rolls back the "roles" collection schema but preserves the data.
+   * Removes the validator and unique index on name instead of dropping the collection.
    * @param db - The MongoDB database instance.
    */
   async down(db: Db): Promise<void> {
@@ -72,7 +84,23 @@ export default {
       .toArray();
 
     if (collections.length > 0) {
-      await db.collection(collectionName).drop();
+      // Remove validator (schema enforcement)
+      await db.command({
+        collMod: collectionName,
+        validator: {},
+        validationLevel: "off",
+      });
+
+      // Drop the unique index on name if it exists
+      const rolesCollection = db.collection(collectionName);
+      try {
+        await rolesCollection.dropIndex("name_1");
+      } catch (error: any) {
+        if (error.code !== 27) {
+          // 27 = index not found
+          throw error;
+        }
+      }
     }
   },
 };

@@ -2,46 +2,46 @@ import { Db } from "mongodb";
 
 export default {
   /**
-   * Creates the "userprofiles" collection with schema validation.
+   * Creates the "partnerprofiles" collection with schema validation.
    * @param db - The MongoDB database instance
    * @returns Resolves when the collection is created or updated
    */
   async up(db: Db): Promise<void> {
     const collections = await db
-      .listCollections({ name: "userprofiles" })
+      .listCollections({ name: "partnerprofiles" })
       .toArray();
 
-    const userProfileValidator = {
+    const partnerProfileValidator = {
       $jsonSchema: {
         bsonType: "object",
-        required: ["userId"],
+        required: ["email", "mobileNumber"],
         additionalProperties: false,
         properties: {
           _id: {
             bsonType: "objectId",
             description: "auto-generated unique identifier",
           },
-          userId: {
-            bsonType: "objectId",
-            description: "must be an ObjectId referencing users collection",
-          },
-          profileImage: {
+          email: {
             bsonType: "string",
-            description: "Base 64 of user's profile image",
+            pattern: "^[\\w.-]+@([\\w-]+\\.)+[\\w-]{2,4}$",
+            description: "partner's email address",
           },
-          dateOfBirth: {
-            bsonType: "date",
-            description: "user's date of birth",
-          },
-          gender: {
+          mobileNumber: {
             bsonType: "string",
-            enum: ["male", "female", "other"],
-            description: "user's gender",
+            pattern: "^\\+?[1-9]\\d{7,14}$",
+            description: "partner's mobile number (E.164 format preferred)",
           },
-          bio: {
+          companyName: {
             bsonType: "string",
-            maxLength: 500,
-            description: "user's biography",
+            description: "company or organization name",
+          },
+          speciality: {
+            bsonType: "array",
+            items: {
+              bsonType: "string",
+              description: "area of expertise or speciality",
+            },
+            description: "list of partner's specialities",
           },
           address: {
             bsonType: "object",
@@ -54,13 +54,22 @@ export default {
               zipCode: { bsonType: "string" },
             },
           },
-          occupation: {
+          website: {
             bsonType: "string",
-            description: "user's occupation",
+            description: "official website URL",
           },
-          company: {
+          contactPerson: {
             bsonType: "string",
-            description: "user's company",
+            description: "name of primary contact person",
+          },
+          projectImageUrl: {
+            bsonType: "string",
+            description: "Url of partner's project image",
+          },
+          status: {
+            bsonType: "string",
+            enum: ["active", "inactive", "pending", "suspended"],
+            description: "partner account status",
           },
           createdAt: {
             bsonType: "date",
@@ -80,20 +89,22 @@ export default {
 
     if (collections.length > 0) {
       await db.command({
-        collMod: "userprofiles",
-        validator: userProfileValidator,
+        collMod: "partnerprofiles",
+        validator: partnerProfileValidator,
         validationLevel: "strict",
       });
     } else {
-      await db.createCollection("userprofiles", {
-        validator: userProfileValidator,
+      await db.createCollection("partnerprofiles", {
+        validator: partnerProfileValidator,
         validationLevel: "strict",
       });
     }
 
-    await db
-      .collection("userprofiles")
-      .createIndex({ userId: 1 }, { unique: true });
+    // Create unique index on partnerId, email, and mobileNumber
+    await db.collection("partnerprofiles").createIndexes([
+      { key: { email: 1 }, unique: true },
+      { key: { mobileNumber: 1 }, unique: true },
+    ]);
   },
 
   /**
@@ -101,16 +112,20 @@ export default {
    * @param db - The MongoDB database instance
    */
   async down(db: Db): Promise<void> {
-    const collection = db.collection("userprofiles");
+    const collection = db.collection("partnerprofiles");
 
     // Remove schema validation
     await db.command({
-      collMod: "userprofiles",
+      collMod: "partnerprofiles",
       validator: { $jsonSchema: { bsonType: "object" } }, // allow any document
       validationLevel: "off",
     });
 
     // Drop indexes created in `up` (except _id)
-    await collection.dropIndex("userId_1").catch(() => {});
+    await Promise.all([
+      collection.dropIndex("partnerId_1").catch(() => {}),
+      collection.dropIndex("email_1").catch(() => {}),
+      collection.dropIndex("mobileNumber_1").catch(() => {}),
+    ]);
   },
 };
