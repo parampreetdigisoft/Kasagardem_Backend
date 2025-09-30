@@ -7,8 +7,8 @@ export interface Config {
   JWT_SECRET: string;
   JWT_EXPIRE: string;
   APPDEV_URL: string;
-  GOOGLE_CLIENT_ID: string;
-  GOOGLE_CLIENT_SECRET: string;
+  // GOOGLE_CLIENT_ID: string;
+  // GOOGLE_CLIENT_SECRET: string;
   KASAGARDEM_PLANTAPI_KEY: string;
   KASAGARDEM_PLANTAPI_URL: string;
   KASAGARDEM_PLANTAPI_KEY_NAME: string;
