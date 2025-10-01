@@ -43,7 +43,9 @@ export const getAllQuestions = async (
     const questions = await Question.find(
       { isDeleted: false },
       { createdAt: 0, updatedAt: 0, __v: 0, isDeleted: 0 }
-    ).lean();
+    )
+      .sort({ order: 1 }) // ascending: 1 on top, then proceed further
+      .lean();
 
     await info(
       "Questions retrieved successfully",

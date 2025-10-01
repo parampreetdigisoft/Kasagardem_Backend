@@ -75,11 +75,11 @@ const userSchema = new Schema<IUserDocument>(
     // PASSWORD RESET FIELDS:
     passwordResetToken: {
       type: String,
-      select: false, // Don't include in regular queries for security
+      select: true, 
     },
     passwordResetExpires: {
       type: Date,
-      select: false, // Don't include in regular queries
+      select: true, 
     },
   },
   { timestamps: true }

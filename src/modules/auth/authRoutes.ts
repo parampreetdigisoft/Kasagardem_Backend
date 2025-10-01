@@ -4,17 +4,15 @@ import {
   login,
   googleAuth,
   resetPassword,
-  sendPasswordResetToken,
-  resendPasswordResetToken,
   verifyPasswordResetToken,
+  handlePasswordResetToken,
 } from "./authController";
 import {
   registerValidation,
   loginValidation,
   resetPasswordValidation,
-  sendPasswordResetTokenValidation,
-  resendPasswordResetTokenValidation,
   verifyPasswordResetTokenValidation,
+  handlePasswordResetTokenValidation,
 } from "./authValidations";
 import validateRequest from "../../core/middleware/validateRequest";
 
@@ -198,9 +196,9 @@ router.patch(
 
 /**
  * @swagger
- * /api/v1/auth/sendVerificationToken:
+ * /api/v1/auth/passwordResetToken:
  *   post:
- *     summary: Send 4-digit verification token to email
+ *     summary: Send or Resend password reset token
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -214,50 +212,24 @@ router.patch(
  *               email:
  *                 type: string
  *                 example: john@example.com
+ *               isResend:
+ *                 type: boolean
+ *                 example: false
+ *                 description: Pass true if you want to resend a new token
  *     responses:
  *       200:
- *         description: Verification token sent successfully
- *       404:
- *         description: User not found
- *       400:
- *         description: Email already verified
- */
-router.post(
-  "/sendVerificationToken",
-  validateRequest(sendPasswordResetTokenValidation),
-  sendPasswordResetToken
-);
-
-/**
- * @swagger
- * /api/v1/auth/resendVerificationToken:
- *   post:
- *     summary: Resend verification token
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *             properties:
- *               email:
- *                 type: string
- *                 example: john@example.com
- *     responses:
- *       200:
- *         description: New verification token sent
+ *         description: Token sent successfully
  *       404:
  *         description: User not found
  *       429:
- *         description: Rate limit exceeded
+ *         description: Rate limit exceeded (if resend too soon)
+ *       500:
+ *         description: Failed to send email
  */
 router.post(
-  "/resendVerificationToken",
-  validateRequest(resendPasswordResetTokenValidation),
-  resendPasswordResetToken
+  "/passwordResetToken",
+  validateRequest(handlePasswordResetTokenValidation), // you can merge validations if needed
+  handlePasswordResetToken
 );
 
 /**
