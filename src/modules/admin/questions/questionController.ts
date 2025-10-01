@@ -39,13 +39,18 @@ export const getAllQuestions = async (
   try {
     await info("Get all questions request started", {}, { userId: user._id });
 
-    // Retrieve all questions without extra fields
-    const questions = await Question.find(
-      { isDeleted: false },
-      { createdAt: 0, updatedAt: 0, __v: 0, isDeleted: 0 }
-    )
-      .sort({ order: 1 }) // ascending: 1 on top, then proceed further
-      .lean();
+    // Retrieve all questions
+    const questions = await Question.aggregate([
+      { $match: { isDeleted: false } },
+      { $sort: { order: 1 } },
+      { $project: { createdAt: 0, updatedAt: 0, __v: 0, isDeleted: 0 } },
+    ]);
+
+    // Map _id → questionId and drop _id
+    const formattedQuestions = questions.map(({ _id, ...rest }) => ({
+      questionId: _id, // rename _id
+      ...rest,
+    }));
 
     await info(
       "Questions retrieved successfully",
@@ -55,7 +60,9 @@ export const getAllQuestions = async (
 
     res
       .status(HTTP_STATUS.OK)
-      .json(successResponse({ questions }, MESSAGES.QUESTIONS_RETRIEVED));
+      .json(
+        successResponse({ formattedQuestions }, MESSAGES.QUESTIONS_RETRIEVED)
+      );
   } catch (err: unknown) {
     if (err instanceof ZodError) {
       res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
