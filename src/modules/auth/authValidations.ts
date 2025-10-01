@@ -64,8 +64,8 @@ export const googleAuthValidation = Joi.object({
   roleId: Joi.string().length(24).hex().required(),
 });
 
-// Send Password Reset Token Validation
-export const sendPasswordResetTokenValidation = Joi.object({
+// Unified Validation for Send/Resend Password Reset Token
+export const handlePasswordResetTokenValidation = Joi.object({
   email: Joi.string()
     .email({ tlds: { allow: false } })
     .required()
@@ -74,6 +74,9 @@ export const sendPasswordResetTokenValidation = Joi.object({
       "string.empty": "Email is required",
       "any.required": "Email is required",
     }),
+  isResend: Joi.boolean().default(false).messages({
+    "boolean.base": "isResend must be a boolean value",
+  }),
 });
 
 // Reset Password Validation (final step)

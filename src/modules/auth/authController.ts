@@ -45,9 +45,7 @@ export const register = async (
         { email, roleId },
         { source: "auth.register" }
       );
-      res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse(MESSAGES.ROLE_INVALID_ID));
+      res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.ROLE_INVALID_ID));
       return;
     }
 
@@ -59,9 +57,7 @@ export const register = async (
         { email },
         { source: "auth.register" }
       );
-      res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse(MESSAGES.USER_EXISTS));
+      res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.USER_EXISTS));
       return;
     }
 
@@ -198,9 +194,7 @@ export const login = async (
         { email, userId: user._id, roleId: user.roleId },
         { userId: user._id.toString(), source: "auth.login" }
       );
-      res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse("Role not found"));
+      res.status(HTTP_STATUS.OK).json(errorResponse("Role not found"));
       return;
     }
 
@@ -270,17 +264,13 @@ export const googleAuth = async (
     }
 
     if (!roleId) {
-      res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse("Role ID is required"));
+      res.status(HTTP_STATUS.OK).json(errorResponse("Role ID is required"));
       return;
     }
 
     const roleExists = (await Role.findById(roleId)) as IRoleDocument | null;
     if (!roleExists) {
-      res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse(MESSAGES.ROLE_INVALID_ID));
+      res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.ROLE_INVALID_ID));
       return;
     }
 
@@ -292,9 +282,7 @@ export const googleAuth = async (
         audience: config.GOOGLE_CLIENT_ID as string,
       });
     } catch {
-      res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse("Invalid Google token"));
+      res.status(HTTP_STATUS.OK).json(errorResponse("Invalid Google token"));
       return;
     }
 
@@ -383,27 +371,35 @@ export const googleAuth = async (
  * @param {NextFunction} next - Express next middleware function for error handling.
  * @returns {Promise<void>} Returns a promise that resolves when reset email is sent.
  */
-export const sendPasswordResetToken = async (
+/**
+ * Sends a password reset token to user's email.
+ *
+ * @param {Request} req - Express request object containing user email.
+ * @param {Response} res - Express response object used to send the response.
+ * @param {NextFunction} next - Express next middleware function for error handling.
+ * @returns {Promise<void>} Returns a promise that resolves when reset email is sent.
+ */
+export const handlePasswordResetToken = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { email } = req.body;
+    const { email, isResend = false } = req.body;
 
     await info(
-      "Password reset token request started",
+      `${isResend ? "Resend" : "Send"} password reset token request started`,
       { email },
-      { source: "auth.sendPasswordResetToken" }
+      { source: "auth.handlePasswordResetToken" }
     );
 
     const user = (await User.findOne({ email })) as IUserDocument | null;
 
     if (!user) {
       await warn(
-        "Password reset token request failed - user not found",
+        `${isResend ? "Resend" : "Send"} password reset failed - user not found`,
         { email },
-        { source: "auth.sendPasswordResetToken" }
+        { source: "auth.handlePasswordResetToken" }
       );
       res
         .status(HTTP_STATUS.OK)
@@ -411,16 +407,35 @@ export const sendPasswordResetToken = async (
       return;
     }
 
+    // If it's a resend request and token still valid -> block
+    if (
+      isResend &&
+      user.passwordResetExpires &&
+      user.passwordResetExpires > new Date()
+    ) {
+      const timeLeft = Math.ceil(
+        (user.passwordResetExpires.getTime() - Date.now()) / (60 * 1000)
+      );
+      res
+        .status(HTTP_STATUS.OK)
+        .json(
+          errorResponse(
+            `Please wait ${timeLeft} minute(s) before requesting a new token`
+          )
+        );
+      return;
+    }
+
     // Generate 6-digit reset token
     const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Hash the token before storing (for security)
+    // Hash the token before storing
     const hashedToken = crypto
       .createHash("sha256")
       .update(resetToken)
       .digest("hex");
 
-    // Set token expiry (5 minutes)
+    // Expiry time (5 min default, you can adjust if resend should be longer)
     const resetTokenExpiry = new Date(Date.now() + 5 * 60 * 1000);
 
     // Save reset token to user
@@ -428,27 +443,28 @@ export const sendPasswordResetToken = async (
     user.passwordResetExpires = resetTokenExpiry;
     await user.save({ validateBeforeSave: false });
 
-    // Send email with 6-digit token
     try {
       await sendPasswordResetEmail(user.email!, resetToken, user.name);
 
       await info(
-        "Password reset token sent successfully",
+        `${isResend ? "Resend" : "Send"} password reset token success`,
         { email, userId: user._id },
-        { userId: user._id.toString(), source: "auth.sendPasswordResetToken" }
+        { userId: user._id.toString(), source: "auth.handlePasswordResetToken" }
       );
 
       res.status(HTTP_STATUS.OK).json(
         successResponse(
           {
-            message: "Password reset token sent to your email",
+            message: `Password reset token ${
+              isResend ? "resent" : "sent"
+            } to your email`,
             expiresIn: "5 minutes",
           },
           MESSAGES.PASSWORD_RESET_TOKEN_SENT
         )
       );
     } catch (emailError) {
-      // Reset the token fields if email fails
+      // Reset fields if email fails
       user.passwordResetToken = undefined;
       user.passwordResetExpires = undefined;
       await user.save({ validateBeforeSave: false });
@@ -456,7 +472,7 @@ export const sendPasswordResetToken = async (
       await error(
         "Failed to send password reset token email",
         { email, userId: user._id, error: emailError },
-        { userId: user._id.toString(), source: "auth.sendPasswordResetToken" }
+        { userId: user._id.toString(), source: "auth.handlePasswordResetToken" }
       );
 
       res
@@ -475,112 +491,9 @@ export const sendPasswordResetToken = async (
           };
 
     await error(
-      "Send password reset token failed with unexpected error",
+      "Password reset token request failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack },
-      { source: "auth.sendPasswordResetToken" }
-    );
-
-    next(errorObj);
-  }
-};
-
-/**
- * Resends password reset token if the previous one expired or user needs a new one.
- *
- * @param {Request} req - Express request object containing user email.
- * @param {Response} res - Express response object used to send the response.
- * @param {NextFunction} next - Express next middleware function for error handling.
- * @returns {Promise<void>} Returns a promise that resolves when reset email is resent.
- */
-export const resendPasswordResetToken = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { email } = req.body;
-
-    await info(
-      "Resend password reset token request started",
-      { email },
-      { source: "auth.resendPasswordResetToken" }
-    );
-
-    const user = (await User.findOne({ email })) as IUserDocument | null;
-
-    if (!user) {
-      await warn(
-        "Resend password reset failed - user not found",
-        { email },
-        { source: "auth.resendPasswordResetToken" }
-      );
-      res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse("User not found with this email address"));
-      return;
-    }
-
-    // Check rate limiting: prevent spam (optional - only if existing token is still valid)
-    if (user.passwordResetExpires && user.passwordResetExpires > new Date()) {
-      const timeLeft = Math.ceil(
-        (user.passwordResetExpires.getTime() - Date.now()) / (60 * 1000)
-      );
-      res
-        .status(HTTP_STATUS.OK)
-        .json(
-          errorResponse(
-            `Please wait ${timeLeft} minutes before requesting a new token`
-          )
-        );
-      return;
-    }
-
-    // Generate new 6-digit reset token
-    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Hash the token before storing
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(resetToken)
-      .digest("hex");
-
-    const resetTokenExpiry = new Date(Date.now() + 5 * 60 * 1000);
-
-    user.passwordResetToken = hashedToken;
-    user.passwordResetExpires = resetTokenExpiry;
-    await user.save({ validateBeforeSave: false });
-
-    await sendPasswordResetEmail(user.email!, resetToken, user.name);
-
-    await info(
-      "Password reset token resent successfully",
-      { email, userId: user._id },
-      { userId: user._id.toString(), source: "auth.resendPasswordResetToken" }
-    );
-
-    res.status(HTTP_STATUS.OK).json(
-      successResponse(
-        {
-          message: "New password reset token sent to your email",
-          expiresIn: "15 minutes",
-        },
-        MESSAGES.PASSWORD_RESET_TOKEN_SENT
-      )
-    );
-  } catch (err: unknown) {
-    const errorObj: CustomError =
-      err instanceof Error
-        ? { ...err }
-        : {
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          };
-
-    await error(
-      "Resend password reset token failed with unexpected error",
-      { error: errorObj.message, stack: errorObj.stack },
-      { source: "auth.resendPasswordResetToken" }
+      { source: "auth.handlePasswordResetToken" }
     );
 
     next(errorObj);
