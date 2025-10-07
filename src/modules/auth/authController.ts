@@ -16,6 +16,7 @@ import { sendPasswordResetEmail } from "../../core/services/emailService";
 import crypto from "crypto";
 import { RoleCodeMap } from "../../interface/role";
 import UserProfile from "../userProfile/userProfileModel";
+import { AuthRequest } from "../../core/middleware/authMiddleware";
 
 /**
  * Registers a new user in the system.
@@ -224,7 +225,11 @@ export const login = async (
     }
 
     // Generate JWT
-    const token = generateToken(user.email as string, role.name as string);
+    const token = generateToken(
+      user.email as string,
+      role.name as string,
+      user._id.toString()
+    );
 
     await info(
       "User login successful",
@@ -248,6 +253,110 @@ export const login = async (
 
     await error(
       "Login failed with unexpected error",
+      { error: errorObj.message, stack: errorObj.stack },
+      { source: "auth.login" }
+    );
+
+    next(errorObj);
+  }
+};
+
+/**
+ * Authenticates a user and returns a refresh JWT token.
+ *
+ * @param {AuthRequest} req - Express Auth Request.
+ * @param {Response} res - Express response object used to send the response.
+ * @param {NextFunction} next - Express next middleware function for error handling.
+ * @returns {Promise<void>} Returns a promise that resolves when authentication is complete.
+ */
+export const refreshTokenLogin = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userId?: string; exp?: number } | undefined;
+  if (!userPayload?.userId) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
+
+  // Check if token is expired
+  const currentTimestamp = Math.floor(Date.now() / 1000);
+  if (!userPayload.exp || userPayload.exp > currentTimestamp) {
+    res
+      .status(HTTP_STATUS.BAD_REQUEST)
+      .json(errorResponse("Token is still valid. Refresh not needed."));
+    return;
+  }
+  try {
+    await info(
+      "Refresh User login attempt started",
+      { userId: userPayload?.userId },
+      { source: "auth.login" }
+    );
+
+    const user = (await User.findById(
+      userPayload?.userId
+    )) as IUserDocument | null;
+
+    if (!user) {
+      await warn(
+        "Refresh Login failed - user not found",
+        { userId: userPayload?.userId },
+        { source: "auth.login" }
+      );
+      res
+        .status(HTTP_STATUS.OK)
+        .json(errorResponse(MESSAGES.INVALID_CREDENTIALS));
+      return;
+    }
+
+    // Fetch role name
+    const role = (await Role.findById(user.roleId).select(
+      "name"
+    )) as IRoleDocument | null;
+    if (!role) {
+      await error(
+        "Refresh Login failed - role not found",
+        { userId: user._id, roleId: user.roleId },
+        { userId: user._id.toString(), source: "auth.login" }
+      );
+      res.status(HTTP_STATUS.OK).json(errorResponse("Role not found"));
+      return;
+    }
+
+    // Generate JWT
+    const token = generateToken(
+      user.email as string,
+      role.name as string,
+      user._id.toString()
+    );
+
+    await info(
+      "User refresh login successful",
+      { userId: user._id, roleName: role.name },
+      { userId: user._id.toString(), source: "auth.login" }
+    );
+
+    res
+      .status(HTTP_STATUS.OK)
+      .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
+  } catch (err: unknown) {
+    // Narrow unknown to CustomError safely
+    const errorObj: CustomError =
+      err instanceof Error
+        ? { ...err }
+        : {
+            name: "UnknownError",
+            message:
+              typeof err === "string" ? err : "An unknown error occurred",
+          };
+
+    await error(
+      "Refresh Login failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack },
       { source: "auth.login" }
     );
@@ -335,7 +444,11 @@ export const googleAuth = async (
       const role = (await Role.findById(user.roleId).select(
         "name"
       )) as IRoleDocument;
-      const token = generateToken(user.email as string, role.name);
+      const token = generateToken(
+        user.email as string,
+        role.name as string,
+        user._id.toString()
+      );
 
       res
         .status(HTTP_STATUS.OK)
@@ -366,7 +479,11 @@ export const googleAuth = async (
     });
 
     const role = (await Role.findById(roleId).select("name")) as IRoleDocument;
-    const token = generateToken(user.email as string, role.name);
+    const token = generateToken(
+      user.email as string,
+      role.name as string,
+      user._id.toString()
+    );
 
     res
       .status(HTTP_STATUS.CREATED)

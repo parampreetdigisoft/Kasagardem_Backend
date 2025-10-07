@@ -6,6 +6,7 @@ import {
   resetPassword,
   verifyPasswordResetToken,
   handlePasswordResetToken,
+  refreshTokenLogin,
 } from "./authController";
 import {
   registerValidation,
@@ -15,6 +16,7 @@ import {
   handlePasswordResetTokenValidation,
 } from "./authValidations";
 import validateRequest from "../../core/middleware/validateRequest";
+import auth from "../../core/middleware/authMiddleware";
 
 const router = Router();
 
@@ -97,6 +99,20 @@ router.post("/register", validateRequest(registerValidation), register);
  *         description: Invalid credentials
  */
 router.post("/login", validateRequest(loginValidation), login);
+
+/**
+ * @swagger
+ * /api/v1/auth/refresh:
+ *   post:
+ *     summary: Refresh user token
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Refresh Login successful
+ *       401:
+ *         description: Invalid credentials
+ */
+router.post("/refresh", auth, refreshTokenLogin);
 
 /**
  * @swagger
