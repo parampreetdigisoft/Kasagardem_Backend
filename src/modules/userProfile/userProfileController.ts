@@ -9,6 +9,7 @@ import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { info, error, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/error";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
+import { IFullUserProfile } from "../../interface/userProfile";
 
 /**
  * Handles the creation of a new user profile.
@@ -152,31 +153,44 @@ export const getCurrentUserProfile = async (
       return;
     }
 
+    // 2️⃣ Get user profile (if exists)
     const userProfile: IUserProfile | null = await UserProfile.findOne({
       userId: user._id,
-    })
-      .select("-_id -__v -createdAt -updatedAt")
-      .populate("userId", "name email -_id");
+    }).select("-_id -__v -createdAt -updatedAt");
 
-    if (!userProfile) {
-      await warn("Profile retrieval failed - Profile not found", {
-        email: userPayload?.userEmail,
-        userId: user._id,
-        action: "getCurrentUserProfile",
-      });
-      res
-        .status(HTTP_STATUS.NOT_FOUND)
-        .json(errorResponse(MESSAGES.PROFILE_USER_NOTFOUND));
-      return;
-    }
+    // 3️⃣ Build full merged response (ensuring all fields exist)
+    const fullProfile: IFullUserProfile = {
+      name: user.name || null,
+      email: user.email || null,
+      contactNumber: user.phoneNumber || null,
+      profileImage: userProfile?.profileImage || null,
+      dateOfBirth: userProfile?.dateOfBirth || null,
+      gender: userProfile?.gender || null,
+      bio: userProfile?.bio || null,
+      address: {
+        street: userProfile?.address?.street || null,
+        city: userProfile?.address?.city || null,
+        state: userProfile?.address?.state || null,
+        country: userProfile?.address?.country || null,
+        zipCode: userProfile?.address?.zipCode || null,
+      },
+      socialLinks: {
+        facebook: userProfile?.socialLinks?.facebook || null,
+        twitter: userProfile?.socialLinks?.twitter || null,
+        linkedin: userProfile?.socialLinks?.linkedin || null,
+        instagram: userProfile?.socialLinks?.instagram || null,
+      },
+      occupation: userProfile?.occupation || null,
+      company: userProfile?.company || null,
+    };
 
     await info("User profile retrieved successfully", {
-      email: userPayload?.userEmail,
+      email: userPayload.userEmail,
       userId: user._id,
       action: "getCurrentUserProfile",
     });
 
-    res.status(HTTP_STATUS.OK).json(successResponse(userProfile));
+    res.status(HTTP_STATUS.OK).json(successResponse(fullProfile));
   } catch (err: unknown) {
     const errorObj: CustomError =
       err instanceof Error

@@ -1,4 +1,5 @@
 import Joi, { CustomHelpers } from "joi";
+import { RoleCodeMap } from "../../interface/role";
 
 /**
  * Validates password complexity against specific rules.
@@ -43,7 +44,10 @@ export const registerValidation = Joi.object({
     .min(6)
     .required()
     .custom(passwordComplexity, "Password complexity validation"),
-  roleId: Joi.string().length(24).hex().required(),
+  roleCode: Joi.string()
+    .length(1)
+    .valid(...Object.keys(RoleCodeMap))
+    .required(),
   phoneNumber: Joi.string()
     .pattern(/^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/)
     .optional(),
