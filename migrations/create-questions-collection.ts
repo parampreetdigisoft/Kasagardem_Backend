@@ -51,11 +51,22 @@ export default {
       });
     } else {
       // Update existing collection validator
-      await db.command({
-        collMod: collectionName,
-        validator,
-        validationLevel: "strict",
-      });
+      try {
+        await db.command({
+          collMod: collectionName,
+          validator,
+          validationLevel: "strict",
+        });
+      } catch (err: any) {
+        if (
+          err.codeName === "Unauthorized" ||
+          err.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw err; // rethrow if it's a real error
+        }
+      }
 
       // Ensure all existing documents have isDeleted field
       await db
@@ -82,12 +93,23 @@ export default {
       .toArray();
 
     if (collections.length > 0) {
-      // Remove validation but keep collection & data
-      await db.command({
-        collMod: collectionName,
-        validator: {},
-        validationLevel: "off",
-      });
+      try {
+        // Remove validation but keep collection & data
+        await db.command({
+          collMod: collectionName,
+          validator: {},
+          validationLevel: "off",
+        });
+      } catch (err: any) {
+        if (
+          err.codeName === "Unauthorized" ||
+          err.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw err; // rethrow if it's a real error
+        }
+      }
     }
   },
 };

@@ -66,11 +66,22 @@ export default {
         validationLevel: "strict",
       });
     } else {
-      await db.command({
-        collMod: collectionName,
-        validator,
-        validationLevel: "strict",
-      });
+      try {
+        await db.command({
+          collMod: collectionName,
+          validator,
+          validationLevel: "strict",
+        });
+      } catch (err: any) {
+        if (
+          err.codeName === "Unauthorized" ||
+          err.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw err; // rethrow if it's a real error
+        }
+      }
 
       // Ensure all existing documents have isDeleted field
       await db
@@ -97,11 +108,22 @@ export default {
       .toArray();
 
     if (collections.length > 0) {
-      await db.command({
-        collMod: collectionName,
-        validator: {},
-        validationLevel: "off",
-      });
+      try {
+        await db.command({
+          collMod: collectionName,
+          validator: {},
+          validationLevel: "off",
+        });
+      } catch (error: any) {
+        if (
+          error.codeName === "Unauthorized" ||
+          error.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw error; // rethrow if it's a real error
+        }
+      }
 
       // Optionally remove affiliateFor field from all docs on rollback
       await db

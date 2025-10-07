@@ -7,7 +7,7 @@ export default {
    * @returns Resolves when the collection is created or updated
    */
   async up(db: Db): Promise<void> {
-    const collections = await db
+    const existingcollections = await db
       .listCollections({ name: "partnerprofiles" })
       .toArray();
 
@@ -66,6 +66,12 @@ export default {
             bsonType: "string",
             description: "Url of partner's project image",
           },
+          rating: {
+            bsonType: "double",
+            minimum: 0,
+            maximum: 5,
+            description: "partner rating from 0 to 5 (e.g., 3.5, 4.5)",
+          },
           status: {
             bsonType: "string",
             enum: ["active", "inactive", "pending", "suspended"],
@@ -87,12 +93,28 @@ export default {
       },
     };
 
-    if (collections.length > 0) {
-      await db.command({
-        collMod: "partnerprofiles",
-        validator: partnerProfileValidator,
-        validationLevel: "strict",
-      });
+    if (existingcollections.length > 0) {
+      try {
+        await db.command({
+          collMod: "partnerprofiles",
+          validator: partnerProfileValidator,
+          validationLevel: "strict",
+        });
+      } catch (err: any) {
+        if (
+          err.codeName === "Unauthorized" ||
+          err.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw err; // rethrow if it's a real error
+        }
+      }
+
+      // Add rating field to existing documents with default value of 0
+      await db
+        .collection("partnerprofiles")
+        .updateMany({ rating: { $exists: false } }, { $set: { rating: 0.0 } });
     } else {
       await db.createCollection("partnerprofiles", {
         validator: partnerProfileValidator,
@@ -100,8 +122,10 @@ export default {
       });
     }
 
-    // Create unique index on partnerId, email, and mobileNumber
-    await db.collection("partnerprofiles").createIndexes([
+    // Create indexes (won’t error if they already exist)
+    const collection = db.collection("partnerprofiles");
+
+    await collection.createIndexes([
       { key: { email: 1 }, unique: true },
       { key: { mobileNumber: 1 }, unique: true },
     ]);
@@ -113,13 +137,11 @@ export default {
    */
   async down(db: Db): Promise<void> {
     const collection = db.collection("partnerprofiles");
-
-    // Remove schema validation
-    await db.command({
-      collMod: "partnerprofiles",
-      validator: { $jsonSchema: { bsonType: "object" } }, // allow any document
-      validationLevel: "off",
-    });
+    // Remove rating field from all documents
+    await collection.updateMany(
+      { rating: { $exists: true } },
+      { $unset: { rating: "" } }
+    );
 
     // Drop indexes created in `up` (except _id)
     await Promise.all([
