@@ -333,6 +333,6 @@ router.delete("/question/:id", auth, deleteQuestion);
  */
 
 // Router configuration
-router.get("/question", auth, getAllQuestions);
+router.get("/question", getAllQuestions);
 
 export default router;

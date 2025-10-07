@@ -14,6 +14,8 @@ import config from "../../core/config/env";
 import { ZodError, ZodIssue } from "zod";
 import { sendPasswordResetEmail } from "../../core/services/emailService";
 import crypto from "crypto";
+import { RoleCodeMap } from "../../interface/role";
+import UserProfile from "../userProfile/userProfileModel";
 
 /**
  * Registers a new user in the system.
@@ -29,20 +31,32 @@ export const register = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { name, email, password, roleId, phoneNumber } = req.body;
+    const { name, email, password, roleCode, phoneNumber } = req.body;
 
     await info(
       "User registration attempt started",
-      { email, roleId, hasPhoneNumber: !!phoneNumber },
+      { email, roleCode, hasPhoneNumber: !!phoneNumber },
       { source: "auth.register" }
     );
 
-    // Check if roleId exists
-    const roleExists: IRoleDocument | null = await Role.findById(roleId);
-    if (!roleExists) {
+    // Validate role code using enum
+    const roleName = RoleCodeMap[roleCode];
+    if (!roleName) {
       await warn(
-        "Registration failed - invalid role ID",
-        { email, roleId },
+        "Registration failed - invalid role code",
+        { email, roleCode },
+        { source: "auth.register" }
+      );
+      res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.ROLE_INVALID_ID));
+      return;
+    }
+
+    // Find role by name (mapped from code)
+    const role: IRoleDocument | null = await Role.findOne({ name: roleName });
+    if (!role) {
+      await warn(
+        "Registration failed - role not found in DB",
+        { email, roleName },
         { source: "auth.register" }
       );
       res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.ROLE_INVALID_ID));
@@ -66,14 +80,25 @@ export const register = async (
       name,
       email,
       password,
-      roleId,
+      roleId: role._id.toString(),
       phoneNumber,
     });
 
     await info(
       "User registration successful",
-      { userId: newUser._id, email, roleId, hasPhoneNumber: !!phoneNumber },
+      { userId: newUser._id, email, roleCode, hasPhoneNumber: !!phoneNumber },
       { userId: newUser._id.toString(), source: "auth.register" }
+    );
+
+    // ✅ Create empty user profile linked to userId
+    await UserProfile.create({
+      userId: newUser._id,
+    });
+
+    await info(
+      "User profile created successfully",
+      { userId: newUser._id },
+      { source: "auth.register" }
     );
 
     res

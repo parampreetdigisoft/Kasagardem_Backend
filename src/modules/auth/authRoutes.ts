@@ -52,10 +52,10 @@ const router = Router();
  *               password:
  *                 type: string
  *                 example: Secret@123#
- *               roleId:
+ *               roleCode:
  *                 type: string
- *                 description: ID of the role assigned to the user
- *                 example: 64f7c9d8e4a1b2a345678901
+ *                 description: Code of the role assigned to the user
+ *                 example: A
  *               phoneNumber:
  *                 type: string
  *                 description: User's phone number (optional)

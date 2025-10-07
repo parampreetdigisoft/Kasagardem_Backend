@@ -24,20 +24,20 @@ export const getAllQuestions = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const userPayload = req.user as { userEmail?: string } | undefined;
-  if (!userPayload?.userEmail) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
-    return;
-  }
+  // const userPayload = req.user as { userEmail?: string } | undefined;
+  // if (!userPayload?.userEmail) {
+  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+  //   return;
+  // }
 
-  const user = await User.findOne({ email: userPayload.userEmail });
-  if (!user) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-    return;
-  }
+  // const user = await User.findOne({ email: userPayload.userEmail });
+  // if (!user) {
+  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+  //   return;
+  // }
 
   try {
-    await info("Get all questions request started", {}, { userId: user._id });
+    // await info("Get all questions request started", {}, { userId: user._id });
 
     // Retrieve all questions
     const questions = await Question.aggregate([
@@ -54,8 +54,8 @@ export const getAllQuestions = async (
 
     await info(
       "Questions retrieved successfully",
-      { questionsCount: questions.length },
-      { userId: user._id }
+      { questionsCount: questions.length }
+      // { userId: user._id }
     );
 
     res

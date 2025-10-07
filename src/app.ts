@@ -17,6 +17,7 @@ import stateCityRoutes from "./modules/stateCity/stateCityRoutes";
 import healthRoutes from "./modules/health/health";
 import ApiService from "./core/services/apiService";
 import config from "./core/config/env";
+import translationMiddleware from "./core/middleware/translationMiddleware";
 
 const app = express();
 setupSwagger(app);
@@ -31,7 +32,7 @@ export const plantApiService = new ApiService(config.KASAGARDEM_PLANTAPI_URL, {
 const corsOptions = {
   origin: "*", // Allow all origins
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept-Language"],
   exposedHeaders: ["Authorization"],
   credentials: true, // Set to true for cookies or HTTP auth
 };
@@ -39,7 +40,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
-
+app.use(translationMiddleware()); // enable translation globally
 // USer Authentication Routes
 app.use("/api/v1/auth", authRoutes);
 // User Role Routes
