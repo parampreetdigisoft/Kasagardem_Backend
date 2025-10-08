@@ -57,6 +57,7 @@ function shouldSkipKey(key: string): boolean {
     "verificationcode",
     "otp",
     "pin",
+    "success",
   ];
 
   // Check if key matches any skip field
