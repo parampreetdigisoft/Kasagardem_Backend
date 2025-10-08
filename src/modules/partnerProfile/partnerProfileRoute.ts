@@ -5,10 +5,12 @@ import {
   updatePartnerProfile,
   deletePartnerProfile,
   getAllPartnerProfiles,
+  updatePartnerRating,
 } from "./partnerProfileController";
 import {
   createPartnerProfileValidation,
   updatePartnerProfileValidation,
+  updatePartnerRatingValidation,
 } from "./partnerProfileValidation";
 import validateRequest from "../../core/middleware/validateRequest";
 import auth from "../../core/middleware/authMiddleware";
@@ -198,6 +200,50 @@ router.put(
   auth,
   validateRequest(updatePartnerProfileValidation),
   updatePartnerProfile
+);
+
+/**
+ * @swagger
+ * /api/v1/partnerProfile/rating:
+ *   patch:
+ *     summary: Update the rating of a partner profile
+ *     description: Updates only the rating field of a specific partner profile using the partnerProfileId provided in the request body.
+ *     tags: [PartnerProfile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - partnerProfileId
+ *               - rating
+ *             properties:
+ *               partnerProfileId:
+ *                 type: string
+ *                 description: The unique ID of the partner profile
+ *                 example: "652f8e9b4a5c9e5b4a3d9c22"
+ *               rating:
+ *                 type: number
+ *                 description: Rating value between 0 and 5
+ *                 example: 4.5
+ *     responses:
+ *       200:
+ *         description: Rating updated successfully
+ *       400:
+ *         description: Invalid rating value or bad request
+ *       404:
+ *         description: Partner profile not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.patch(
+  "/rating",
+  auth,
+  validateRequest(updatePartnerRatingValidation),
+  updatePartnerRating
 );
 
 /**

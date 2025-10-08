@@ -27,6 +27,7 @@ export const createPartnerProfileDto = z
     contactPerson: z.string().optional(),
     projectImageUrl: z.string().optional(),
     status: z.enum(["active", "inactive", "pending", "suspended"]).optional(),
+    rating: z.number().min(0).max(5).optional(), // rating between 0 and 5
   })
   .strict(); // prevent extra fields
 

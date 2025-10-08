@@ -51,3 +51,21 @@ export const createPartnerProfileValidation: ObjectSchema = Joi.object({
 });
 
 export const updatePartnerProfileValidation = createPartnerProfileValidation;
+
+export const updatePartnerRatingValidation: ObjectSchema = Joi.object({
+  partnerId: Joi.string()
+    .regex(/^[0-9a-fA-F]{24}$/)
+    .required()
+    .messages({
+      "string.pattern.base":
+        "Invalid partnerId format. Must be a valid ObjectId.",
+      "any.required": "partnerId is required",
+    }),
+
+  rating: Joi.number().min(0).max(5).required().messages({
+    "number.base": "Rating must be a number",
+    "number.min": "Rating cannot be less than 0",
+    "number.max": "Rating cannot be greater than 5",
+    "any.required": "Rating is required",
+  }),
+});
