@@ -2,8 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import translate from "google-translate-api-x";
 import NodeCache from "node-cache";
 
-// Install: npm install node-cache
-
 const translationCache = new NodeCache({ stdTTL: 86400 }); // Cache for 24 hours
 
 interface JsonResponseBody {
@@ -250,6 +248,9 @@ async function translateObject(
  */
 function translationMiddleware(defaultLang: string = "pt") {
   return (req: Request, res: Response, next: NextFunction): void => {
+    if (req.path.startsWith("/api/v1/stateCityData")) {
+      return next(); // skip translation for these routes
+    }
     const originalJson = res.json.bind(res);
 
     res.json = (async (body: JsonResponseBody) => {
