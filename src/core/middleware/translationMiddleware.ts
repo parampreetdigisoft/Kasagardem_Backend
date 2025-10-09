@@ -55,6 +55,7 @@ function shouldSkipKey(key: string): boolean {
     "verificationcode",
     "otp",
     "pin",
+    "success",
   ];
 
   // Check if key matches any skip field
@@ -247,6 +248,9 @@ async function translateObject(
  */
 function translationMiddleware(defaultLang: string = "pt") {
   return (req: Request, res: Response, next: NextFunction): void => {
+    if (req.path.startsWith("/api/v1/stateCityData")) {
+      return next(); // skip translation for these routes
+    }
     const originalJson = res.json.bind(res);
 
     res.json = (async (body: JsonResponseBody) => {
