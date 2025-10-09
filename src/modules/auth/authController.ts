@@ -513,14 +513,6 @@ export const googleAuth = async (
  * @param {NextFunction} next - Express next middleware function for error handling.
  * @returns {Promise<void>} Returns a promise that resolves when reset email is sent.
  */
-/**
- * Sends a password reset token to user's email.
- *
- * @param {Request} req - Express request object containing user email.
- * @param {Response} res - Express response object used to send the response.
- * @param {NextFunction} next - Express next middleware function for error handling.
- * @returns {Promise<void>} Returns a promise that resolves when reset email is sent.
- */
 export const handlePasswordResetToken = async (
   req: Request,
   res: Response,
@@ -730,49 +722,82 @@ export const verifyPasswordResetToken = async (
  * @returns {Promise<void>} Returns a promise that resolves when password reset is complete.
  */
 export const resetPassword = async (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     const { email, password, token } = req.body;
+    let user: IUserDocument | null = null;
+    const source = "auth.resetPassword";
 
-    await info(
-      "Password reset attempt started",
-      { email },
-      { source: "auth.resetPassword" }
-    );
+    await info("Password reset attempt started", { email }, { source });
 
-    // Hash the provided token to compare with stored hash
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    // ✅ CASE 1: OTP-based reset
+    if (token) {
+      const hashedToken = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
 
-    const user = (await User.findOne({
-      email,
-      passwordResetToken: hashedToken,
-    })) as IUserDocument | null;
+      user = await User.findOne({
+        email,
+        passwordResetToken: hashedToken,
+      });
 
-    if (!user) {
+      if (!user) {
+        await warn(
+          "Invalid or expired password reset token",
+          { email },
+          { source }
+        );
+        res
+          .status(HTTP_STATUS.OK)
+          .json(errorResponse("Invalid or expired password reset token"));
+        return;
+      }
+    }
+    // ✅ CASE 2: JWT-based reset (auth middleware already decoded)
+    else if (
+      req.user &&
+      typeof req.user === "object" &&
+      "userEmail" in req.user
+    ) {
+      const userEmail = (req.user as { userEmail: string }).userEmail;
+      user = await User.findOne({ email: userEmail });
+
+      if (!user) {
+        await warn(
+          "User not found during JWT-based password reset",
+          { userEmail },
+          { source }
+        );
+        res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("User not found"));
+        return;
+      }
+    } else {
+      // No token or JWT → unauthorized
       await warn(
-        "Password reset failed - invalid or expired token",
+        "Password reset failed - missing OTP or JWT",
         { email },
-        { source: "auth.resetPassword" }
+        { source }
       );
       res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse("Invalid or expired password reset token"));
+        .status(HTTP_STATUS.UNAUTHORIZED)
+        .json(errorResponse(MESSAGES.UNAUTHORIZED));
       return;
     }
 
-    // Update password and clear reset token fields
+    // ✅ Update password and clear reset fields
     user.password = password;
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
-    await user.save(); // This will trigger password hashing in pre-save hook
+    await user.save();
 
     await info(
       "Password reset successful",
-      { email, userId: user._id },
-      { userId: user._id.toString(), source: "auth.resetPassword" }
+      { email: user.email, userId: user._id },
+      { userId: user._id.toString(), source }
     );
 
     res.status(HTTP_STATUS.OK).json(
@@ -785,20 +810,14 @@ export const resetPassword = async (
       )
     );
   } catch (err: unknown) {
-    const errorObj: CustomError =
+    const errorObj =
       err instanceof Error
-        ? { ...err }
-        : {
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          };
+        ? { name: err.name, message: err.message, stack: err.stack }
+        : { name: "UnknownError", message: "An unknown error occurred" };
 
-    await error(
-      "Password reset failed with unexpected error",
-      { error: errorObj.message, stack: errorObj.stack },
-      { source: "auth.resetPassword" }
-    );
+    await error("Password reset failed with unexpected error", errorObj, {
+      source: "auth.resetPassword",
+    });
 
     next(errorObj);
   }

@@ -142,3 +142,16 @@ export const verifyPasswordResetTokenValidation = Joi.object({
       "any.required": "Password reset token is required",
     }),
 });
+
+// Password Change Validation (JWT-based)
+export const passwordChangeValidation = Joi.object({
+  password: Joi.string()
+    .min(6)
+    .required()
+    .custom(passwordComplexity, "Password complexity validation")
+    .messages({
+      "string.min": "Password must be at least 6 characters long",
+      "string.empty": "Password is required",
+      "any.required": "Password is required",
+    }),
+});
