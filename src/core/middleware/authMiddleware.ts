@@ -72,8 +72,17 @@ const auth = async (
 
     const decoded = jwt.verify(token, config.JWT_SECRET) as AuthTokenPayload;
 
-    // Add user info to request
-    req.user = decoded;
+    // Decode base64 values
+    const decodedUser = {
+      userEmail: Buffer.from(decoded.userEmail, "base64").toString("utf-8"),
+      role: Buffer.from(decoded.role, "base64").toString("utf-8"),
+      userId: Buffer.from(decoded.userId, "base64").toString("utf-8"),
+      ...(decoded.exp && { exp: decoded.exp }), // Preserve exp if it exists
+      ...(decoded.iat && { iat: decoded.iat }), // Preserve iat if it exists
+    };
+
+    // Add decoded user info to request
+    req.user = decodedUser;
 
     await info(
       "Authentication successful",

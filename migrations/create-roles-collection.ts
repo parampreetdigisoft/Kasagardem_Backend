@@ -50,12 +50,23 @@ export default {
         validationLevel: "strict",
       });
     } else {
-      // Collection exists, update the validator
-      await db.command({
-        collMod: collectionName,
-        validator: validator,
-        validationLevel: "strict",
-      });
+      try {
+        // Collection exists, update the validator
+        await db.command({
+          collMod: collectionName,
+          validator: validator,
+          validationLevel: "strict",
+        });
+      } catch (err: any) {
+        if (
+          err.codeName === "Unauthorized" ||
+          err.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw err; // rethrow if it's a real error
+        }
+      }
     }
 
     // Create or ensure unique index exists
@@ -85,11 +96,22 @@ export default {
 
     if (collections.length > 0) {
       // Remove validator (schema enforcement)
-      await db.command({
-        collMod: collectionName,
-        validator: {},
-        validationLevel: "off",
-      });
+      try {
+        await db.command({
+          collMod: collectionName,
+          validator: {},
+          validationLevel: "off",
+        });
+      } catch (err: any) {
+        if (
+          err.codeName === "Unauthorized" ||
+          err.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw err; // rethrow if it's a real error
+        }
+      }
 
       // Drop the unique index on name if it exists
       const rolesCollection = db.collection(collectionName);

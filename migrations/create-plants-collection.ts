@@ -138,12 +138,23 @@ export default {
         validationLevel: "strict",
       });
     } else {
-      // Update existing collection validator
-      await db.command({
-        collMod: collectionName,
-        validator,
-        validationLevel: "strict",
-      });
+      try {
+        // Update existing collection validator
+        await db.command({
+          collMod: collectionName,
+          validator,
+          validationLevel: "strict",
+        });
+      } catch (err: any) {
+        if (
+          err.codeName === "Unauthorized" ||
+          err.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw err; // rethrow if it's a real error
+        }
+      }
 
       // Ensure all existing documents have isDeleted field
       await db
@@ -153,7 +164,6 @@ export default {
           { $set: { isDeleted: false } }
         );
     }
-
     // Create useful indexes
     await db.collection(collectionName).createIndexes([
       { key: { scientific_name: 1 }, unique: true },
@@ -184,11 +194,22 @@ export default {
       await db.collection(collectionName).dropIndexes();
 
       // Remove validation but keep collection & data
-      await db.command({
-        collMod: collectionName,
-        validator: {},
-        validationLevel: "off",
-      });
+      try {
+        await db.command({
+          collMod: collectionName,
+          validator: {},
+          validationLevel: "off",
+        });
+      } catch (err: any) {
+        if (
+          err.codeName === "Unauthorized" ||
+          err.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw err; // rethrow if it's a real error
+        }
+      }
     }
   },
 };

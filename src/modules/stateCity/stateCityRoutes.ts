@@ -4,7 +4,6 @@ import {
   getCountries,
   getCitiesByState,
 } from "./stateCityController";
-import auth from "../../core/middleware/authMiddleware";
 import { statesValidation } from "./stateCityValidations";
 
 const router: Router = express.Router();
@@ -138,7 +137,7 @@ const router: Router = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/countries", auth, statesValidation.getCountries, getCountries);
+router.get("/countries", statesValidation.getCountries, getCountries);
 
 /**
  * @swagger
@@ -185,7 +184,7 @@ router.get("/countries", auth, statesValidation.getCountries, getCountries);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/countries/states", auth, getStatesByCountry);
+router.get("/countries/states", getStatesByCountry);
 
 /**
  * @swagger
@@ -298,7 +297,6 @@ router.get("/countries/states", auth, getStatesByCountry);
  */
 router.get(
   "/countries/:iso2/states/:stateIso2/cities",
-  auth,
   statesValidation.getCitiesByState,
   getCitiesByState
 );

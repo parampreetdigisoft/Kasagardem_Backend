@@ -39,11 +39,22 @@ export default {
     };
 
     if (collections.length > 0) {
-      await db.command({
-        collMod: "users",
-        validator: userValidator,
-        validationLevel: "strict",
-      });
+      try {
+        await db.command({
+          collMod: "users",
+          validator: userValidator,
+          validationLevel: "strict",
+        });
+      } catch (err: any) {
+        if (
+          err.codeName === "Unauthorized" ||
+          err.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw err; // rethrow if it's a real error
+        }
+      }
     } else {
       await db.createCollection("users", {
         validator: userValidator,
@@ -73,19 +84,31 @@ export default {
    * @param db - The MongoDB database instance.
    */
   async down(db: Db): Promise<void> {
-    // Instead of dropping the collection, revert schema validator
-    await db.command({
-      collMod: "users",
-      validator: { $jsonSchema: { bsonType: "object" } }, // allow any fields
-      validationLevel: "off",
-    });
+    try {
+      await db.command({
+        collMod: "users",
+        validator: { $jsonSchema: { bsonType: "object" } },
+        validationLevel: "off",
+      });
+    } catch (err: any) {
+      if (
+        err.codeName === "Unauthorized" ||
+        err.errmsg?.includes("not authorized")
+      ) {
+        console.error("⚠️ Skipping collMod due to insufficient privileges");
+      } else {
+        throw err; // rethrow if it's a real error
+      }
+    }
 
-    // Optionally, remove the indexes you created in `up` (but keep data)
+    // Drop indexes (these don’t need special privileges)
     const users = db.collection("users");
-    await users.dropIndex("email_1").catch(() => {});
-    await users.dropIndex("googleId_1").catch(() => {});
-    await users.dropIndex("passwordResetToken_1").catch(() => {});
-    await users.dropIndex("passwordReset_compound_1").catch(() => {});
-    await users.dropIndex("passwordResetExpires_ttl_1").catch(() => {});
+    await Promise.all([
+      users.dropIndex("email_1").catch(() => {}),
+      users.dropIndex("googleId_1").catch(() => {}),
+      users.dropIndex("passwordResetToken_1").catch(() => {}),
+      users.dropIndex("passwordReset_compound_1").catch(() => {}),
+      users.dropIndex("passwordResetExpires_ttl_1").catch(() => {}),
+    ]);
   },
 };

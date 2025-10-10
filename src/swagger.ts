@@ -27,6 +27,20 @@ const options = {
         },
       },
     },
+    parameters: {
+      AcceptLanguage: {
+        in: "header",
+        name: "Accept-Language",
+        schema: {
+          type: "string",
+          enum: ["en", "pt"],
+          default: "pt",
+        },
+        required: false,
+        description:
+          "Language preference for the response (defaults to Portuguese if not specified)",
+      },
+    },
     security: [
       {
         bearerAuth: [],
@@ -54,7 +68,32 @@ const specs = swaggerJsdoc(options);
  * @param {Application} app - The Express application instance.
  */
 function setupSwagger(app: Application): void {
-  app.use("/swagger", swaggerUi.serve, swaggerUi.setup(specs));
+  // Swagger UI options with request interceptor
+  const swaggerUiOptions = {
+    swaggerOptions: {
+      persistAuthorization: true,
+      /**
+       * Intercepts all Swagger requests to add default Accept-Language header.
+       * @param {Record<string, unknown>} req - The request object from Swagger UI
+       * @returns {Record<string, unknown>} The modified request object with Accept-Language header
+       */
+      requestInterceptor: (
+        req: Record<string, unknown>
+      ): Record<string, unknown> => {
+        const headers = req.headers as Record<string, string>;
+        // Add Accept-Language header only if not already set
+        if (!headers["Accept-Language"]) {
+          headers["Accept-Language"] = "pt"; // Default to Portuguese
+        }
+        return req;
+      },
+    },
+  };
+  app.use(
+    "/swagger",
+    swaggerUi.serve,
+    swaggerUi.setup(specs, swaggerUiOptions)
+  );
 }
 
 export default setupSwagger;

@@ -226,6 +226,42 @@ export const updatePartnerProfile = async (
 };
 
 /**
+ * Updates the rating of a specific partner profile by their partnerId.
+ * Accepts partnerId and rating in the request body.
+ *
+ * @param req Express request object
+ * @param res Express response object
+ * @param next Express next middleware function
+ */
+export const updatePartnerRating = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const { partnerProfileId, rating } = req.body;
+
+  try {
+    const updatedProfile = await PartnerProfile.updateRating(
+      partnerProfileId,
+      rating
+    );
+
+    if (!updatedProfile) {
+      res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .json(errorResponse("Partner profile not found"));
+      return;
+    }
+
+    res
+      .status(HTTP_STATUS.OK)
+      .json(successResponse(null, "Rating updated successfully"));
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * Delete partner profile by ID.
  * @param req
  * @param res

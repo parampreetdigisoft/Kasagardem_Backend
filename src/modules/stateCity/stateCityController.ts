@@ -1,4 +1,4 @@
-import { Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import axios, { AxiosError } from "axios";
 import { info, error as logError } from "../../core/utils/logger";
 import { HTTP_STATUS } from "../../core/utils/constants";
@@ -6,9 +6,7 @@ import {
   errorResponse,
   successResponse,
 } from "../../core/utils/responseFormatter";
-import User from "../auth/authModel";
 import { CustomError } from "../../interface/error";
-import { AuthRequest } from "../../core/middleware/authMiddleware";
 
 interface State {
   name: string;
@@ -70,23 +68,23 @@ const makeCSCRequest = async <T>(endpoint: string): Promise<T> => {
  * @param next - Express next middleware function used to handle errors.
  */
 export const getStatesByCountry = async (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const userPayload = req.user as { userEmail?: string } | undefined;
-  if (!userPayload?.userEmail) {
-    res
-      .status(HTTP_STATUS.UNAUTHORIZED)
-      .json(errorResponse("Unauthorized request"));
-    return;
-  }
+  // const userPayload = req.user as { userEmail?: string } | undefined;
+  // if (!userPayload?.userEmail) {
+  //   res
+  //     .status(HTTP_STATUS.UNAUTHORIZED)
+  //     .json(errorResponse("Unauthorized request"));
+  //   return;
+  // }
 
-  const user = await User.findOne({ email: userPayload.userEmail });
-  if (!user) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-    return;
-  }
+  // const user = await User.findOne({ email: userPayload.userEmail });
+  // if (!user) {
+  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+  //   return;
+  // }
 
   try {
     const iso2 = "BR"; // use Brazil
@@ -94,7 +92,7 @@ export const getStatesByCountry = async (
     await info(
       "Get states by country request started",
       { countryCode: iso2 },
-      { userId: user._id, source: "states.getStatesByCountry" }
+      { source: "states.getStatesByCountry" }
     );
 
     if (!apiKey) {
@@ -115,7 +113,7 @@ export const getStatesByCountry = async (
         statesCount: states.length,
         stateNames: states.map((state: State) => state.name).slice(0, 5),
       },
-      { userId: user._id, source: "states.getStatesByCountry" }
+      { source: "states.getStatesByCountry" }
     );
 
     res.status(HTTP_STATUS.OK).json(
@@ -140,31 +138,31 @@ export const getStatesByCountry = async (
  * @param next - Express next middleware function used to handle errors.
  */
 export const getCountries = async (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract user info from JWT populated by auth middleware
-  const userPayload = req.user as { userEmail?: string } | undefined;
-  if (!userPayload?.userEmail) {
-    res
-      .status(HTTP_STATUS.UNAUTHORIZED)
-      .json(errorResponse("Unauthorized request"));
-    return;
-  }
+  // // Extract user info from JWT populated by auth middleware
+  // const userPayload = req.user as { userEmail?: string } | undefined;
+  // if (!userPayload?.userEmail) {
+  //   res
+  //     .status(HTTP_STATUS.UNAUTHORIZED)
+  //     .json(errorResponse("Unauthorized request"));
+  //   return;
+  // }
 
-  // Fetch user by email
-  const user = await User.findOne({ email: userPayload?.userEmail });
-  if (!user) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-    return;
-  }
+  // // Fetch user by email
+  // const user = await User.findOne({ email: userPayload?.userEmail });
+  // if (!user) {
+  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+  //   return;
+  // }
 
   try {
     await info(
       "Get all countries request started",
       {},
-      { userId: user._id, source: "states.getCountries" }
+      { source: "states.getCountries" }
     );
 
     // Check if API key is available
@@ -188,7 +186,7 @@ export const getCountries = async (
           iso2: country.iso2,
         })),
       },
-      { userId: user._id, source: "states.getCountries" }
+      { source: "states.getCountries" }
     );
 
     res.status(HTTP_STATUS.OK).json(
@@ -211,7 +209,7 @@ export const getCountries = async (
     await logError(
       "Get all countries failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack },
-      { userId: user._id, source: "states.getCountries" }
+      { source: "states.getCountries" }
     );
 
     next(errorObj);
@@ -226,25 +224,25 @@ export const getCountries = async (
  * @param next - Express next middleware function used to handle errors.
  */
 export const getCitiesByState = async (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract user info from JWT populated by auth middleware
-  const userPayload = req.user as { userEmail?: string } | undefined;
-  if (!userPayload?.userEmail) {
-    res
-      .status(HTTP_STATUS.UNAUTHORIZED)
-      .json(errorResponse("Unauthorized request"));
-    return;
-  }
+  // // Extract user info from JWT populated by auth middleware
+  // const userPayload = req.user as { userEmail?: string } | undefined;
+  // if (!userPayload?.userEmail) {
+  //   res
+  //     .status(HTTP_STATUS.UNAUTHORIZED)
+  //     .json(errorResponse("Unauthorized request"));
+  //   return;
+  // }
 
-  // Fetch user by email
-  const user = await User.findOne({ email: userPayload?.userEmail });
-  if (!user) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-    return;
-  }
+  // // Fetch user by email
+  // const user = await User.findOne({ email: userPayload?.userEmail });
+  // if (!user) {
+  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+  //   return;
+  // }
 
   try {
     const { iso2, stateIso2 } = req.params;
@@ -252,7 +250,7 @@ export const getCitiesByState = async (
     await info(
       "Get cities by state request started",
       { countryCode: iso2, stateCode: stateIso2 },
-      { userId: user._id, source: "stateCity.getCitiesByState" }
+      { source: "stateCity.getCitiesByState" }
     );
 
     // Check if API key is available
@@ -277,7 +275,7 @@ export const getCitiesByState = async (
         citiesCount: cities.length,
         cityNames: cities.map((city: City) => city.name).slice(0, 10),
       },
-      { userId: user._id, source: "stateCity.getCitiesByState" }
+      { source: "stateCity.getCitiesByState" }
     );
 
     res.status(HTTP_STATUS.OK).json(
@@ -301,7 +299,7 @@ export const getCitiesByState = async (
             stateCode: req.params.stateIso2,
             error: apiError.message,
           },
-          { userId: user._id, source: "stateCity.getCitiesByState" }
+          { source: "stateCity.getCitiesByState" }
         );
 
         res
@@ -322,7 +320,7 @@ export const getCitiesByState = async (
           error: apiError.message,
           status: apiError.status,
         },
-        { userId: user._id, source: "stateCity.getCitiesByState" }
+        { source: "stateCity.getCitiesByState" }
       );
 
       res
@@ -349,7 +347,7 @@ export const getCitiesByState = async (
         error: errorObj.message,
         stack: errorObj.stack,
       },
-      { userId: user._id, source: "stateCity.getCitiesByState" }
+      { source: "stateCity.getCitiesByState" }
     );
 
     next(errorObj);

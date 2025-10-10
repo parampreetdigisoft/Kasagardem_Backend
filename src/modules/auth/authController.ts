@@ -16,6 +16,7 @@ import { sendPasswordResetEmail } from "../../core/services/emailService";
 import crypto from "crypto";
 import { RoleCodeMap } from "../../interface/role";
 import UserProfile from "../userProfile/userProfileModel";
+import { AuthRequest } from "../../core/middleware/authMiddleware";
 
 /**
  * Registers a new user in the system.
@@ -224,7 +225,11 @@ export const login = async (
     }
 
     // Generate JWT
-    const token = generateToken(user.email as string, role.name as string);
+    const token = generateToken(
+      user.email as string,
+      role.name as string,
+      user._id.toString()
+    );
 
     await info(
       "User login successful",
@@ -248,6 +253,110 @@ export const login = async (
 
     await error(
       "Login failed with unexpected error",
+      { error: errorObj.message, stack: errorObj.stack },
+      { source: "auth.login" }
+    );
+
+    next(errorObj);
+  }
+};
+
+/**
+ * Authenticates a user and returns a refresh JWT token.
+ *
+ * @param {AuthRequest} req - Express Auth Request.
+ * @param {Response} res - Express response object used to send the response.
+ * @param {NextFunction} next - Express next middleware function for error handling.
+ * @returns {Promise<void>} Returns a promise that resolves when authentication is complete.
+ */
+export const refreshTokenLogin = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  // Extract user info from JWT populated by auth middleware
+  const userPayload = req.user as { userId?: string; exp?: number } | undefined;
+  if (!userPayload?.userId) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
+
+  // Check if token is expired
+  const currentTimestamp = Math.floor(Date.now() / 1000);
+  if (!userPayload.exp || userPayload.exp > currentTimestamp) {
+    res
+      .status(HTTP_STATUS.BAD_REQUEST)
+      .json(errorResponse("Token is still valid. Refresh not needed."));
+    return;
+  }
+  try {
+    await info(
+      "Refresh User login attempt started",
+      { userId: userPayload?.userId },
+      { source: "auth.login" }
+    );
+
+    const user = (await User.findById(
+      userPayload?.userId
+    )) as IUserDocument | null;
+
+    if (!user) {
+      await warn(
+        "Refresh Login failed - user not found",
+        { userId: userPayload?.userId },
+        { source: "auth.login" }
+      );
+      res
+        .status(HTTP_STATUS.OK)
+        .json(errorResponse(MESSAGES.INVALID_CREDENTIALS));
+      return;
+    }
+
+    // Fetch role name
+    const role = (await Role.findById(user.roleId).select(
+      "name"
+    )) as IRoleDocument | null;
+    if (!role) {
+      await error(
+        "Refresh Login failed - role not found",
+        { userId: user._id, roleId: user.roleId },
+        { userId: user._id.toString(), source: "auth.login" }
+      );
+      res.status(HTTP_STATUS.OK).json(errorResponse("Role not found"));
+      return;
+    }
+
+    // Generate JWT
+    const token = generateToken(
+      user.email as string,
+      role.name as string,
+      user._id.toString()
+    );
+
+    await info(
+      "User refresh login successful",
+      { userId: user._id, roleName: role.name },
+      { userId: user._id.toString(), source: "auth.login" }
+    );
+
+    res
+      .status(HTTP_STATUS.OK)
+      .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
+  } catch (err: unknown) {
+    // Narrow unknown to CustomError safely
+    const errorObj: CustomError =
+      err instanceof Error
+        ? { ...err }
+        : {
+            name: "UnknownError",
+            message:
+              typeof err === "string" ? err : "An unknown error occurred",
+          };
+
+    await error(
+      "Refresh Login failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack },
       { source: "auth.login" }
     );
@@ -335,7 +444,11 @@ export const googleAuth = async (
       const role = (await Role.findById(user.roleId).select(
         "name"
       )) as IRoleDocument;
-      const token = generateToken(user.email as string, role.name);
+      const token = generateToken(
+        user.email as string,
+        role.name as string,
+        user._id.toString()
+      );
 
       res
         .status(HTTP_STATUS.OK)
@@ -366,7 +479,11 @@ export const googleAuth = async (
     });
 
     const role = (await Role.findById(roleId).select("name")) as IRoleDocument;
-    const token = generateToken(user.email as string, role.name);
+    const token = generateToken(
+      user.email as string,
+      role.name as string,
+      user._id.toString()
+    );
 
     res
       .status(HTTP_STATUS.CREATED)
@@ -388,14 +505,6 @@ export const googleAuth = async (
   }
 };
 
-/**
- * Sends a password reset token to user's email.
- *
- * @param {Request} req - Express request object containing user email.
- * @param {Response} res - Express response object used to send the response.
- * @param {NextFunction} next - Express next middleware function for error handling.
- * @returns {Promise<void>} Returns a promise that resolves when reset email is sent.
- */
 /**
  * Sends a password reset token to user's email.
  *
@@ -613,49 +722,82 @@ export const verifyPasswordResetToken = async (
  * @returns {Promise<void>} Returns a promise that resolves when password reset is complete.
  */
 export const resetPassword = async (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     const { email, password, token } = req.body;
+    let user: IUserDocument | null = null;
+    const source = "auth.resetPassword";
 
-    await info(
-      "Password reset attempt started",
-      { email },
-      { source: "auth.resetPassword" }
-    );
+    await info("Password reset attempt started", { email }, { source });
 
-    // Hash the provided token to compare with stored hash
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    // ✅ CASE 1: OTP-based reset
+    if (token) {
+      const hashedToken = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
 
-    const user = (await User.findOne({
-      email,
-      passwordResetToken: hashedToken,
-    })) as IUserDocument | null;
+      user = await User.findOne({
+        email,
+        passwordResetToken: hashedToken,
+      });
 
-    if (!user) {
+      if (!user) {
+        await warn(
+          "Invalid or expired password reset token",
+          { email },
+          { source }
+        );
+        res
+          .status(HTTP_STATUS.OK)
+          .json(errorResponse("Invalid or expired password reset token"));
+        return;
+      }
+    }
+    // ✅ CASE 2: JWT-based reset (auth middleware already decoded)
+    else if (
+      req.user &&
+      typeof req.user === "object" &&
+      "userEmail" in req.user
+    ) {
+      const userEmail = (req.user as { userEmail: string }).userEmail;
+      user = await User.findOne({ email: userEmail });
+
+      if (!user) {
+        await warn(
+          "User not found during JWT-based password reset",
+          { userEmail },
+          { source }
+        );
+        res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("User not found"));
+        return;
+      }
+    } else {
+      // No token or JWT → unauthorized
       await warn(
-        "Password reset failed - invalid or expired token",
+        "Password reset failed - missing OTP or JWT",
         { email },
-        { source: "auth.resetPassword" }
+        { source }
       );
       res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse("Invalid or expired password reset token"));
+        .status(HTTP_STATUS.UNAUTHORIZED)
+        .json(errorResponse(MESSAGES.UNAUTHORIZED));
       return;
     }
 
-    // Update password and clear reset token fields
+    // ✅ Update password and clear reset fields
     user.password = password;
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
-    await user.save(); // This will trigger password hashing in pre-save hook
+    await user.save();
 
     await info(
       "Password reset successful",
-      { email, userId: user._id },
-      { userId: user._id.toString(), source: "auth.resetPassword" }
+      { email: user.email, userId: user._id },
+      { userId: user._id.toString(), source }
     );
 
     res.status(HTTP_STATUS.OK).json(
@@ -668,20 +810,14 @@ export const resetPassword = async (
       )
     );
   } catch (err: unknown) {
-    const errorObj: CustomError =
+    const errorObj =
       err instanceof Error
-        ? { ...err }
-        : {
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          };
+        ? { name: err.name, message: err.message, stack: err.stack }
+        : { name: "UnknownError", message: "An unknown error occurred" };
 
-    await error(
-      "Password reset failed with unexpected error",
-      { error: errorObj.message, stack: errorObj.stack },
-      { source: "auth.resetPassword" }
-    );
+    await error("Password reset failed with unexpected error", errorObj, {
+      source: "auth.resetPassword",
+    });
 
     next(errorObj);
   }

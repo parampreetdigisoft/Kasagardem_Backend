@@ -58,13 +58,23 @@ export default {
         },
       },
     };
-
     if (collections.length > 0) {
-      await db.command({
-        collMod: "logs",
-        validator: logValidator,
-        validationLevel: "strict",
-      });
+      try {
+        await db.command({
+          collMod: "logs",
+          validator: logValidator,
+          validationLevel: "strict",
+        });
+      } catch (err: any) {
+        if (
+          err.codeName === "Unauthorized" ||
+          err.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw err; // rethrow if it's a real error
+        }
+      }
     } else {
       await db.createCollection("logs", {
         validator: logValidator,

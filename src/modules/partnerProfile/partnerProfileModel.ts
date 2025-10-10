@@ -16,6 +16,7 @@ export interface IPartnerProfile extends Document {
   status?: "active" | "inactive" | "pending" | "suspended";
   createdAt?: Date;
   updatedAt?: Date;
+  rating?: number;
 }
 
 // Schema definition
@@ -70,6 +71,11 @@ const partnerProfileSchema = new Schema<IPartnerProfile>(
       enum: ["active", "inactive", "pending", "suspended"],
       default: "pending",
       lowercase: true,
+    },
+    rating: {
+      type: Number,
+      min: [0, "Rating cannot be less than 0"],
+      max: [5, "Rating cannot be more than 5"],
     },
   },
   {
@@ -132,12 +138,45 @@ partnerProfileSchema.statics.updateValidated = async function (
   }
 };
 
+/**
+ * Update only the rating of a PartnerProfile.
+ * @param profileId - The profile's _id
+ * @param rating - New rating value (0 to 5)
+ * @returns Updated PartnerProfile document or null if not found
+ * @throws Error if validation fails or profile not found
+ */
+partnerProfileSchema.statics.updateRating = async function (
+  profileId: string,
+  rating: number
+): Promise<IPartnerProfile | null> {
+  try {
+    // Basic validation
+    if (typeof rating !== "number" || rating < 0 || rating > 5) {
+      throw new Error("Rating must be a number between 0 and 5");
+    }
+
+    const updatedProfile = await this.findByIdAndUpdate(
+      profileId,
+      { rating },
+      { new: true, runValidators: true }
+    );
+
+    return updatedProfile;
+  } catch (err) {
+    throw err;
+  }
+};
+
 // Model type with static methods
 interface IPartnerProfileModel extends mongoose.Model<IPartnerProfile> {
   createValidated(data: unknown): Promise<IPartnerProfile>;
   updateValidated(
     profileId: string,
     data: unknown
+  ): Promise<IPartnerProfile | null>;
+  updateRating(
+    profileId: string,
+    rating: number
   ): Promise<IPartnerProfile | null>;
 }
 

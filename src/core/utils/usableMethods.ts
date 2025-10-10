@@ -34,14 +34,32 @@ function toExpiresIn(
  *
  * @param {string} userEmail - The email of the user for whom the token is generated.
  * @param {string} role - The role of the user (e.g., "admin", "user").
+ * @param {string }userId - The user id
  * @returns {string} The signed JWT token.
  */
-export const generateToken = (userEmail: string, role: string): string => {
+export const generateToken = (
+  userEmail: string,
+  role: string,
+  userId: string
+): string => {
   const options: SignOptions = {
     expiresIn: toExpiresIn(config.JWT_EXPIRE),
     algorithm: "HS512",
   };
-  return jwt.sign({ userEmail, role }, jwtSecret, options);
+  // Encode each parameter to base64
+  const encodedEmail = Buffer.from(userEmail).toString("base64");
+  const encodedRole = Buffer.from(role).toString("base64");
+  const encodedUserId = Buffer.from(userId).toString("base64");
+
+  return jwt.sign(
+    {
+      userEmail: encodedEmail,
+      role: encodedRole,
+      userId: encodedUserId,
+    },
+    jwtSecret,
+    options
+  );
 };
 
 // Configure OAuth2 client

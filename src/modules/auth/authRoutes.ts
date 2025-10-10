@@ -6,6 +6,7 @@ import {
   resetPassword,
   verifyPasswordResetToken,
   handlePasswordResetToken,
+  refreshTokenLogin,
 } from "./authController";
 import {
   registerValidation,
@@ -13,8 +14,10 @@ import {
   resetPasswordValidation,
   verifyPasswordResetTokenValidation,
   handlePasswordResetTokenValidation,
+  passwordChangeValidation,
 } from "./authValidations";
 import validateRequest from "../../core/middleware/validateRequest";
+import auth from "../../core/middleware/authMiddleware";
 
 const router = Router();
 
@@ -97,6 +100,20 @@ router.post("/register", validateRequest(registerValidation), register);
  *         description: Invalid credentials
  */
 router.post("/login", validateRequest(loginValidation), login);
+
+/**
+ * @swagger
+ * /api/v1/auth/refresh:
+ *   post:
+ *     summary: Refresh user token
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Refresh Login successful
+ *       401:
+ *         description: Invalid credentials
+ */
+router.post("/refresh", auth, refreshTokenLogin);
 
 /**
  * @swagger
@@ -191,6 +208,64 @@ router.post("/google", googleAuth);
 router.patch(
   "/resetPassword",
   validateRequest(resetPasswordValidation),
+  resetPassword
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/resetPassword/auth:
+ *   patch:
+ *     summary: Reset password using JWT (logged-in user)
+ *     description: Allows authenticated users to reset their password using a valid JWT token. The user's email is automatically derived from the token.
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - password
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *                 description: New password to set
+ *                 example: SecurePass@2025
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               data:
+ *                 message: "Password has been reset successfully"
+ *                 email: "john@example.com"
+ *               message: "Password reset successful"
+ *       401:
+ *         description: Unauthorized (missing or invalid JWT)
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Unauthorized access"
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "User not found"
+ *       500:
+ *         description: Server error
+ */
+router.patch(
+  "/resetPassword/auth",
+  auth,
+  validateRequest(passwordChangeValidation),
   resetPassword
 );
 

@@ -79,11 +79,22 @@ export default {
     };
 
     if (collections.length > 0) {
-      await db.command({
-        collMod: "userprofiles",
-        validator: userProfileValidator,
-        validationLevel: "strict",
-      });
+      try {
+        await db.command({
+          collMod: "userprofiles",
+          validator: userProfileValidator,
+          validationLevel: "strict",
+        });
+      } catch (err: any) {
+        if (
+          err.codeName === "Unauthorized" ||
+          err.errmsg?.includes("not authorized")
+        ) {
+          console.error("⚠️ Skipping collMod due to insufficient privileges");
+        } else {
+          throw err; // rethrow if it's a real error
+        }
+      }
     } else {
       await db.createCollection("userprofiles", {
         validator: userProfileValidator,
@@ -102,13 +113,23 @@ export default {
    */
   async down(db: Db): Promise<void> {
     const collection = db.collection("userprofiles");
-
-    // Remove schema validation
-    await db.command({
-      collMod: "userprofiles",
-      validator: { $jsonSchema: { bsonType: "object" } }, // allow any document
-      validationLevel: "off",
-    });
+    try {
+      // Remove schema validation
+      await db.command({
+        collMod: "userprofiles",
+        validator: { $jsonSchema: { bsonType: "object" } }, // allow any document
+        validationLevel: "off",
+      });
+    } catch (err: any) {
+      if (
+        err.codeName === "Unauthorized" ||
+        err.errmsg?.includes("not authorized")
+      ) {
+        console.error("⚠️ Skipping collMod due to insufficient privileges");
+      } else {
+        throw err; // rethrow if it's a real error
+      }
+    }
 
     // Drop indexes created in `up` (except _id)
     await collection.dropIndex("userId_1").catch(() => {});
