@@ -9,7 +9,7 @@ import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { generateToken } from "../../core/utils/usableMethods";
 import { info, error, warn } from "../../core/utils/logger";
 // import { TokenPayload, LoginTicket } from "google-auth-library";
-import { CustomError } from "../../interface/error";
+import { CustomError } from "../../interface/Error";
 import { ZodError, ZodIssue } from "zod";
 import { sendPasswordResetEmail } from "../../core/services/emailService";
 import crypto from "crypto";
