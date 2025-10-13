@@ -284,10 +284,10 @@ export const refreshTokenLogin = async (
 
   // Check if token is expired
   const currentTimestamp = Math.floor(Date.now() / 1000);
-  if (!userPayload.exp || userPayload.exp > currentTimestamp) {
+  if (!userPayload.exp || userPayload.exp <= currentTimestamp) {
     res
-      .status(HTTP_STATUS.BAD_REQUEST)
-      .json(errorResponse("Token is still valid. Refresh not needed."));
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Token is expired or invalid"));
     return;
   }
   try {
