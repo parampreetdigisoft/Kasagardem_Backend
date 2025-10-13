@@ -307,7 +307,7 @@ export const updateUserProfile = async (
 
     res
       .status(HTTP_STATUS.OK)
-      .json(successResponse(updatedProfile, MESSAGES.PROFILE_UPDATED));
+      .json(successResponse(null, MESSAGES.PROFILE_UPDATED));
   } catch (err: unknown) {
     // ← Use 'unknown' as required by TypeScript
     // Type guard to safely work with the error

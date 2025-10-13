@@ -1,8 +1,6 @@
-import { Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import Answer from "./answerModel";
-import User from "../auth/authModel";
-import { AuthRequest } from "../../core/middleware/authMiddleware";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import {
   errorResponse,
@@ -27,21 +25,21 @@ import {
  * @returns Promise<void>
  */
 export const submitAnswer = async (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const userPayload = req.user as { userEmail?: string } | undefined;
-  if (!userPayload?.userEmail) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
-    return;
-  }
+  // const userPayload = req.user as { userEmail?: string } | undefined;
+  // if (!userPayload?.userEmail) {
+  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+  //   return;
+  // }
 
-  const user = await User.findOne({ email: userPayload.userEmail });
-  if (!user) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-    return;
-  }
+  // const user = await User.findOne({ email: userPayload.userEmail });
+  // if (!user) {
+  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+  //   return;
+  // }
 
   try {
     const { answers } = req.body;
@@ -73,7 +71,6 @@ export const submitAnswer = async (
 
     // Map userId automatically from authenticated user
     await Answer.createValidated({
-      userId: user._id,
       answers,
       isDeleted: false,
     });
@@ -87,11 +84,12 @@ export const submitAnswer = async (
       successResponse(
         {
           plantRecommendations: recommendedPlants.map((p) => ({
-            id: p._id.toString(),
+            id: p._id,
             name: p.common_name,
             scientific: p.scientific_name,
             image: p.image_search_url,
             description: p.description,
+            whyRecommended: p.whyRecommended,
           })),
           partnerRecommendations: recommendedPartners.map((partner) => ({
             email: partner.email,
@@ -102,6 +100,7 @@ export const submitAnswer = async (
             website: partner.website,
             contactPerson: partner.contactPerson,
             projectImageUrl: partner.projectImageUrl,
+            whyRecommended: partner.whyRecommended,
           })),
         },
         "Answers submitted successfully with plant and partner recommendations"

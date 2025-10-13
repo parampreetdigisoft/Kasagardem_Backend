@@ -10,7 +10,7 @@ export default {
     const validator = {
       $jsonSchema: {
         bsonType: "object",
-        required: ["answers", "result", "createdAt"],
+        required: ["answers", "result"],
         properties: {
           userId: { bsonType: "objectId" },
           answers: {
@@ -23,7 +23,7 @@ export default {
             properties: {
               problemAnalysis: { bsonType: "string" },
               productRecommendations: {
-                bsonType: "array",
+                bsonType: ["array", "null"],
                 items: {
                   bsonType: "object",
                   required: ["name", "affiliateLink"],
@@ -34,7 +34,7 @@ export default {
                 },
               },
               professionalRecommendations: {
-                bsonType: "array",
+                bsonType: ["array", "null"],
                 items: { bsonType: "string" },
               },
             },

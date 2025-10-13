@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   register,
   login,
-  googleAuth,
+  // googleAuth,
   resetPassword,
   verifyPasswordResetToken,
   handlePasswordResetToken,
@@ -115,57 +115,57 @@ router.post("/login", validateRequest(loginValidation), login);
  */
 router.post("/refresh", auth, refreshTokenLogin);
 
-/**
- * @swagger
- * /api/v1/auth/google:
- *   post:
- *     summary: Register or login user using Google OAuth
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - idToken
- *               - roleId
- *             properties:
- *               idToken:
- *                 type: string
- *                 description: Google ID token obtained from client-side Google Sign-In
- *                 example: "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij..."
- *               roleId:
- *                 type: string
- *                 description: Role ID to assign the user (if registering new)
- *                 example: "64f7c9d8e4a1b2a345678901"
- *     responses:
- *       200:
- *         description: User logged in successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     token:
- *                       type: string
- *                 message:
- *                   type: string
- *       201:
- *         description: New user registered successfully
- *       400:
- *         description: Invalid or missing Google token or roleId
- *       401:
- *         description: Invalid Google token
- *       409:
- *         description: Email already registered with different method
- */
-router.post("/google", googleAuth);
+// /**
+//  * @swagger
+//  * /api/v1/auth/google:
+//  *   post:
+//  *     summary: Register or login user using Google OAuth
+//  *     tags: [Auth]
+//  *     requestBody:
+//  *       required: true
+//  *       content:
+//  *         application/json:
+//  *           schema:
+//  *             type: object
+//  *             required:
+//  *               - idToken
+//  *               - roleId
+//  *             properties:
+//  *               idToken:
+//  *                 type: string
+//  *                 description: Google ID token obtained from client-side Google Sign-In
+//  *                 example: "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij..."
+//  *               roleId:
+//  *                 type: string
+//  *                 description: Role ID to assign the user (if registering new)
+//  *                 example: "64f7c9d8e4a1b2a345678901"
+//  *     responses:
+//  *       200:
+//  *         description: User logged in successfully
+//  *         content:
+//  *           application/json:
+//  *             schema:
+//  *               type: object
+//  *               properties:
+//  *                 success:
+//  *                   type: boolean
+//  *                 data:
+//  *                   type: object
+//  *                   properties:
+//  *                     token:
+//  *                       type: string
+//  *                 message:
+//  *                   type: string
+//  *       201:
+//  *         description: New user registered successfully
+//  *       400:
+//  *         description: Invalid or missing Google token or roleId
+//  *       401:
+//  *         description: Invalid Google token
+//  *       409:
+//  *         description: Email already registered with different method
+//  */
+// router.post("/google", googleAuth);
 
 /**
  * @swagger

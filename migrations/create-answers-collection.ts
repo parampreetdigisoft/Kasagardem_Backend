@@ -10,7 +10,7 @@ export default {
     const validator = {
       $jsonSchema: {
         bsonType: "object",
-        required: ["userId", "answers"],
+        required: ["answers"],
         additionalProperties: false,
         properties: {
           _id: {
@@ -18,8 +18,8 @@ export default {
             description: "auto-generated unique identifier",
           },
           userId: {
-            bsonType: "objectId",
-            description: "Reference to the user who answered",
+            bsonType: ["objectId", "null"],
+            description: "Reference to the user who answered , it is optional",
           },
           answers: {
             bsonType: "array",
@@ -39,21 +39,24 @@ export default {
                   enum: [1, 2],
                 },
                 selectedOption: {
-                  bsonType: "string",
+                  bsonType: ["string", "null"],
                   description:
                     "The option selected by the user (required if type=1)",
                 },
                 selectedAddress: {
-                  bsonType: "object",
+                  bsonType: ["object", "null"],
                   description:
                     "Address selected by the user (required if type=2)",
                   required: ["state", "city"],
                   properties: {
                     state: {
-                      bsonType: "string",
+                      bsonType: ["string", "null"],
                       description: "State selected",
                     },
-                    city: { bsonType: "string", description: "City selected" },
+                    city: {
+                      bsonType: ["string", "null"],
+                      description: "City selected",
+                    },
                   },
                   additionalProperties: false,
                 },
@@ -111,7 +114,6 @@ export default {
 
     // Create indexes for better query performance
     await db.collection(collectionName).createIndexes([
-      { key: { userId: 1 }, name: "userId_1" },
       { key: { isDeleted: 1 }, name: "isDeleted_1" },
       { key: { createdAt: -1 }, name: "createdAt_-1" },
     ]);
@@ -144,7 +146,7 @@ export default {
     }
     await db
       .collection(collectionName)
-      .dropIndex("userId_1")
+      .dropIndex("")
       .catch(() => {});
   },
 };

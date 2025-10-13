@@ -59,7 +59,6 @@ export const loginValidation = Joi.object({
 });
 
 export const googleAuthValidation = Joi.object({
-  googleId: Joi.string().required(),
   email: Joi.string().email().required(),
   name: Joi.string().min(2).max(50).required(),
   phoneNumber: Joi.string()

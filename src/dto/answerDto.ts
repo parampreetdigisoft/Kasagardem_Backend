@@ -59,7 +59,8 @@ const answerItemSchema = z
 // DTO - matches MongoDB schema structure exactly
 export const createAnswerDto = z
   .object({
-    userId: objectIdSchema, // Must be ObjectId to match MongoDB schema (required field)
+    userId: objectIdSchema.optional().nullable(),
+    // Must be ObjectId to match MongoDB schema (not required field)
     answers: z
       .array(answerItemSchema)
       .min(1, "At least one answer is required"), // Required field

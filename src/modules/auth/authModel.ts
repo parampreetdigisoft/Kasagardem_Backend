@@ -24,16 +24,6 @@ const userSchema = new Schema<IUserDocument>(
     },
     email: {
       type: String,
-      /**
-       * Determines whether this field is required based on the user's authentication method.
-       * If the user has not signed in with Google (`googleId` is not set), this field is required.
-       *
-       * @this IUserDocument - The current user document context.
-       * @returns {boolean} True if the field is required, false otherwise.
-       */
-      required: function (this: IUserDocument): boolean {
-        return !this.googleId;
-      },
       unique: true,
       lowercase: true,
       trim: true,
@@ -44,16 +34,6 @@ const userSchema = new Schema<IUserDocument>(
     },
     password: {
       type: String,
-      /**
-       * Determines if this field is required based on the user's authentication method.
-       * If the user has not signed in with Google (`googleId` is not set), this field is required.
-       *
-       * @this IUserDocument - The current user document context.
-       * @returns {boolean} True if the field is required, false otherwise.
-       */
-      required: function (this: IUserDocument): boolean {
-        return !this.googleId;
-      },
       minlength: 6,
       select: false,
     },
@@ -70,7 +50,6 @@ const userSchema = new Schema<IUserDocument>(
         "Please enter a valid phone number",
       ],
     },
-    googleId: { type: String, unique: true, sparse: true },
 
     // PASSWORD RESET FIELDS:
     passwordResetToken: {

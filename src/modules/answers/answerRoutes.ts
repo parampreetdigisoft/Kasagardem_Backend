@@ -1,5 +1,4 @@
 import express, { Router } from "express";
-import auth from "../../core/middleware/authMiddleware";
 import validateRequest from "../../core/middleware/validateRequest";
 import { answerValidation } from "./answerValidation";
 import { submitAnswer } from "./answerController";
@@ -35,7 +34,7 @@ const router: Router = express.Router();
  *         selectedOption:
  *           type: string
  *           description: Option selected by the user (required if type=1)
- *           example: "Option A"
+ *           example: "Asthetics"
  *         selectedAddress:
  *           type: object
  *           description: Address selected by the user (required if type=2)
@@ -90,7 +89,7 @@ const router: Router = express.Router();
  *             $ref: '#/components/schemas/AnswerInput'
  *           example:
  *             answers: [
- *               { questionId: "6501a1b9f0e7c3d5e89abc12", type: 1, selectedOption: "Option B" },
+ *               { questionId: "6501a1b9f0e7c3d5e89abc12", type: 1, selectedOption: "Asthetics" },
  *               { questionId: "6501a1b9f0e7c3d5e89abc34", type: 2, selectedAddress: { state: "California", city: "Los Angeles" } }
  *             ]
  *     responses:
@@ -110,14 +109,12 @@ const router: Router = express.Router();
  *               message: "Answers submitted successfully"
  *               data:
  *                 answers: [
- *                   { questionId: "6501a1b9f0e7c3d5e89abc12", type: 1, selectedOption: "Option B" },
+ *                   { questionId: "6501a1b9f0e7c3d5e89abc12", type: 1, selectedOption: "Ashthetics" },
  *                   { questionId: "6501a1b9f0e7c3d5e89abc34", type: 2, selectedAddress: { state: "California", city: "Los Angeles" } }
  *                 ]
  *       400:
  *         description: Validation error
- *       401:
- *         description: Unauthorized - Invalid or missing authentication token
  */
-router.post("/answer", auth, validateRequest(answerValidation), submitAnswer);
+router.post("/answer", validateRequest(answerValidation), submitAnswer);
 
 export default router;
