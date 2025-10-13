@@ -6,11 +6,10 @@ import {
   errorResponse,
 } from "../../core/utils/responseFormatter";
 import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
-import { generateToken, oauth2Client } from "../../core/utils/usableMethods";
+import { generateToken } from "../../core/utils/usableMethods";
 import { info, error, warn } from "../../core/utils/logger";
-import { TokenPayload, LoginTicket } from "google-auth-library";
+// import { TokenPayload, LoginTicket } from "google-auth-library";
 import { CustomError } from "../../interface/error";
-import config from "../../core/config/env";
 import { ZodError, ZodIssue } from "zod";
 import { sendPasswordResetEmail } from "../../core/services/emailService";
 import crypto from "crypto";
@@ -376,134 +375,134 @@ export const refreshTokenLogin = async (
  * @param {NextFunction} next - Express next middleware function for error handling.
  * @returns {Promise<void>} Returns a promise that resolves when authentication completes.
  */
-export const googleAuth = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { idToken, roleId } = req.body;
+// export const googleAuth = async (
+//   req: Request,
+//   res: Response,
+//   next: NextFunction
+// ): Promise<void> => {
+//   try {
+//     const { idToken, roleId } = req.body;
 
-    await info(
-      "Google authentication attempt started",
-      { roleId, hasIdToken: !!idToken },
-      { source: "auth.googleAuth" }
-    );
+//     await info(
+//       "Google authentication attempt started",
+//       { roleId, hasIdToken: !!idToken },
+//       { source: "auth.googleAuth" }
+//     );
 
-    if (!idToken) {
-      res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse("Google ID token is required"));
-      return;
-    }
+//     if (!idToken) {
+//       res
+//         .status(HTTP_STATUS.OK)
+//         .json(errorResponse("Google ID token is required"));
+//       return;
+//     }
 
-    if (!roleId) {
-      res.status(HTTP_STATUS.OK).json(errorResponse("Role ID is required"));
-      return;
-    }
+//     if (!roleId) {
+//       res.status(HTTP_STATUS.OK).json(errorResponse("Role ID is required"));
+//       return;
+//     }
 
-    const roleExists = (await Role.findById(roleId)) as IRoleDocument | null;
-    if (!roleExists) {
-      res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.ROLE_INVALID_ID));
-      return;
-    }
+//     const roleExists = (await Role.findById(roleId)) as IRoleDocument | null;
+//     if (!roleExists) {
+//       res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.ROLE_INVALID_ID));
+//       return;
+//     }
 
-    // Verify Google token
-    let ticket: LoginTicket;
-    try {
-      ticket = await oauth2Client.verifyIdToken({
-        idToken,
-        audience: config.GOOGLE_CLIENT_ID as string,
-      });
-    } catch {
-      res.status(HTTP_STATUS.OK).json(errorResponse("Invalid Google token"));
-      return;
-    }
+//     // Verify Google token
+//     let ticket: LoginTicket;
+//     try {
+//       ticket = await oauth2Client.verifyIdToken({
+//         idToken,
+//         audience: config.GOOGLE_CLIENT_ID as string,
+//       });
+//     } catch {
+//       res.status(HTTP_STATUS.OK).json(errorResponse("Invalid Google token"));
+//       return;
+//     }
 
-    const payload: TokenPayload | undefined = ticket.getPayload();
-    if (!payload) {
-      res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse("Invalid Google token payload"));
-      return;
-    }
+//     const payload: TokenPayload | undefined = ticket.getPayload();
+//     if (!payload) {
+//       res
+//         .status(HTTP_STATUS.OK)
+//         .json(errorResponse("Invalid Google token payload"));
+//       return;
+//     }
 
-    const { sub: googleId, email, name, email_verified } = payload;
+//     const { sub: googleId, email, name, email_verified } = payload;
 
-    if (!email_verified) {
-      res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse("Google email not verified"));
-      return;
-    }
+//     if (!email_verified) {
+//       res
+//         .status(HTTP_STATUS.OK)
+//         .json(errorResponse("Google email not verified"));
+//       return;
+//     }
 
-    // Check if user exists by googleId
-    let user = (await User.findOne({ googleId })) as IUserDocument | null;
+//     // Check if user exists by googleId
+//     let user = (await User.findOne({ googleId })) as IUserDocument | null;
 
-    if (user) {
-      const role = (await Role.findById(user.roleId).select(
-        "name"
-      )) as IRoleDocument;
-      const token = generateToken(
-        user.email as string,
-        role.name as string,
-        user._id.toString()
-      );
+//     if (user) {
+//       const role = (await Role.findById(user.roleId).select(
+//         "name"
+//       )) as IRoleDocument;
+//       const token = generateToken(
+//         user.email as string,
+//         role.name as string,
+//         user._id.toString()
+//       );
 
-      res
-        .status(HTTP_STATUS.OK)
-        .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
-      return;
-    }
+//       res
+//         .status(HTTP_STATUS.OK)
+//         .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
+//       return;
+//     }
 
-    // If not found by googleId, check by email
-    user = (await User.findOne({ email })) as IUserDocument | null;
+//     // If not found by googleId, check by email
+//     user = (await User.findOne({ email })) as IUserDocument | null;
 
-    if (user && !user.googleId) {
-      res
-        .status(HTTP_STATUS.OK)
-        .json(
-          errorResponse(
-            "Email already registered. Please login with email/password or contact support to link accounts."
-          )
-        );
-      return;
-    }
+//     if (user && !user.googleId) {
+//       res
+//         .status(HTTP_STATUS.OK)
+//         .json(
+//           errorResponse(
+//             "Email already registered. Please login with email/password or contact support to link accounts."
+//           )
+//         );
+//       return;
+//     }
 
-    // Create new user
-    user = await User.create({
-      name,
-      email,
-      roleId,
-      googleId,
-    });
+//     // Create new user
+//     user = await User.create({
+//       name,
+//       email,
+//       roleId,
+//       googleId,
+//     });
 
-    const role = (await Role.findById(roleId).select("name")) as IRoleDocument;
-    const token = generateToken(
-      user.email as string,
-      role.name as string,
-      user._id.toString()
-    );
+//     const role = (await Role.findById(roleId).select("name")) as IRoleDocument;
+//     const token = generateToken(
+//       user.email as string,
+//       role.name as string,
+//       user._id.toString()
+//     );
 
-    res
-      .status(HTTP_STATUS.CREATED)
-      .json(successResponse({ token }, MESSAGES.USER_CREATED));
-  } catch (err: unknown) {
-    // Narrow unknown to CustomError safely
-    const errorObj: CustomError =
-      err instanceof Error
-        ? { ...err }
-        : { name: "UnknownError", message: "An unknown error occurred" };
+//     res
+//       .status(HTTP_STATUS.CREATED)
+//       .json(successResponse({ token }, MESSAGES.USER_CREATED));
+//   } catch (err: unknown) {
+//     // Narrow unknown to CustomError safely
+//     const errorObj: CustomError =
+//       err instanceof Error
+//         ? { ...err }
+//         : { name: "UnknownError", message: "An unknown error occurred" };
 
-    await error(
-      "Google auth failed with unexpected error",
-      { error: errorObj.message, stack: errorObj.stack },
-      { source: "auth.googleAuth" }
-    );
+//     await error(
+//       "Google auth failed with unexpected error",
+//       { error: errorObj.message, stack: errorObj.stack },
+//       { source: "auth.googleAuth" }
+//     );
 
-    next(errorObj);
-  }
-};
+//     next(errorObj);
+//   }
+// };
 
 /**
  * Sends a password reset token to user's email.

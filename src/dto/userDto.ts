@@ -25,7 +25,6 @@ export const createUserDto = z
         "Must be a valid phone number"
       )
       .optional(),
-    googleId: z.string().optional(),
 
     // PASSWORD RESET FIELDS:
     passwordResetToken: z.string().optional(),
@@ -37,6 +36,6 @@ export const createUserDto = z
   })
   .strict() // Reject extra fields
   .refine(
-    (data) => data.password || data.googleId,
-    "Either password or googleId must be provided"
+    (data) => data.password ,
+    "Either password  must be provided"
   );

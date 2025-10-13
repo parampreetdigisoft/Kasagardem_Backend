@@ -32,11 +32,11 @@ export default {
             description: "partner's mobile number (E.164 format preferred)",
           },
           companyName: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
             description: "company or organization name",
           },
           speciality: {
-            bsonType: "array",
+            bsonType: ["array", "null"],
             items: {
               bsonType: "string",
               description: "area of expertise or speciality",
@@ -44,37 +44,37 @@ export default {
             description: "list of partner's specialities",
           },
           address: {
-            bsonType: "object",
+            bsonType: ["object", "null"],
             additionalProperties: false,
             properties: {
-              street: { bsonType: "string" },
-              city: { bsonType: "string" },
-              state: { bsonType: "string" },
-              country: { bsonType: "string" },
-              zipCode: { bsonType: "string" },
+              street: { bsonType: ["string", "null"] },
+              city: { bsonType: ["string", "null"] },
+              state: { bsonType: ["string", "null"] },
+              country: { bsonType: ["string", "null"] },
+              zipCode: { bsonType: ["string", "null"] },
             },
           },
           website: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
             description: "official website URL",
           },
           contactPerson: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
             description: "name of primary contact person",
           },
           projectImageUrl: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
             description: "Url of partner's project image",
           },
           rating: {
-            bsonType: "double",
+            bsonType: ["double", "null"],
             minimum: 0,
             maximum: 5,
             description: "partner rating from 0 to 5 (e.g., 3.5, 4.5)",
           },
           status: {
-            bsonType: "string",
-            enum: ["active", "inactive", "pending", "suspended"],
+            bsonType: ["string", "null"],
+            enum: ["active", "inactive", "pending", "suspended", null],
             description: "partner account status",
           },
           createdAt: {

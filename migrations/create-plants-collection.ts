@@ -26,11 +26,11 @@ export default {
             description: "Common name of the plant",
           },
           image_search_url: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
             description: "URL for plant image or search query",
           },
           space_types: {
-            bsonType: "array",
+            bsonType: ["array", "null"],
             description:
               "Types of spaces where plant can grow (indoor, outdoor, balcony, etc.)",
             items: {
@@ -38,21 +38,21 @@ export default {
             },
           },
           area_sizes: {
-            bsonType: "array",
+            bsonType: ["array", "null"],
             description: "Suitable area sizes (small, medium, large, etc.)",
             items: {
               bsonType: "string",
             },
           },
           challenges: {
-            bsonType: "array",
+            bsonType: ["array", "null"],
             description: "Growing challenges or difficulties",
             items: {
               bsonType: "string",
             },
           },
           tech_preferences: {
-            bsonType: "array",
+            bsonType: ["array", "null"],
             description:
               "Technology preferences for growing (hydroponics, smart sensors, etc.)",
             items: {
@@ -60,7 +60,7 @@ export default {
             },
           },
           locations: {
-            bsonType: "array",
+            bsonType: ["array", "null"],
             description:
               "Geographic locations or climate zones where plant thrives",
             items: {
@@ -81,35 +81,35 @@ export default {
             },
           },
           description: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
             description: "Detailed description of the plant",
           },
           care_notes: {
-            bsonType: "array",
+            bsonType: ["array", "null"],
             description: "Care instructions and notes",
             items: {
               bsonType: "string",
             },
           },
           native: {
-            bsonType: "bool",
+            bsonType: ["bool", "null"],
             description: "Whether the plant is native (yes/no)",
           },
           light: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
             description: "Light requirements as single string",
           },
           water_needs: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
             description: "Water requirements as single string",
           },
           maintenance_level: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
             description:
               "Overall maintenance difficulty level as single string",
           },
           growth_form: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
             description: "Plant growth form as single string",
           },
           isDeleted: {

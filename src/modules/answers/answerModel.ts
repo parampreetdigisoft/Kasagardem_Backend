@@ -15,7 +15,7 @@ export interface IAnswerItem {
 }
 
 export interface IAnswer {
-  userId: mongoose.Types.ObjectId;
+  userId?: mongoose.Types.ObjectId;
   answers: IAnswerItem[];
   isDeleted: boolean;
 }
@@ -114,7 +114,7 @@ const answerItemSchema = new Schema<IAnswerItem>(
 
 const answerSchema = new Schema<IAnswerDocument>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: false },
     answers: { type: [answerItemSchema], required: true },
     isDeleted: { type: Boolean, required: true, default: false },
   },

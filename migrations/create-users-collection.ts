@@ -12,7 +12,7 @@ export default {
     const userValidator = {
       $jsonSchema: {
         bsonType: "object",
-        required: ["name", "email", "roleId"],
+        required: ["name", "email", "roleId", "password"],
         additionalProperties: false,
         properties: {
           _id: {
@@ -24,7 +24,6 @@ export default {
           password: { bsonType: "string" },
           roleId: { bsonType: "objectId" },
           phoneNumber: { bsonType: "string" },
-          googleId: { bsonType: "string" },
           passwordResetToken: { bsonType: "string" },
           passwordResetExpires: { bsonType: "date" },
           createdAt: { bsonType: "date" },
@@ -34,7 +33,7 @@ export default {
             description: "internal mongoose version key",
           },
         },
-        anyOf: [{ required: ["password"] }, { required: ["googleId"] }],
+        anyOf: [{ required: ["password"]  }],
       },
     };
 
@@ -65,10 +64,6 @@ export default {
     const users = db.collection("users");
 
     await users.createIndex({ email: 1 }, { unique: true, background: true });
-    await users.createIndex(
-      { googleId: 1 },
-      { unique: true, sparse: true, background: true }
-    );
     await users.createIndex(
       { passwordResetToken: 1 },
       { sparse: true, background: true, name: "passwordResetToken_1" }
@@ -105,7 +100,6 @@ export default {
     const users = db.collection("users");
     await Promise.all([
       users.dropIndex("email_1").catch(() => {}),
-      users.dropIndex("googleId_1").catch(() => {}),
       users.dropIndex("passwordResetToken_1").catch(() => {}),
       users.dropIndex("passwordReset_compound_1").catch(() => {}),
       users.dropIndex("passwordResetExpires_ttl_1").catch(() => {}),

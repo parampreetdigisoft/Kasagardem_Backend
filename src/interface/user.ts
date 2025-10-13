@@ -6,7 +6,6 @@ export interface IUser {
   password?: string;
   roleId: mongoose.Types.ObjectId;
   phoneNumber?: string;
-  googleId?: string;
   // PASSWORD RESET FIELDS
   passwordResetToken?: string | undefined;
   passwordResetExpires?: Date | undefined;

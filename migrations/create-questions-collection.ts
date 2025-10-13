@@ -27,7 +27,7 @@ export default {
             description: "Multiple choice options",
           },
           order: {
-            bsonType: "int",
+            bsonType: ["int", "null"],
             description: "Order of question in quiz",
           },
           isDeleted: {

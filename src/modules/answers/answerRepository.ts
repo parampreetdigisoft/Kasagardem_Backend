@@ -1,4 +1,5 @@
 import { FieldIndex } from "../../interface";
+import { escapeRegExp } from "lodash";
 import {
   IAnswerType1,
   IAnswerType2,
@@ -20,52 +21,78 @@ import Plant, { IPlantDocument } from "../plant/plantModel";
  */
 export const getRecommendedPlants = async (
   answers: IUserAnswer[]
-): Promise<IPlantDocument[]> => {
-  const filters: Record<string, unknown> = {};
+): Promise<Array<Partial<IPlantDocument> & { whyRecommended: string[] }>> => {
+  const filters: Record<string, unknown> = { isDeleted: false };
+  const keywordFilters: Record<string, unknown> = {};
+  const matchCriteria: Record<string, RegExp> = {};
 
   for (const [i, ans] of answers.entries()) {
+    if (!ans) continue;
+
     switch (i) {
       case FieldIndex.space_types:
-        if (ans.selectedOption) {
-          filters.space_types = { $in: [ans.selectedOption] };
-        }
-        break;
-
       case FieldIndex.area_sizes:
-        if (ans.selectedOption) {
-          filters.area_sizes = { $in: [ans.selectedOption] };
-        }
-        break;
-
       case FieldIndex.challenges:
-        if (ans.selectedOption) {
-          filters.challenges = { $in: [ans.selectedOption] };
+      case FieldIndex.tech_preferences: {
+        const value = ans.selectedOption?.trim();
+        if (value) {
+          const regex = new RegExp(escapeRegExp(value), "i");
+          const key = FieldIndex[i];
+          keywordFilters[key] = { $regex: regex };
+          matchCriteria[key] = regex;
         }
         break;
-
-      case FieldIndex.tech_preferences:
-        if (ans.selectedOption) {
-          filters.tech_preferences = { $in: [ans.selectedOption] };
-        }
-        break;
+      }
 
       case FieldIndex.locations:
         if (ans.selectedAddress?.state) {
+          const state = ans.selectedAddress.state ?? "";
+          const city = ans.selectedAddress.city ?? "";
           filters.locations = {
             $elemMatch: {
-              type: ans.selectedAddress.state,
-              value: ans.selectedAddress.city,
+              type: new RegExp(escapeRegExp(state), "i"),
+              value: new RegExp(escapeRegExp(city), "i"),
             },
           };
         }
+
         break;
     }
   }
 
-  return Plant.find({ ...filters, isDeleted: false })
-    .select("scientific_name common_name image_search_url description")
+  const query = { ...filters, ...keywordFilters };
+
+  const plants = await Plant.find(query)
+    .select(
+      "scientific_name common_name image_search_url description space_types area_sizes challenges tech_preferences locations"
+    )
     .limit(20)
-    .exec();
+    .lean(); // returns plain JS objects
+
+  const enhanced = plants.map((plant) => {
+    const why: string[] = [];
+
+    for (const [key, regex] of Object.entries(matchCriteria)) {
+      type PlantKey = keyof IPlantDocument;
+      const value = plant[key as PlantKey];
+
+      if (!value) continue;
+
+      if (Array.isArray(value)) {
+        const match = value.find((v) => regex.test(v));
+        if (match)
+          why.push(
+            `Matches your preference for ${key.replace("_", " ")} (${match})`
+          );
+      } else if (typeof value === "string" && regex.test(value)) {
+        why.push(`Related to your ${key.replace("_", " ")} choice (${value})`);
+      }
+    }
+
+    return { ...plant, whyRecommended: why };
+  });
+
+  return enhanced;
 };
 
 /**
@@ -76,7 +103,7 @@ export const getRecommendedPlants = async (
  */
 export const getRecommendedPartners = async (
   answers: ISubmitAnswer[]
-): Promise<IPartnerRecommendation[]> => {
+): Promise<Array<IPartnerRecommendation & { whyRecommended: string }>> => {
   try {
     // Step 1: Find rules with name "Professional Partner Recommendation"
     const partnerRules = await Rule.find({
@@ -105,6 +132,11 @@ export const getRecommendedPartners = async (
 
     // Step 4: Check which rules match the answers
     const matchingRules = [];
+    const matchedConditions: Array<{
+      questionId: string;
+      selectedOption: string;
+      ruleName: string;
+    }> = [];
 
     for (const rule of partnerRules) {
       let ruleMatches = false;
@@ -135,6 +167,14 @@ export const getRecommendedPartners = async (
               if (condition.values.includes(relevantAnswer.selectedOption)) {
                 ruleMatches = true;
               }
+          }
+
+          if (ruleMatches) {
+            matchedConditions.push({
+              questionId: condition.questionId.toString(),
+              selectedOption: relevantAnswer.selectedOption,
+              ruleName: rule.name,
+            });
           }
         }
 
@@ -178,19 +218,43 @@ export const getRecommendedPartners = async (
       ],
     });
 
-    // Map to the return type
-    return partners.map(
-      (partner): IPartnerRecommendation => ({
-        email: partner.email,
-        mobileNumber: partner.mobileNumber,
-        companyName: partner.companyName!,
-        speciality: partner.speciality!,
-        address: partner.address!,
-        website: partner.website!,
-        contactPerson: partner.contactPerson!,
-        projectImageUrl: partner.projectImageUrl!,
-      })
-    );
+    /**
+     * Builds a human-readable explanation of why partners were recommended.
+     * Includes location matching and criteria matching based on user answers.
+     *
+     * @returns {string} A formatted string describing the match reasons
+     */
+    const buildMatchReason = (): string => {
+      const reasons = [];
+
+      // Add location match
+      reasons.push(`Location match: ${userAddress.city}, ${userAddress.state}`);
+
+      // Add matched conditions
+      if (matchedConditions.length > 0) {
+        const uniqueOptions = [
+          ...new Set(matchedConditions.map((c) => c.selectedOption)),
+        ];
+        reasons.push(`Criteria match: ${uniqueOptions.join(", ")}`);
+      }
+
+      return reasons.join(" | ");
+    };
+
+    const whyRecommended = buildMatchReason();
+
+    // Map to the return type with match reason
+    return partners.map((partner) => ({
+      email: partner.email,
+      mobileNumber: partner.mobileNumber,
+      companyName: partner.companyName!,
+      speciality: partner.speciality!,
+      address: partner.address!,
+      website: partner.website!,
+      contactPerson: partner.contactPerson!,
+      projectImageUrl: partner.projectImageUrl!,
+      whyRecommended,
+    }));
   } catch (error) {
     console.error("Error getting recommended partners:", error);
     return [];

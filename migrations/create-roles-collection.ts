@@ -30,7 +30,7 @@ export default {
               "must be a string between 2-30 characters and is required",
           },
           description: {
-            bsonType: "string",
+            bsonType: ["string", "null"],
             description: "optional description",
           },
           createdAt: { bsonType: "date" },

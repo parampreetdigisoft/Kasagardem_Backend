@@ -35,7 +35,7 @@ export default {
           },
           gender: {
             bsonType: "string",
-            enum: ["male", "female", "other"],
+            enum: ["male", "female", "other",""],
             description: "user's gender",
           },
           bio: {
