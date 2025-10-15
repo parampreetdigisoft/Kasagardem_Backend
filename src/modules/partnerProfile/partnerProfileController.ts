@@ -5,7 +5,7 @@ import {
 } from "../../core/utils/responseFormatter";
 import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { info, error } from "../../core/utils/logger";
-import { CustomError } from "../../interface/error";
+import { CustomError } from "../../interface/Error";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
 import PartnerProfile from "./partnerProfileModel";
 import User, { IUserDocument } from "../auth/authModel";

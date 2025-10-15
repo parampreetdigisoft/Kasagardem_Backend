@@ -14,6 +14,7 @@ import partnerProfileRoutes from "./modules/partnerProfile/partnerProfileRoute";
 import answerRoutes from "./modules/answers/answerRoutes";
 import plantRoutes from "./modules/plant/plantRoutes";
 import stateCityRoutes from "./modules/stateCity/stateCityRoutes";
+import leadsRoutes from "./modules/admin/leads/leadsRoute";
 import ApiService from "./core/services/apiService";
 import config from "./core/config/env";
 import translationMiddleware from "./core/middleware/translationMiddleware";
@@ -56,8 +57,10 @@ app.use("/api/v1/partnerProfile", partnerProfileRoutes);
 app.use("/api/v1", answerRoutes);
 // Add Plants user selected data Routes
 app.use("/api/v1", plantRoutes);
-// Add Plants user selected data Routes
+// State City Country Routes
 app.use("/api/v1/stateCityData", stateCityRoutes);
+// Leads Routes
+app.use("/api/v1/admin", leadsRoutes);
 
 //Add this middleware so you can access uploaded files in browser:
 // Now if a file is saved as:

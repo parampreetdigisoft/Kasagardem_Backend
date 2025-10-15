@@ -7,7 +7,7 @@ import {
 } from "../../core/utils/responseFormatter";
 import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { info, error, warn } from "../../core/utils/logger";
-import { CustomError } from "../../interface/error";
+import { CustomError } from "../../interface/Error";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
 import { IFullUserProfile } from "../../interface/userProfile";
 

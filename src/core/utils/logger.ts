@@ -1,7 +1,7 @@
 // src/core/utils/logger.ts
 import { MongoClient, Db, ObjectId } from "mongodb";
 import config from "../config/env";
-import { MongoValidationError } from "../../interface/error";
+import { MongoValidationError } from "../../interface/Error";
 import { LogEntry, LogOptions } from "../../interface/logs";
 
 /**
