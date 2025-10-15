@@ -104,7 +104,7 @@ router.post("/login", validateRequest(loginValidation), login);
 /**
  * @swagger
  * /api/v1/auth/refresh:
- *   post:
+ *   get:
  *     summary: Refresh user token
  *     tags: [Auth]
  *     responses:
@@ -113,7 +113,7 @@ router.post("/login", validateRequest(loginValidation), login);
  *       401:
  *         description: Invalid credentials
  */
-router.post("/refresh", auth, refreshTokenLogin);
+router.get("/refresh", auth, refreshTokenLogin);
 
 // /**
 //  * @swagger
