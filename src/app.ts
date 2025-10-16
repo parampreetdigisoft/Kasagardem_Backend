@@ -62,8 +62,6 @@ app.use("/api/v1/stateCityData", stateCityRoutes);
 // Leads Routes
 app.use("/api/v1/admin", leadsRoutes);
 
-app.use("/", healthRoutes);
-
 //Add this middleware so you can access uploaded files in browser:
 // Now if a file is saved as:
 // /uploads/plants/abc123.png
