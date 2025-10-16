@@ -176,6 +176,60 @@ router.post(
 
 /**
  * @swagger
+ * /api/v1/admin/question:
+ *   get:
+ *     summary: Get all questions
+ *     description: Retrieve all diagnostic questions without pagination
+ *     tags: [Questions]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Questions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         questions:
+ *                           type: array
+ *                           items:
+ *                             $ref: '#/components/schemas/Question'
+ *             example:
+ *               success: true
+ *               message: "Questions retrieved successfully"
+ *               data:
+ *                 questions:
+ *                   - _id: "64f5a7b2c1234567890abcde"
+ *                     questionText: "How often do you feel anxious?"
+ *                     options: ["Never", "Sometimes", "Often", "Always"]
+ *                     order: 1
+ *                     isActive: true
+ *                     createdAt: "2024-01-20T10:30:00Z"
+ *                     updatedAt: "2024-01-20T10:30:00Z"
+ *                   - _id: "64f5a7b2c1234567890abcdf"
+ *                     questionText: "How is your sleep quality?"
+ *                     options: ["Very Poor", "Poor", "Fair", "Good", "Excellent"]
+ *                     order: 2
+ *                     isActive: true
+ *                     createdAt: "2024-01-20T11:15:00Z"
+ *                     updatedAt: "2024-01-20T11:15:00Z"
+ *       401:
+ *         description: Unauthorized - Invalid or missing authentication token
+ *       500:
+ *         description: Internal server error
+ */
+
+// Router configuration
+router.get("/question", getAllQuestions);
+
+/**
+ * @swagger
  * /api/v1/admin/question/{id}:
  *   put:
  *     summary: Update an existing question
@@ -280,59 +334,5 @@ router.put(
  *         description: Question not found
  */
 router.delete("/question/:id", auth, deleteQuestion);
-
-/**
- * @swagger
- * /api/v1/admin/question:
- *   get:
- *     summary: Get all questions
- *     description: Retrieve all diagnostic questions without pagination
- *     tags: [Questions]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Questions retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       type: object
- *                       properties:
- *                         questions:
- *                           type: array
- *                           items:
- *                             $ref: '#/components/schemas/Question'
- *             example:
- *               success: true
- *               message: "Questions retrieved successfully"
- *               data:
- *                 questions:
- *                   - _id: "64f5a7b2c1234567890abcde"
- *                     questionText: "How often do you feel anxious?"
- *                     options: ["Never", "Sometimes", "Often", "Always"]
- *                     order: 1
- *                     isActive: true
- *                     createdAt: "2024-01-20T10:30:00Z"
- *                     updatedAt: "2024-01-20T10:30:00Z"
- *                   - _id: "64f5a7b2c1234567890abcdf"
- *                     questionText: "How is your sleep quality?"
- *                     options: ["Very Poor", "Poor", "Fair", "Good", "Excellent"]
- *                     order: 2
- *                     isActive: true
- *                     createdAt: "2024-01-20T11:15:00Z"
- *                     updatedAt: "2024-01-20T11:15:00Z"
- *       401:
- *         description: Unauthorized - Invalid or missing authentication token
- *       500:
- *         description: Internal server error
- */
-
-// Router configuration
-router.get("/question", getAllQuestions);
 
 export default router;

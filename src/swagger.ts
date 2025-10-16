@@ -53,6 +53,7 @@ const options = {
     "./src/modules/userProfile/*.ts",
     "./src/modules/admin/questions/*.ts",
     "./src/modules/admin/rules/*.ts",
+    "./src/modules/admin/leads/*.ts",
     "./src/modules/partnerProfile/*.ts",
     "./src/modules/answers/*.ts",
     "./src/modules/plant/*.ts",
