@@ -12,7 +12,7 @@ export default {
     const userValidator = {
       $jsonSchema: {
         bsonType: "object",
-        required: ["name", "email", "roleId", "password"],
+        required: ["name", "email", "roleId"],
         additionalProperties: false,
         properties: {
           _id: {
@@ -22,8 +22,14 @@ export default {
           name: { bsonType: "string", minLength: 2, maxLength: 50 },
           email: { bsonType: "string" },
           password: { bsonType: "string" },
+          firebaseUid: {
+            bsonType: "string",
+          },
           roleId: { bsonType: "objectId" },
           phoneNumber: { bsonType: "string" },
+          isEmailVerified: {
+            bsonType: "bool",
+          },
           passwordResetToken: { bsonType: "string" },
           passwordResetExpires: { bsonType: "date" },
           createdAt: { bsonType: "date" },
@@ -33,7 +39,8 @@ export default {
             description: "internal mongoose version key",
           },
         },
-        anyOf: [{ required: ["password"]  }],
+        // Either password OR firebaseUid must be present
+        anyOf: [{ required: ["password"] }, { required: ["firebaseUid"] }],
       },
     };
 
@@ -64,6 +71,12 @@ export default {
     const users = db.collection("users");
 
     await users.createIndex({ email: 1 }, { unique: true, background: true });
+
+    // Firebase UID index (unique, sparse for non-OAuth users)
+    users.createIndex(
+      { firebaseUid: 1 },
+      { unique: true, sparse: true, background: true, name: "firebaseUid_1" }
+    );
     await users.createIndex(
       { passwordResetToken: 1 },
       { sparse: true, background: true, name: "passwordResetToken_1" }
@@ -71,6 +84,13 @@ export default {
     await users.createIndex(
       { passwordResetToken: 1, passwordResetExpires: 1 },
       { sparse: true, background: true, name: "passwordReset_compound_1" }
+    );
+
+    // ===== Add Missing Fields to Existing Documents =====
+
+    await users.updateMany(
+      { isEmailVerified: { $exists: false } },
+      { $set: { isEmailVerified: false } }
     );
   },
 
@@ -100,6 +120,7 @@ export default {
     const users = db.collection("users");
     await Promise.all([
       users.dropIndex("email_1").catch(() => {}),
+      users.dropIndex("firebaseUid_1").catch(() => {}),
       users.dropIndex("passwordResetToken_1").catch(() => {}),
       users.dropIndex("passwordReset_compound_1").catch(() => {}),
       users.dropIndex("passwordResetExpires_ttl_1").catch(() => {}),

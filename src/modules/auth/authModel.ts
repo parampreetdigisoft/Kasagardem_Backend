@@ -20,10 +20,11 @@ const userSchema = new Schema<IUserDocument>(
       required: true,
       trim: true,
       minlength: 2,
-      maxlength: 50,
+      maxlength: 100,
     },
     email: {
       type: String,
+      required: true,
       unique: true,
       lowercase: true,
       trim: true,
@@ -36,6 +37,17 @@ const userSchema = new Schema<IUserDocument>(
       type: String,
       minlength: 6,
       select: false,
+      // Password is optional for OAuth users
+    },
+    firebaseUid: {
+      type: String,
+      unique: true,
+      sparse: true, // Allows null/undefined while maintaining uniqueness for non-null values
+      select: true,
+    },
+    profilePicture: {
+      type: String,
+      trim: true,
     },
     roleId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -50,28 +62,54 @@ const userSchema = new Schema<IUserDocument>(
         "Please enter a valid phone number",
       ],
     },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
 
     // PASSWORD RESET FIELDS:
     passwordResetToken: {
       type: String,
-      select: true, 
+      select: false,
     },
     passwordResetExpires: {
       type: Date,
-      select: true, 
+      select: false,
     },
   },
   { timestamps: true }
 );
 
-//#region Satic Methods
-// Pre-save: hash password if modified
-userSchema.pre<IUserDocument>("save", async function (next) {
-  if (!this.isModified("password")) return next();
-  if (this.password) {
-    this.password = await bcrypt.hash(this.password, 12);
+//#region Validation
+// Custom validation: Ensure either password OR firebaseUid exists
+userSchema.pre<IUserDocument>("validate", function (next) {
+  // For new users, ensure they have either password or firebaseUid
+  if (this.isNew) {
+    if (!this.password && !this.firebaseUid) {
+      return next(
+        new Error("User must have either a password or Firebase UID")
+      );
+    }
   }
+
   next();
+});
+//#endregion
+
+//#region Static Methods
+// Pre-save: hash password if modified (only if password exists)
+userSchema.pre<IUserDocument>("save", async function (next) {
+  // Only hash if password field exists and is modified
+  if (!this.password || !this.isModified("password")) {
+    return next();
+  }
+
+  try {
+    this.password = await bcrypt.hash(this.password, 12);
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
 });
 
 /**
@@ -83,7 +121,11 @@ userSchema.pre<IUserDocument>("save", async function (next) {
 userSchema.methods.comparePassword = async function (
   candidatePassword: string
 ): Promise<boolean> {
-  return bcrypt.compare(candidatePassword, this.password!);
+  // OAuth users don't have passwords
+  if (!this.password) {
+    return false;
+  }
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
 /**
