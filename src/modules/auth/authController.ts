@@ -16,6 +16,7 @@ import crypto from "crypto";
 import { RoleCodeMap } from "../../interface/role";
 import UserProfile from "../userProfile/userProfileModel";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
+import { verifyFirebaseToken } from "../../core/services/firebaseAdmin";
 
 /**
  * Registers a new user in the system.
@@ -365,146 +366,6 @@ export const refreshTokenLogin = async (
 };
 
 /**
- * Handles Google Authentication.
- *
- * This endpoint verifies the Google ID token, checks role validity,
- * and either logs in an existing user or creates a new user.
- *
- * @param {Request} req - Express request object containing `idToken` and `roleId` in `req.body`.
- * @param {Response} res - Express response object used to send the response.
- * @param {NextFunction} next - Express next middleware function for error handling.
- * @returns {Promise<void>} Returns a promise that resolves when authentication completes.
- */
-// export const googleAuth = async (
-//   req: Request,
-//   res: Response,
-//   next: NextFunction
-// ): Promise<void> => {
-//   try {
-//     const { idToken, roleId } = req.body;
-
-//     await info(
-//       "Google authentication attempt started",
-//       { roleId, hasIdToken: !!idToken },
-//       { source: "auth.googleAuth" }
-//     );
-
-//     if (!idToken) {
-//       res
-//         .status(HTTP_STATUS.OK)
-//         .json(errorResponse("Google ID token is required"));
-//       return;
-//     }
-
-//     if (!roleId) {
-//       res.status(HTTP_STATUS.OK).json(errorResponse("Role ID is required"));
-//       return;
-//     }
-
-//     const roleExists = (await Role.findById(roleId)) as IRoleDocument | null;
-//     if (!roleExists) {
-//       res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.ROLE_INVALID_ID));
-//       return;
-//     }
-
-//     // Verify Google token
-//     let ticket: LoginTicket;
-//     try {
-//       ticket = await oauth2Client.verifyIdToken({
-//         idToken,
-//         audience: config.GOOGLE_CLIENT_ID as string,
-//       });
-//     } catch {
-//       res.status(HTTP_STATUS.OK).json(errorResponse("Invalid Google token"));
-//       return;
-//     }
-
-//     const payload: TokenPayload | undefined = ticket.getPayload();
-//     if (!payload) {
-//       res
-//         .status(HTTP_STATUS.OK)
-//         .json(errorResponse("Invalid Google token payload"));
-//       return;
-//     }
-
-//     const { sub: googleId, email, name, email_verified } = payload;
-
-//     if (!email_verified) {
-//       res
-//         .status(HTTP_STATUS.OK)
-//         .json(errorResponse("Google email not verified"));
-//       return;
-//     }
-
-//     // Check if user exists by googleId
-//     let user = (await User.findOne({ googleId })) as IUserDocument | null;
-
-//     if (user) {
-//       const role = (await Role.findById(user.roleId).select(
-//         "name"
-//       )) as IRoleDocument;
-//       const token = generateToken(
-//         user.email as string,
-//         role.name as string,
-//         user._id.toString()
-//       );
-
-//       res
-//         .status(HTTP_STATUS.OK)
-//         .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
-//       return;
-//     }
-
-//     // If not found by googleId, check by email
-//     user = (await User.findOne({ email })) as IUserDocument | null;
-
-//     if (user && !user.googleId) {
-//       res
-//         .status(HTTP_STATUS.OK)
-//         .json(
-//           errorResponse(
-//             "Email already registered. Please login with email/password or contact support to link accounts."
-//           )
-//         );
-//       return;
-//     }
-
-//     // Create new user
-//     user = await User.create({
-//       name,
-//       email,
-//       roleId,
-//       googleId,
-//     });
-
-//     const role = (await Role.findById(roleId).select("name")) as IRoleDocument;
-//     const token = generateToken(
-//       user.email as string,
-//       role.name as string,
-//       user._id.toString()
-//     );
-
-//     res
-//       .status(HTTP_STATUS.CREATED)
-//       .json(successResponse({ token }, MESSAGES.USER_CREATED));
-//   } catch (err: unknown) {
-//     // Narrow unknown to CustomError safely
-//     const errorObj: CustomError =
-//       err instanceof Error
-//         ? { ...err }
-//         : { name: "UnknownError", message: "An unknown error occurred" };
-
-//     await error(
-//       "Google auth failed with unexpected error",
-//       { error: errorObj.message, stack: errorObj.stack },
-//       { source: "auth.googleAuth" }
-//     );
-
-//     next(errorObj);
-//   }
-// };
-
-/**
  * Sends a password reset token to user's email.
  *
  * @param {Request} req - Express request object containing user email.
@@ -817,6 +678,228 @@ export const resetPassword = async (
     await error("Password reset failed with unexpected error", errorObj, {
       source: "auth.resetPassword",
     });
+
+    next(errorObj);
+  }
+};
+
+/**
+ * Google Sign-In/Sign-Up handler
+ * Verifies Firebase token and creates or logs in user
+ *
+ * @param {Request} req - Express request object containing Firebase idToken
+ * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next middleware function
+ * @returns {Promise<void>}
+ */
+export const googleAuth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { idToken, roleCode } = req.body;
+
+    if (!idToken) {
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("Firebase ID token is required"));
+      return;
+    }
+
+    await info(
+      "Google authentication attempt started",
+      { hasRoleCode: !!roleCode },
+      { source: "auth.googleAuth" }
+    );
+
+    // Verify Firebase token
+    let decodedToken;
+    try {
+      decodedToken = await verifyFirebaseToken(idToken);
+    } catch (err) {
+      await warn(
+        "Google auth failed - invalid Firebase token",
+        { error: err instanceof Error ? err.message : "Unknown error" },
+        { source: "auth.googleAuth" }
+      );
+      res
+        .status(HTTP_STATUS.UNAUTHORIZED)
+        .json(errorResponse("Invalid or expired Firebase token"));
+      return;
+    }
+
+    const { uid, email, name, picture } = decodedToken;
+
+    if (!email) {
+      await warn(
+        "Google auth failed - no email in token",
+        { uid },
+        { source: "auth.googleAuth" }
+      );
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("Email not found in Google account"));
+      return;
+    }
+
+    // Check if user already exists
+    let user: IUserDocument | null = await User.findOne({
+      $or: [{ email }, { firebaseUid: uid }],
+    });
+
+    let isNewUser = false;
+
+    if (!user) {
+      // New user registration
+      isNewUser = true;
+
+      // Get or validate role
+      let role: IRoleDocument | null;
+
+      if (roleCode) {
+        const roleName = RoleCodeMap[roleCode];
+
+        if (!roleName) {
+          await warn(
+            "Google auth failed - invalid role code",
+            { email, roleCode },
+            { source: "auth.googleAuth" }
+          );
+          res
+            .status(HTTP_STATUS.BAD_REQUEST)
+            .json(errorResponse(MESSAGES.ROLE_INVALID_ID));
+          return;
+        }
+
+        role = await Role.findOne({ name: roleName });
+      } else {
+        // Default to 'user' role if not specified
+        role = await Role.findOne({ name: "user" });
+      }
+
+      if (!role) {
+        await warn(
+          "Google auth failed - role not found",
+          { email },
+          { source: "auth.googleAuth" }
+        );
+        res
+          .status(HTTP_STATUS.BAD_REQUEST)
+          .json(errorResponse("Valid role is required for registration"));
+        return;
+      }
+
+      // Create new user
+      user = new User({
+        name: name || email.split("@")[0],
+        email,
+        firebaseUid: uid,
+        profilePicture: picture,
+        roleId: role._id.toString(),
+        isEmailVerified: true, // Google accounts are pre-verified
+      });
+
+      await user.save();
+
+      await info(
+        "New user created via Google Sign-In",
+        { userId: user._id, email, roleCode },
+        { userId: user._id.toString(), source: "auth.googleAuth" }
+      );
+
+      // Create empty user profile
+      await UserProfile.create({
+        userId: user._id,
+      });
+
+      await info(
+        "User profile created for Google user",
+        { userId: user._id },
+        { userId: user._id.toString(), source: "auth.googleAuth" }
+      );
+    } else {
+      // Existing user login
+
+      // Update Firebase UID if not set
+      if (!user.firebaseUid) {
+        user.firebaseUid = uid;
+        await user.save();
+      }
+
+      // Update profile picture if changed
+      if (picture && user.profilePicture !== picture) {
+        user.profilePicture = picture;
+        await user.save();
+      }
+
+      await info(
+        "Existing user logged in via Google",
+        { userId: user._id, email },
+        { userId: user._id.toString(), source: "auth.googleAuth" }
+      );
+    }
+
+    // Fetch role for JWT
+    const role = (await Role.findById(user.roleId).select(
+      "name"
+    )) as IRoleDocument | null;
+
+    if (!role) {
+      await error(
+        "Google auth failed - role not found for user",
+        { email, userId: user._id, roleId: user.roleId },
+        { userId: user._id.toString(), source: "auth.googleAuth" }
+      );
+      res
+        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        .json(errorResponse("User role configuration error"));
+      return;
+    }
+
+    // Generate JWT token
+    const token = generateToken(
+      user.email as string,
+      role.name as string,
+      user._id.toString()
+    );
+
+    await info(
+      "Google authentication successful",
+      { userId: user._id, email, isNewUser, roleName: role.name },
+      { userId: user._id.toString(), source: "auth.googleAuth" }
+    );
+
+    res.status(HTTP_STATUS.OK).json(
+      successResponse(
+        {
+          token,
+          isNewUser,
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            profilePicture: user.profilePicture,
+          },
+        },
+        isNewUser ? MESSAGES.USER_CREATED : MESSAGES.LOGIN_SUCCESS
+      )
+    );
+  } catch (err: unknown) {
+    const errorObj: CustomError =
+      err instanceof Error
+        ? { ...err }
+        : {
+            name: "UnknownError",
+            message:
+              typeof err === "string" ? err : "An unknown error occurred",
+          };
+
+    await error(
+      "Google authentication failed with unexpected error",
+      { error: errorObj.message, stack: errorObj.stack },
+      { source: "auth.googleAuth" }
+    );
 
     next(errorObj);
   }

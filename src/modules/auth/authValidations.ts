@@ -58,15 +58,6 @@ export const loginValidation = Joi.object({
   password: Joi.string().required(),
 });
 
-export const googleAuthValidation = Joi.object({
-  email: Joi.string().email().required(),
-  name: Joi.string().min(2).max(50).required(),
-  phoneNumber: Joi.string()
-    .pattern(/^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/)
-    .optional(),
-  roleId: Joi.string().length(24).hex().required(),
-});
-
 // Unified Validation for Send/Resend Password Reset Token
 export const handlePasswordResetTokenValidation = Joi.object({
   email: Joi.string()
@@ -153,4 +144,21 @@ export const passwordChangeValidation = Joi.object({
       "string.empty": "Password is required",
       "any.required": "Password is required",
     }),
+});
+
+/**
+ * Validation schema for Google OAuth authentication
+ */
+export const googleAuthValidation = Joi.object({
+  idToken: Joi.string().min(1).required().messages({
+    "string.empty": "Firebase ID token is required",
+    "any.required": "Firebase ID token is required",
+    "string.min": "Firebase ID token cannot be empty",
+  }),
+
+  roleCode: Joi.string().optional().messages({
+    "string.base": "Role code must be a string",
+  }),
+}).messages({
+  "object.unknown": "Unknown field provided in request body",
 });

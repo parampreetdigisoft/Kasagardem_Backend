@@ -2,11 +2,11 @@ import { Router } from "express";
 import {
   register,
   login,
-  // googleAuth,
   resetPassword,
   verifyPasswordResetToken,
   handlePasswordResetToken,
   refreshTokenLogin,
+  googleAuth,
 } from "./authController";
 import {
   registerValidation,
@@ -15,6 +15,7 @@ import {
   verifyPasswordResetTokenValidation,
   handlePasswordResetTokenValidation,
   passwordChangeValidation,
+  googleAuthValidation,
 } from "./authValidations";
 import validateRequest from "../../core/middleware/validateRequest";
 import auth from "../../core/middleware/authMiddleware";
@@ -114,58 +115,6 @@ router.post("/login", validateRequest(loginValidation), login);
  *         description: Invalid credentials
  */
 router.get("/refresh", auth, refreshTokenLogin);
-
-// /**
-//  * @swagger
-//  * /api/v1/auth/google:
-//  *   post:
-//  *     summary: Register or login user using Google OAuth
-//  *     tags: [Auth]
-//  *     requestBody:
-//  *       required: true
-//  *       content:
-//  *         application/json:
-//  *           schema:
-//  *             type: object
-//  *             required:
-//  *               - idToken
-//  *               - roleId
-//  *             properties:
-//  *               idToken:
-//  *                 type: string
-//  *                 description: Google ID token obtained from client-side Google Sign-In
-//  *                 example: "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij..."
-//  *               roleId:
-//  *                 type: string
-//  *                 description: Role ID to assign the user (if registering new)
-//  *                 example: "64f7c9d8e4a1b2a345678901"
-//  *     responses:
-//  *       200:
-//  *         description: User logged in successfully
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 success:
-//  *                   type: boolean
-//  *                 data:
-//  *                   type: object
-//  *                   properties:
-//  *                     token:
-//  *                       type: string
-//  *                 message:
-//  *                   type: string
-//  *       201:
-//  *         description: New user registered successfully
-//  *       400:
-//  *         description: Invalid or missing Google token or roleId
-//  *       401:
-//  *         description: Invalid Google token
-//  *       409:
-//  *         description: Email already registered with different method
-//  */
-// router.post("/google", googleAuth);
 
 /**
  * @swagger
@@ -343,5 +292,97 @@ router.post(
   validateRequest(verifyPasswordResetTokenValidation),
   verifyPasswordResetToken
 );
+
+/**
+ * @swagger
+ * /api/v1/auth/google:
+ *   post:
+ *     summary: Sign in or sign up with Google (Firebase Authentication)
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - idToken
+ *             properties:
+ *               idToken:
+ *                 type: string
+ *                 description: Firebase ID token obtained from Google Sign-In
+ *                 example: eyJhbGciOiJSUzI1NiIsImtpZCI6IjFkYzBmM...
+ *               roleCode:
+ *                 type: string
+ *                 description: Optional role code for new users (defaults to 'user').
+ *                 example: U
+ *     responses:
+ *       200:
+ *         description: Authentication successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Login successful
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       description: Your backend JWT token for API authentication
+ *                       example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                     isNewUser:
+ *                       type: boolean
+ *                       description: True if this is a new user registration, false if existing user
+ *                       example: false
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           example: 507f1f77bcf86cd799439011
+ *                         name:
+ *                           type: string
+ *                           example: John Doe
+ *                         email:
+ *                           type: string
+ *                           example: john@gmail.com
+ *                         profilePicture:
+ *                           type: string
+ *                           example: https://lh3.googleusercontent.com/a/...
+ *       400:
+ *         description: Validation error or invalid Firebase token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Firebase ID token is required
+ *       401:
+ *         description: Invalid or expired Firebase token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Invalid or expired Firebase token
+ */
+router.post("/google", validateRequest(googleAuthValidation), googleAuth);
 
 export default router;

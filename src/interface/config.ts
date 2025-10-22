@@ -7,8 +7,6 @@ export interface Config {
   JWT_SECRET: string;
   JWT_EXPIRE: string;
   APPDEV_URL: string;
-  // GOOGLE_CLIENT_ID: string;
-  // GOOGLE_CLIENT_SECRET: string;
   KASAGARDEM_PLANTAPI_KEY: string;
   KASAGARDEM_PLANTAPI_URL: string;
   KASAGARDEM_PLANTAPI_KEY_NAME: string;
@@ -19,4 +17,8 @@ export interface Config {
   EMAIL_USER: string;
   EMAIL_PASS: string;
   EMAIL_FROM: string;
+  FIREBASE_PROJECT_ID: string;
+  FIREBASE_PRIVATE_KEY_ID: string;
+  FIREBASE_PRIVATE_KEY: string;
+  FIREBASE_CLIENT_EMAIL: string;
 }
