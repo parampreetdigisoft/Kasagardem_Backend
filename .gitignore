@@ -1,5 +1,7 @@
 node_modules
 uploads
 
+.env 
+
 # Firebase keys
 src/core/config/*.json
