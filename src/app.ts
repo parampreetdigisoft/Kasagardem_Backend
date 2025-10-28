@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import errorHandler from "./core/middleware/errorHandler";
 import setupSwagger from "./swagger";
-import path from "path";
 
 // Import routes
 import authRoutes from "./modules/auth/authRoutes";
@@ -18,10 +17,28 @@ import leadsRoutes from "./modules/admin/leads/leadsRoute";
 import ApiService from "./core/services/apiService";
 import config from "./core/config/env";
 import translationMiddleware from "./core/middleware/translationMiddleware";
+import { connectDB } from "./core/config/db";
+// import { createSurveyTables } from "./db/createAnswersTable";
+// import { createRolesTable } from "./db/createRolesTable";
+// import { createQuestionsTable } from "./db/createQuestionsTable";
+// import { createRulesTables } from "./db/createRulesTable";
+// import { createUserProfilesTable } from "./db/createUserProfilesTable";
+// import { createUsersTable } from "./db/createUsersTable";
 
 const app = express();
 setupSwagger(app);
 
+// Initialize database connection
+connectDB().catch((error) => {
+  console.error("Failed to connect to database:", error);
+  process.exit(1);
+});
+// createRulesTables();
+// createUserProfilesTable();
+// createUsersTable();
+// createRolesTable();
+// createQuestionsTable();
+// createSurveyTables();
 // Create an instance of ApiService for plant identification
 export const plantApiService = new ApiService(config.KASAGARDEM_PLANTAPI_URL, {
   "Api-Key": config.KASAGARDEM_PLANTAPI_KEY || "",
@@ -61,13 +78,6 @@ app.use("/api/v1", plantRoutes);
 app.use("/api/v1/stateCityData", stateCityRoutes);
 // Leads Routes
 app.use("/api/v1/admin", leadsRoutes);
-
-//Add this middleware so you can access uploaded files in browser:
-// Now if a file is saved as:
-// /uploads/plants/abc123.png
-// you can open it in browser at:
-// http://localhost:8080/uploads/plants/abc123.png
-app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
 // Error handler (must be last middleware)
 app.use(errorHandler);

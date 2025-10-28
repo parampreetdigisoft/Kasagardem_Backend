@@ -1,64 +1,14 @@
 import { Request, Response, NextFunction } from "express";
-import axios, { AxiosError } from "axios";
 import { info, error as logError } from "../../core/utils/logger";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import {
   errorResponse,
   successResponse,
 } from "../../core/utils/responseFormatter";
-import { CustomError } from "../../interface/error";
-
-interface State {
-  name: string;
-  iso2: string;
-}
-
-interface City {
-  id?: number;
-  name: string;
-  iso2?: string;
-}
-
-interface Country {
-  name: string;
-  iso2: string;
-}
-
-// Base URL for Country State City API
-const CSC_API_BASE_URL = "https://api.countrystatecity.in/v1";
-const apiKey = "T0hkTnVCdDdtZFFTZVk1U0FpdE15REsxMmw0dEtRZjJrcVNPb01jNw==";
-
-/**
- * Makes a GET request to the Country-State-City (CSC) API for the given endpoint.
- * This function is generic and returns data of type T.
- *
- * @param endpoint - The API endpoint to call, e.g., "/countries" or "/countries/IN/states".
- * @returns A Promise resolving to the data returned by the CSC API, typed as T.
- * @throws An object containing `status` and `message` if the request fails or the network is unavailable.
- */
-const makeCSCRequest = async <T>(endpoint: string): Promise<T> => {
-  try {
-    const response = await axios.get<T>(`${CSC_API_BASE_URL}${endpoint}`, {
-      headers: {
-        "X-CSCAPI-KEY": apiKey,
-      },
-    });
-    return response.data;
-  } catch (err: unknown) {
-    if (axios.isAxiosError(err)) {
-      const axiosErr = err as AxiosError<{ error?: string }>;
-      throw {
-        status: axiosErr.response?.status ?? 500,
-        message: axiosErr.response?.data?.error || "API request failed",
-      };
-    }
-
-    throw {
-      status: 500,
-      message: "Network error or service unavailable",
-    };
-  }
-};
+import { CustomError } from "../../interface/Error";
+import config from "../../core/config/env";
+import { City, Country, State } from "../../interface/stateCity";
+import { makeCSCRequest } from "../../core/services/stateCityService";
 
 /**
  * Retrieves all states for a specific country by ISO2 code.
@@ -72,20 +22,6 @@ export const getStatesByCountry = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // const userPayload = req.user as { userEmail?: string } | undefined;
-  // if (!userPayload?.userEmail) {
-  //   res
-  //     .status(HTTP_STATUS.UNAUTHORIZED)
-  //     .json(errorResponse("Unauthorized request"));
-  //   return;
-  // }
-
-  // const user = await User.findOne({ email: userPayload.userEmail });
-  // if (!user) {
-  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-  //   return;
-  // }
-
   try {
     const iso2 = "BR"; // use Brazil
 
@@ -95,7 +31,7 @@ export const getStatesByCountry = async (
       { source: "states.getStatesByCountry" }
     );
 
-    if (!apiKey) {
+    if (!config.CSC_API_KEY) {
       res
         .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
         .json(
@@ -105,7 +41,10 @@ export const getStatesByCountry = async (
     }
 
     const states = await makeCSCRequest<State[]>(`/countries/${iso2}/states`);
-
+    // Sort states alphabetically by name (case-insensitive)
+    states.sort((a, b) =>
+      a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+    );
     await info(
       "Get states by country successful",
       {
@@ -142,22 +81,6 @@ export const getCountries = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // // Extract user info from JWT populated by auth middleware
-  // const userPayload = req.user as { userEmail?: string } | undefined;
-  // if (!userPayload?.userEmail) {
-  //   res
-  //     .status(HTTP_STATUS.UNAUTHORIZED)
-  //     .json(errorResponse("Unauthorized request"));
-  //   return;
-  // }
-
-  // // Fetch user by email
-  // const user = await User.findOne({ email: userPayload?.userEmail });
-  // if (!user) {
-  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-  //   return;
-  // }
-
   try {
     await info(
       "Get all countries request started",
@@ -166,7 +89,7 @@ export const getCountries = async (
     );
 
     // Check if API key is available
-    if (!apiKey) {
+    if (!config.CSC_API_KEY) {
       res
         .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
         .json(
@@ -176,7 +99,10 @@ export const getCountries = async (
     }
 
     const countries = await makeCSCRequest<Country[]>(`/countries`);
-
+    // Sort countries alphabetically by name (case-insensitive)
+    countries.sort((a, b) =>
+      a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+    );
     await info(
       "Get all countries successful",
       {
@@ -228,22 +154,6 @@ export const getCitiesByState = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // // Extract user info from JWT populated by auth middleware
-  // const userPayload = req.user as { userEmail?: string } | undefined;
-  // if (!userPayload?.userEmail) {
-  //   res
-  //     .status(HTTP_STATUS.UNAUTHORIZED)
-  //     .json(errorResponse("Unauthorized request"));
-  //   return;
-  // }
-
-  // // Fetch user by email
-  // const user = await User.findOne({ email: userPayload?.userEmail });
-  // if (!user) {
-  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-  //   return;
-  // }
-
   try {
     const { iso2, stateIso2 } = req.params;
 
@@ -254,7 +164,7 @@ export const getCitiesByState = async (
     );
 
     // Check if API key is available
-    if (!apiKey) {
+    if (!config.CSC_API_KEY) {
       res
         .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
         .json(
@@ -266,7 +176,10 @@ export const getCitiesByState = async (
     const cities = await makeCSCRequest<City[]>(
       `/countries/BR/states/${stateIso2}/cities`
     );
-
+    // Sort cities alphabetically by name (case-insensitive)
+    cities.sort((a, b) =>
+      a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+    );
     await info(
       "Get cities by state successful",
       {

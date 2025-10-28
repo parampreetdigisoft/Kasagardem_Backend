@@ -1,8 +1,8 @@
 import axios from "axios";
 
 // BunnyCDN config (put these in env variables)
-const BUNNY_STORAGE_ZONE = "myplantstorage";
-const BUNNY_STORAGE_API_KEY = "6e5b0c84-3415-4201-9e819e2c2630-096e-4a07";
+const BUNNY_STORAGE_ZONE = "myplantstorages";
+const BUNNY_STORAGE_API_KEY = "301e24ab-ed3d-4c08-9d6bc2db5870-1cd1-4b6b";
 
 /**
  * Uploads a Base64-encoded image to BunnyCDN and returns the public CDN URL.

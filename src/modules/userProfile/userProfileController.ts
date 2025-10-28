@@ -1,6 +1,4 @@
 import { Response, NextFunction } from "express";
-import UserProfile, { IUserProfile } from "./userProfileModel";
-import User, { IUserDocument } from "../auth/authModel";
 import {
   successResponse,
   errorResponse,
@@ -9,7 +7,11 @@ import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { info, error, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
-import { IFullUserProfile } from "../../interface/userProfile";
+import { findUserByEmail } from "../auth/authRepository";
+import { getDB } from "../../core/config/db";
+import { IFullUserProfile, IUserProfile } from "../../interface/userProfile";
+import { uploadBase64ToBunny } from "../../core/services/bunnyUploadService";
+import { updateValidatedUserProfile } from "./userProfileModel";
 
 /**
  * Handles the creation of a new user profile.
@@ -29,26 +31,28 @@ export const createUserProfile = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract user info from JWT populated by auth middleware
   const userPayload = req.user as { userEmail?: string } | undefined;
+
   if (!userPayload?.userEmail) {
     res
       .status(HTTP_STATUS.UNAUTHORIZED)
       .json(errorResponse("Unauthorized request"));
     return;
   }
+
+  const client = await getDB();
+
   try {
     await info("User profile creation attempt", {
-      email: userPayload?.userEmail,
+      email: userPayload.userEmail,
       action: "createUserProfile",
     });
 
-    const userExists: IUserDocument | null = await User.findOne({
-      email: userPayload?.userEmail,
-    });
+    // 1️⃣ Check if user exists
+    const userExists = await findUserByEmail(userPayload.userEmail);
     if (!userExists) {
       await error("Profile creation failed - User not found", {
-        email: userPayload?.userEmail,
+        email: userPayload.userEmail,
         action: "createUserProfile",
       });
       res
@@ -57,14 +61,16 @@ export const createUserProfile = async (
       return;
     }
 
-    const existingProfile: IUserProfile | null = await UserProfile.findOne({
-      userId: userExists._id,
-    });
+    // 2️⃣ Check if profile already exists
+    const existingProfile = await client.query<IUserProfile>(
+      "SELECT * FROM userprofiles WHERE user_id = $1",
+      [userExists.id]
+    );
 
-    if (existingProfile) {
+    if (existingProfile.rows.length > 0) {
       await warn("Profile creation failed - Profile already exists", {
-        email: userPayload?.userEmail,
-        userId: userExists._id,
+        email: userPayload.userEmail,
+        userId: userExists.id,
         action: "createUserProfile",
       });
       res
@@ -73,22 +79,94 @@ export const createUserProfile = async (
       return;
     }
 
-    const profileData = { ...req.body, userId: userExists._id };
-    await UserProfile.create(profileData);
+    // 3️⃣ Handle base64 image upload (if provided)
+    let uploadedImageUrl: string | null = null;
+
+    if (
+      req.body.profileImage &&
+      req.body.profileImage.startsWith("data:image")
+    ) {
+      try {
+        const fileName = `profile_${userExists.id}_${Date.now()}.jpg`;
+        uploadedImageUrl = await uploadBase64ToBunny(
+          req.body.profileImage,
+          fileName
+        );
+
+        await info("Profile image uploaded to BunnyCDN", {
+          email: userPayload.userEmail,
+          userId: userExists.id,
+          imageUrl: uploadedImageUrl,
+          action: "createUserProfile",
+        });
+      } catch (uploadErr: unknown) {
+        const uploadError =
+          uploadErr instanceof Error
+            ? uploadErr
+            : new Error("Unknown error occurred during BunnyCDN upload");
+
+        await error("Failed to upload profile image to BunnyCDN", {
+          email: userPayload.userEmail,
+          userId: userExists.id,
+          error: uploadError.message,
+        });
+
+        res
+          .status(HTTP_STATUS.BAD_REQUEST)
+          .json(errorResponse("Failed to upload profile image"));
+        return;
+      }
+    }
+
+    // 4️⃣ Build profile data for insert
+    const profileData = {
+      ...req.body,
+      userId: userExists.id,
+      profileImage: uploadedImageUrl || req.body.profileImage || null,
+    };
+
+    const insertQuery = `
+      INSERT INTO userprofiles (
+        user_id, profile_image, date_of_birth, gender, bio,
+        street, city, state, country, zip_code, occupation, company
+      )
+      VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10, $11, $12
+      )
+      RETURNING *;
+    `;
+
+    const values = [
+      profileData.userId,
+      profileData.profileImage,
+      profileData.dateOfBirth || null,
+      profileData.gender || null,
+      profileData.bio || null,
+      profileData.street || null,
+      profileData.city || null,
+      profileData.state || null,
+      profileData.country || null,
+      profileData.zipCode || null,
+      profileData.occupation || null,
+      profileData.company || null,
+    ];
+
+    const result = await client.query<IUserProfile>(insertQuery, values);
+    const createdProfile = result.rows[0];
 
     await info("User profile created successfully", {
-      email: userPayload?.userEmail,
-      userId: userExists._id,
+      email: userPayload.userEmail,
+      userId: userExists.id,
+      profileId: createdProfile?.id,
       action: "createUserProfile",
       profileFields: Object.keys(req.body),
     });
 
     res
       .status(HTTP_STATUS.CREATED)
-      .json(successResponse(null, MESSAGES.PROFILE_CREATED));
+      .json(successResponse(createdProfile, MESSAGES.PROFILE_CREATED));
   } catch (err: unknown) {
-    // ← Use 'unknown' as required by TypeScript
-    // Type guard to safely work with the error
     const errorObj: CustomError =
       err instanceof Error
         ? (err as CustomError)
@@ -98,11 +176,12 @@ export const createUserProfile = async (
           } as CustomError);
 
     await error("Profile creation error", {
-      email: userPayload?.userEmail,
+      email: userPayload.userEmail,
       error: errorObj.message,
       stack: errorObj.stack,
       action: "createUserProfile",
     });
+
     next(errorObj);
   }
 };
@@ -125,26 +204,26 @@ export const getCurrentUserProfile = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract user info from JWT populated by auth middleware
   const userPayload = req.user as { userEmail?: string } | undefined;
+
   if (!userPayload?.userEmail) {
     res
       .status(HTTP_STATUS.UNAUTHORIZED)
       .json(errorResponse("Unauthorized request"));
     return;
   }
+
   try {
     await info("User profile retrieval attempt", {
-      email: userPayload?.userEmail,
+      email: userPayload.userEmail,
       action: "getCurrentUserProfile",
     });
 
-    const user: IUserDocument | null = await User.findOne({
-      email: userPayload?.userEmail,
-    });
+    // 1️⃣ Get user basic details
+    const user = await findUserByEmail(userPayload.userEmail);
     if (!user) {
       await error("Profile retrieval failed - User not found", {
-        email: userPayload?.userEmail,
+        email: userPayload.userEmail,
         action: "getCurrentUserProfile",
       });
       res
@@ -153,32 +232,49 @@ export const getCurrentUserProfile = async (
       return;
     }
 
-    // 2️⃣ Get user profile (if exists)
-    const userProfile: IUserProfile | null = await UserProfile.findOne({
-      userId: user._id,
-    }).select("-_id -__v -createdAt -updatedAt");
+    const client = getDB();
 
-    // 3️⃣ Build full merged response (ensuring all fields exist)
+    // 2️⃣ Fetch user profile from PostgreSQL
+    const { rows: profileRows } = await client.query(
+      `
+      SELECT 
+        profile_image,
+        date_of_birth,
+        gender,
+        bio,
+        street,
+        city,
+        state,
+        country,
+        zip_code,
+        occupation,
+        company
+      FROM userprofiles
+      WHERE user_id = $1
+      `,
+      [user.id]
+    );
+
+    const userProfile = profileRows[0] || null;
+
+    // 3️⃣ Build full response (typed)
     const fullProfile: IFullUserProfile = {
       name: user.name || null,
       email: user.email || null,
-      contactNumber: user.phoneNumber || null,
-      profileImage: userProfile?.profileImage || null,
-      dateOfBirth: userProfile?.dateOfBirth || null,
-      gender: userProfile?.gender || null,
+      contactNumber: user.phone_number || null,
+      profileImage: userProfile?.profile_image || null,
+      dateOfBirth: userProfile?.date_of_birth
+        ? new Date(userProfile.date_of_birth).toISOString().split("T")[0]
+        : null,
+      gender:
+        (userProfile?.gender as "male" | "female" | "other" | null) || null,
       bio: userProfile?.bio || null,
       address: {
-        street: userProfile?.address?.street || null,
-        city: userProfile?.address?.city || null,
-        state: userProfile?.address?.state || null,
-        country: userProfile?.address?.country || null,
-        zipCode: userProfile?.address?.zipCode || null,
-      },
-      socialLinks: {
-        facebook: userProfile?.socialLinks?.facebook || null,
-        twitter: userProfile?.socialLinks?.twitter || null,
-        linkedin: userProfile?.socialLinks?.linkedin || null,
-        instagram: userProfile?.socialLinks?.instagram || null,
+        street: userProfile?.street || null,
+        city: userProfile?.city || null,
+        state: userProfile?.state || null,
+        country: userProfile?.country || null,
+        zipCode: userProfile?.zip_code || null, // ✅ fixed to match DB column
       },
       occupation: userProfile?.occupation || null,
       company: userProfile?.company || null,
@@ -186,7 +282,7 @@ export const getCurrentUserProfile = async (
 
     await info("User profile retrieved successfully", {
       email: userPayload.userEmail,
-      userId: user._id,
+      userId: user.id,
       action: "getCurrentUserProfile",
     });
 
@@ -207,6 +303,7 @@ export const getCurrentUserProfile = async (
       stack: errorObj.stack,
       action: "getCurrentUserProfile",
     });
+
     next(errorObj);
   }
 };
@@ -246,9 +343,7 @@ export const updateUserProfile = async (
     });
 
     // 1️⃣ Find user
-    const user: IUserDocument | null = await User.findOne({
-      email: userPayload.userEmail,
-    });
+    const user = await findUserByEmail(userPayload.userEmail);
     if (!user) {
       await error("Profile update failed - User not found", {
         email: userPayload.userEmail,
@@ -260,12 +355,18 @@ export const updateUserProfile = async (
       return;
     }
 
-    // 2️⃣ Find profile for that user
-    const profile = await UserProfile.findOne({ userId: user._id });
-    if (!profile) {
+    const client = getDB();
+
+    // 2️⃣ Find existing profile
+    const { rows: existingProfileRows } = await client.query(
+      `SELECT id FROM userprofiles WHERE user_id = $1`,
+      [user.id]
+    );
+
+    if (existingProfileRows.length === 0) {
       await warn("Profile update failed - Profile not found", {
         email: userPayload.userEmail,
-        userId: user._id,
+        userId: user.id,
         action: "updateUserProfile",
       });
       res
@@ -274,23 +375,50 @@ export const updateUserProfile = async (
       return;
     }
 
-    // 2️⃣ Validate + Update profile using static method
-    const updatedProfile = await UserProfile.updateValidated(
-      profile._id.toString(),
-      {
-        ...req.body,
-        userId: user._id.toString(),
-        dateOfBirth: req.body.dateOfBirth
-          ? new Date(req.body.dateOfBirth)
-          : undefined,
+    const profileId = existingProfileRows[0].id;
+
+    // 3️⃣ Handle base64 image upload
+    if (req.body.profileImage && typeof req.body.profileImage === "string") {
+      const isBase64 = /^data:image\/[a-zA-Z]+;base64,/.test(
+        req.body.profileImage
+      );
+      if (isBase64) {
+        try {
+          const fileName = `profiles/${user.id}_${Date.now()}.jpg`;
+          const uploadedUrl = await uploadBase64ToBunny(
+            req.body.profileImage,
+            fileName
+          );
+          req.body.profileImage = uploadedUrl;
+          await info("Profile image uploaded to Bunny CDN", {
+            email: userPayload.userEmail,
+            userId: user.id,
+            uploadedUrl,
+          });
+        } catch (uploadErr: unknown) {
+          await error("Image upload to Bunny failed", {
+            email: userPayload.userEmail,
+            userId: user.id,
+            error: (uploadErr as Error).message,
+          });
+          res
+            .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+            .json(errorResponse("Failed to upload profile image"));
+          return;
+        }
       }
+    }
+
+    // 4️⃣ Validate and update using your service method
+    const updatedProfile = await updateValidatedUserProfile(
+      profileId,
+      req.body
     );
 
     if (!updatedProfile) {
-      await warn("Profile update failed - Profile not found", {
+      await warn("Profile update failed - No record updated", {
         email: userPayload.userEmail,
-        userId: user._id,
-        action: "updateUserProfile",
+        userId: user.id,
       });
       res
         .status(HTTP_STATUS.NOT_FOUND)
@@ -300,17 +428,14 @@ export const updateUserProfile = async (
 
     await info("User profile updated successfully", {
       email: userPayload.userEmail,
-      userId: user._id,
-      action: "updateUserProfile",
+      userId: user.id,
       updatedFields: Object.keys(req.body),
     });
 
     res
       .status(HTTP_STATUS.OK)
-      .json(successResponse(null, MESSAGES.PROFILE_UPDATED));
+      .json(successResponse(updatedProfile, MESSAGES.PROFILE_UPDATED));
   } catch (err: unknown) {
-    // ← Use 'unknown' as required by TypeScript
-    // Type guard to safely work with the error
     const errorObj: CustomError =
       err instanceof Error
         ? (err as CustomError)
@@ -325,98 +450,7 @@ export const updateUserProfile = async (
       stack: errorObj.stack,
       action: "updateUserProfile",
     });
-    next(errorObj);
-  }
-};
 
-/**
- * Deletes the authenticated user's profile.
- *
- * Validates the authenticated user from the request, checks if the user and
- * their profile exist, and deletes the profile if found. If the user or profile
- * does not exist, responds with the appropriate error. Logs all actions and
- * errors for auditing.
- *
- * @param req - Express request object extended with authenticated user data.
- * @param res - Express response object used to send HTTP responses.
- * @param next - Express next function for forwarding errors to middleware.
- * @returns A promise that resolves to void.
- */
-export const deleteUserProfile = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  // Extract user info from JWT populated by auth middleware
-  const userPayload = req.user as { userEmail?: string } | undefined;
-  if (!userPayload?.userEmail) {
-    res
-      .status(HTTP_STATUS.UNAUTHORIZED)
-      .json(errorResponse("Unauthorized request"));
-    return;
-  }
-  try {
-    await info("User profile deletion attempt", {
-      email: userPayload?.userEmail,
-      action: "deleteUserProfile",
-    });
-
-    const user: IUserDocument | null = await User.findOne({
-      email: userPayload?.userEmail,
-    });
-    if (!user) {
-      await error("Profile deletion failed - User not found", {
-        email: userPayload?.userEmail,
-        action: "deleteUserProfile",
-      });
-      res
-        .status(HTTP_STATUS.NOT_FOUND)
-        .json(errorResponse(MESSAGES.PROFILE_USER_NOTFOUND));
-      return;
-    }
-
-    const deletedProfile = await UserProfile.findOneAndDelete({
-      userId: user._id,
-    });
-
-    if (!deletedProfile) {
-      await warn("Profile deletion failed - Profile not found", {
-        email: userPayload?.userEmail,
-        userId: user._id,
-        action: "deleteUserProfile",
-      });
-      res
-        .status(HTTP_STATUS.NOT_FOUND)
-        .json(errorResponse(MESSAGES.PROFILE_USER_NOTFOUND));
-      return;
-    }
-
-    await info("User profile deleted successfully", {
-      email: userPayload?.userEmail,
-      userId: user._id,
-      action: "deleteUserProfile",
-    });
-
-    res
-      .status(HTTP_STATUS.OK)
-      .json(successResponse(null, MESSAGES.PROFILE_DELETED));
-  } catch (err: unknown) {
-    // Type guard to safely convert unknown to CustomError
-    const errorObj: CustomError =
-      err instanceof Error
-        ? (err as CustomError)
-        : ({
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          } as CustomError);
-
-    await error("Profile deletion error", {
-      email: userPayload?.userEmail,
-      error: errorObj.message,
-      stack: errorObj.stack,
-      action: "deleteUserProfile",
-    });
     next(errorObj);
   }
 };

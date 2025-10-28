@@ -8,8 +8,8 @@ import { info, error } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
 import PartnerProfile from "./partnerProfileModel";
-import User, { IUserDocument } from "../auth/authModel";
 import { uploadBase64ToBunny } from "../../core/services/bunnyUploadService";
+import { findUserByEmail } from "../auth/authRepository";
 
 /**
  * Create a new Partner Profile.
@@ -35,9 +35,7 @@ export const createPartnerProfile = async (
       email: partnerPayload.userEmail,
     });
 
-    const user = (await User.findOne({
-      email: partnerPayload.userEmail,
-    })) as IUserDocument | null;
+    const user = await findUserByEmail(partnerPayload.userEmail);
     if (!user) {
       await error("Partner profile creation failed - User not found", {
         email: partnerPayload.userEmail,
@@ -88,7 +86,7 @@ export const createPartnerProfile = async (
     await PartnerProfile.createValidated(profileData);
 
     await info("Partner profile created successfully", {
-      userId: user._id,
+      userId: user.id!,
     });
 
     res

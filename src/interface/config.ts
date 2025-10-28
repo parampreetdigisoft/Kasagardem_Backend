@@ -21,4 +21,12 @@ export interface Config {
   FIREBASE_PRIVATE_KEY_ID: string;
   FIREBASE_PRIVATE_KEY: string;
   FIREBASE_CLIENT_EMAIL: string;
+  POSTGRE_HOST: string;
+  POSTGRE_PORT: string;
+  POSTGRE_DATABASE: string;
+  POSTGRE_USER: string;
+  POSTGRE_PASSWORD: string;
+  CSC_API_BASE_URL: string;
+  CSC_API_KEY: string;
+  ADMIN_EMAIL: string;
 }

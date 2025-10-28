@@ -1,6 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import User, { IUserDocument } from "./authModel";
-import Role, { IRoleDocument } from "../roles/roleModel";
 import {
   successResponse,
   errorResponse,
@@ -8,15 +6,32 @@ import {
 import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { generateToken } from "../../core/utils/usableMethods";
 import { info, error, warn } from "../../core/utils/logger";
-// import { TokenPayload, LoginTicket } from "google-auth-library";
 import { CustomError } from "../../interface/Error";
 import { ZodError, ZodIssue } from "zod";
 import { sendPasswordResetEmail } from "../../core/services/emailService";
 import crypto from "crypto";
 import { RoleCodeMap } from "../../interface/role";
-import UserProfile from "../userProfile/userProfileModel";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
 import { verifyFirebaseToken } from "../../core/services/firebaseAdmin";
+import {
+  comparePassword,
+  createUserProfile,
+  createValidatedUser,
+  findRoleByName,
+  findUserByEmail,
+  findUserById,
+  getRoleById,
+  getRoleByName,
+  resetPasswordResetFields,
+  updatePasswordResetToken,
+  updateUserPassword,
+} from "./authRepository";
+import { IUser } from "../../interface/user";
+import bcrypt from "bcryptjs";
+import { getDB } from "../../core/config/db";
+interface AppError extends Error {
+  code?: string;
+}
 
 /**
  * Registers a new user in the system.
@@ -40,65 +55,66 @@ export const register = async (
       { source: "auth.register" }
     );
 
-    // Validate role code using enum
+    // ✅ Validate role code
     const roleName = RoleCodeMap[roleCode];
     if (!roleName) {
       await warn(
-        "Registration failed - invalid role code",
+        "Invalid role code",
         { email, roleCode },
         { source: "auth.register" }
       );
-      res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.ROLE_INVALID_ID));
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse(MESSAGES.ROLE_INVALID_ID));
       return;
     }
 
-    // Find role by name (mapped from code)
-    const role: IRoleDocument | null = await Role.findOne({ name: roleName });
+    // ✅ Fetch role by name (PostgreSQL)
+    const role = await getRoleByName(roleName);
+
     if (!role) {
       await warn(
-        "Registration failed - role not found in DB",
+        "Role not found in database",
         { email, roleName },
         { source: "auth.register" }
       );
-      res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.ROLE_INVALID_ID));
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse(MESSAGES.ROLE_INVALID_ID));
       return;
     }
 
-    // Check if user email already exists
-    const existingUser: IUserDocument | null = await User.findOne({ email });
+    // ✅ Check if email already exists
+    const existingUser = await findUserByEmail(email);
     if (existingUser) {
-      await warn(
-        "Registration failed - user already exists",
-        { email },
-        { source: "auth.register" }
-      );
-      res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.USER_EXISTS));
+      await warn("User already exists", { email }, { source: "auth.register" });
+      res
+        .status(HTTP_STATUS.CONFLICT)
+        .json(errorResponse(MESSAGES.USER_EXISTS));
       return;
     }
 
-    // Create new user using validated DTO method
-    const newUser: IUserDocument = await User.createValidated({
+    // ✅ Create user with validation
+    const newUser = await createValidatedUser({
       name,
       email,
       password,
-      roleId: role._id.toString(),
+      roleId: role.id,
       phoneNumber,
     });
 
-    await info(
-      "User registration successful",
-      { userId: newUser._id, email, roleCode, hasPhoneNumber: !!phoneNumber },
-      { userId: newUser._id.toString(), source: "auth.register" }
-    );
-
-    // ✅ Create empty user profile linked to userId
-    await UserProfile.create({
-      userId: newUser._id,
+    await info("User registration successful", {
+      userId: newUser.id,
+      email,
+      roleCode,
     });
+
+    // ✅ Create empty user profile (if you have a `user_profiles` table)
+    await createUserProfile(newUser.id!);
 
     await info(
       "User profile created successfully",
-      { userId: newUser._id },
+      { userId: newUser.id },
       { source: "auth.register" }
     );
 
@@ -106,7 +122,7 @@ export const register = async (
       .status(HTTP_STATUS.CREATED)
       .json(successResponse(null, MESSAGES.USER_CREATED));
   } catch (err: unknown) {
-    // Handle validation errors from Zod
+    // 🔹 Handle validation errors (Zod)
     if (err instanceof ZodError) {
       const formattedErrors = err.issues.map((e: ZodIssue) => ({
         field: e.path.join("."),
@@ -114,7 +130,7 @@ export const register = async (
       }));
 
       await warn(
-        "Registration failed - validation errors",
+        "Validation failed",
         { errors: formattedErrors },
         { source: "auth.register" }
       );
@@ -127,20 +143,23 @@ export const register = async (
       return;
     }
 
-    // Handle MongoDB duplicate key error
-    const errorObj: CustomError & { keyPattern?: Record<string, unknown> } =
-      err instanceof Error
-        ? { ...err }
-        : {
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          };
+    // ✅ Use type narrowing for `Error`
+    let errorMessage = "An unknown error occurred";
+    let errorStack: string | undefined;
 
-    if (errorObj.code === 11000 && errorObj.keyPattern?.email) {
+    if (err instanceof Error) {
+      errorMessage = err.message;
+      errorStack = err.stack;
+    }
+
+    // 🔹 Handle PostgreSQL unique constraint violation (email already taken)
+    if (
+      errorMessage.includes("duplicate key") &&
+      errorMessage.includes("email")
+    ) {
       await warn(
-        "Registration failed - duplicate email constraint",
-        { error: errorObj.message },
+        "Duplicate email constraint violation",
+        { error: errorMessage },
         { source: "auth.register" }
       );
       res
@@ -149,13 +168,14 @@ export const register = async (
       return;
     }
 
+    // 🔹 Log unexpected error
     await error(
-      "User registration failed with unexpected error",
-      { error: errorObj.message, stack: errorObj.stack },
+      "Unexpected error during user registration",
+      { error: errorMessage, stack: errorStack },
       { source: "auth.register" }
     );
 
-    next(errorObj);
+    next(err);
   }
 };
 
@@ -181,13 +201,12 @@ export const login = async (
       { source: "auth.login" }
     );
 
-    const user = (await User.findOne({ email }).select(
-      "+password"
-    )) as IUserDocument | null;
+    // ✅ 1. Find user by email
+    const user = await findUserByEmail(email);
 
-    if (!user) {
+    if (!user || !user.password) {
       await warn(
-        "Login failed - user not found",
+        "Login failed - user not found or missing password",
         { email },
         { source: "auth.login" }
       );
@@ -197,12 +216,13 @@ export const login = async (
       return;
     }
 
-    const isPasswordValid = await user.comparePassword(password);
+    // ✅ 2. Validate password
+    const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
       await warn(
         "Login failed - invalid password",
-        { email, userId: user._id },
-        { userId: user._id.toString(), source: "auth.login" }
+        { email, userId: user.id },
+        { userId: user.id!, source: "auth.login" }
       );
       res
         .status(HTTP_STATUS.OK)
@@ -210,39 +230,34 @@ export const login = async (
       return;
     }
 
-    // Fetch role name
-    const role = (await Role.findById(user.roleId).select(
-      "name"
-    )) as IRoleDocument | null;
+    // ✅ 3. Fetch role from roles table
+    const role = await getRoleById(user.role_id);
+
     if (!role) {
       await error(
         "Login failed - role not found",
-        { email, userId: user._id, roleId: user.roleId },
-        { userId: user._id.toString(), source: "auth.login" }
+        { email, userId: user.id, roleId: user.role_id },
+        { userId: user.id!, source: "auth.login" }
       );
       res.status(HTTP_STATUS.OK).json(errorResponse("Role not found"));
       return;
     }
 
-    // Generate JWT
-    const token = generateToken(
-      user.email as string,
-      role.name as string,
-      user._id.toString()
-    );
+    // ✅ 4. Generate JWT
+    const token = generateToken(user.email, role.name, user.id!);
 
     await info(
       "User login successful",
-      { email, userId: user._id, roleName: role.name },
-      { userId: user._id.toString(), source: "auth.login" }
+      { email, userId: user.id, roleName: role.name },
+      { userId: user.id!, source: "auth.login" }
     );
 
+    // ✅ 5. Send success response
     res
       .status(HTTP_STATUS.OK)
       .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
   } catch (err: unknown) {
-    // Narrow unknown to CustomError safely
-    const errorObj: CustomError =
+    const errorObj =
       err instanceof Error
         ? { ...err }
         : {
@@ -274,8 +289,9 @@ export const refreshTokenLogin = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract user info from JWT populated by auth middleware
+  // Extract user info from JWT (populated by auth middleware)
   const userPayload = req.user as { userId?: string; exp?: number } | undefined;
+
   if (!userPayload?.userId) {
     res
       .status(HTTP_STATUS.UNAUTHORIZED)
@@ -283,30 +299,33 @@ export const refreshTokenLogin = async (
     return;
   }
 
-  // Check if token is expired
+  // Validate token expiry
   const currentTimestamp = Math.floor(Date.now() / 1000);
   if (!userPayload.exp || userPayload.exp <= currentTimestamp) {
-    res
-      .status(HTTP_STATUS.UNAUTHORIZED)
-      .json(errorResponse("Token is expired or invalid"));
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(
+      errorResponse("Token has expired or is invalid", {
+        code: "TOKEN_EXPIRED_OR_INVALID",
+        statusCode: HTTP_STATUS.UNAUTHORIZED,
+      })
+    );
     return;
   }
+
   try {
     await info(
       "Refresh User login attempt started",
-      { userId: userPayload?.userId },
-      { source: "auth.login" }
+      { userId: userPayload.userId },
+      { source: "auth.refresh" }
     );
 
-    const user = (await User.findById(
-      userPayload?.userId
-    )) as IUserDocument | null;
+    // ✅ 1. Fetch user by ID
+    const user = await findUserById(userPayload.userId);
 
     if (!user) {
       await warn(
         "Refresh Login failed - user not found",
-        { userId: userPayload?.userId },
-        { source: "auth.login" }
+        { userId: userPayload.userId },
+        { source: "auth.refresh" }
       );
       res
         .status(HTTP_STATUS.OK)
@@ -314,38 +333,33 @@ export const refreshTokenLogin = async (
       return;
     }
 
-    // Fetch role name
-    const role = (await Role.findById(user.roleId).select(
-      "name"
-    )) as IRoleDocument | null;
+    // ✅ 2. Fetch user role
+    const role = await getRoleById(user.role_id);
+
     if (!role) {
       await error(
         "Refresh Login failed - role not found",
-        { userId: user._id, roleId: user.roleId },
-        { userId: user._id.toString(), source: "auth.login" }
+        { userId: user.id, roleId: user.role_id },
+        { userId: user.id!, source: "auth.refresh" }
       );
       res.status(HTTP_STATUS.OK).json(errorResponse("Role not found"));
       return;
     }
 
-    // Generate JWT
-    const token = generateToken(
-      user.email as string,
-      role.name as string,
-      user._id.toString()
-    );
+    // ✅ 3. Generate new JWT
+    const token = generateToken(user.email, role.name, user.id!);
 
     await info(
       "User refresh login successful",
-      { userId: user._id, roleName: role.name },
-      { userId: user._id.toString(), source: "auth.login" }
+      { userId: user.id, roleName: role.name },
+      { userId: user.id!, source: "auth.refresh" }
     );
 
+    // ✅ 4. Return refreshed token
     res
       .status(HTTP_STATUS.OK)
       .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
   } catch (err: unknown) {
-    // Narrow unknown to CustomError safely
     const errorObj: CustomError =
       err instanceof Error
         ? { ...err }
@@ -358,7 +372,7 @@ export const refreshTokenLogin = async (
     await error(
       "Refresh Login failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack },
-      { source: "auth.login" }
+      { source: "auth.refresh" }
     );
 
     next(errorObj);
@@ -378,20 +392,21 @@ export const handlePasswordResetToken = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { email, isResend = false } = req.body;
+  const { email, isResend = false } = req.body;
 
+  try {
     await info(
       `${isResend ? "Resend" : "Send"} password reset token request started`,
       { email },
       { source: "auth.handlePasswordResetToken" }
     );
 
-    const user = (await User.findOne({ email })) as IUserDocument | null;
+    // Step 1️⃣: Find user by email
+    const user = await findUserByEmail(email);
 
     if (!user) {
       await warn(
-        `${isResend ? "Resend" : "Send"} password reset failed - user not found`,
+        "Password reset failed - user not found",
         { email },
         { source: "auth.handlePasswordResetToken" }
       );
@@ -401,14 +416,15 @@ export const handlePasswordResetToken = async (
       return;
     }
 
-    // If it's a resend request and token still valid -> block
+    // Step 2️⃣: If resend and token still valid -> block
     if (
       isResend &&
-      user.passwordResetExpires &&
-      user.passwordResetExpires > new Date()
+      user.password_reset_expires &&
+      new Date(user.password_reset_expires) > new Date()
     ) {
       const timeLeft = Math.ceil(
-        (user.passwordResetExpires.getTime() - Date.now()) / (60 * 1000)
+        (new Date(user.password_reset_expires).getTime() - Date.now()) /
+          (60 * 1000)
       );
       res
         .status(HTTP_STATUS.OK)
@@ -420,30 +436,29 @@ export const handlePasswordResetToken = async (
       return;
     }
 
-    // Generate 6-digit reset token
+    // Step 3️⃣: Generate secure reset token
     const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Hash the token before storing
+    // Hash before saving
     const hashedToken = crypto
       .createHash("sha256")
       .update(resetToken)
       .digest("hex");
 
-    // Expiry time (5 min default, you can adjust if resend should be longer)
+    // Expiry (5 minutes)
     const resetTokenExpiry = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Save reset token to user
-    user.passwordResetToken = hashedToken;
-    user.passwordResetExpires = resetTokenExpiry;
-    await user.save({ validateBeforeSave: false });
+    // Step 4️⃣: Update DB
+    await updatePasswordResetToken(user.id!, hashedToken, resetTokenExpiry);
 
+    // Step 5️⃣: Send email
     try {
       await sendPasswordResetEmail(user.email!, resetToken, user.name);
 
       await info(
         `${isResend ? "Resend" : "Send"} password reset token success`,
-        { email, userId: user._id },
-        { userId: user._id.toString(), source: "auth.handlePasswordResetToken" }
+        { email, userId: user.id },
+        { userId: user.id!, source: "auth.handlePasswordResetToken" }
       );
 
       res.status(HTTP_STATUS.OK).json(
@@ -458,15 +473,12 @@ export const handlePasswordResetToken = async (
         )
       );
     } catch (emailError) {
-      // Reset fields if email fails
-      user.passwordResetToken = undefined;
-      user.passwordResetExpires = undefined;
-      await user.save({ validateBeforeSave: false });
+      await resetPasswordResetFields(user.id!);
 
       await error(
         "Failed to send password reset token email",
-        { email, userId: user._id, error: emailError },
-        { userId: user._id.toString(), source: "auth.handlePasswordResetToken" }
+        { email, userId: user.id, error: emailError },
+        { userId: user.id!, source: "auth.handlePasswordResetToken" }
       );
 
       res
@@ -475,21 +487,17 @@ export const handlePasswordResetToken = async (
       return;
     }
   } catch (err: unknown) {
-    const errorObj: CustomError =
-      err instanceof Error
-        ? { ...err }
-        : {
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          };
-
+    const errorObj = err as AppError;
     await error(
       "Password reset token request failed with unexpected error",
-      { error: errorObj.message, stack: errorObj.stack },
+      {
+        email,
+        error: errorObj.message,
+        stack: errorObj.stack,
+        code: errorObj.code,
+      },
       { source: "auth.handlePasswordResetToken" }
     );
-
     next(errorObj);
   }
 };
@@ -507,28 +515,42 @@ export const verifyPasswordResetToken = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { email, token } = req.body;
+  const { email, token } = req.body;
 
+  try {
     await info(
       "Password reset token verification attempt started",
-      { email, token },
+      { email },
       { source: "auth.verifyPasswordResetToken" }
     );
 
-    // Hash the provided token to compare with stored hash
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
-
-    const user = (await User.findOne({
-      email,
-      passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() },
-    })) as IUserDocument | null;
+    // Step 1️⃣: Find user by email
+    const user = await findUserByEmail(email);
 
     if (!user) {
       await warn(
+        "Token verification failed - user not found",
+        { email },
+        { source: "auth.verifyPasswordResetToken" }
+      );
+      res
+        .status(HTTP_STATUS.OK)
+        .json(errorResponse("Invalid or expired password reset token"));
+      return;
+    }
+
+    // Step 2️⃣: Hash the provided token for comparison
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Step 3️⃣: Compare hashed token and expiry
+    if (
+      user.password_reset_token !== hashedToken ||
+      !user.password_reset_expires ||
+      new Date(user.password_reset_expires) <= new Date()
+    ) {
+      await warn(
         "Password reset token verification failed - invalid or expired token",
-        { email, token },
+        { email },
         { source: "auth.verifyPasswordResetToken" }
       );
       res
@@ -539,8 +561,8 @@ export const verifyPasswordResetToken = async (
 
     await info(
       "Password reset token verification successful",
-      { email, userId: user._id },
-      { userId: user._id.toString(), source: "auth.verifyPasswordResetToken" }
+      { email, userId: user.id },
+      { userId: user.id!, source: "auth.verifyPasswordResetToken" }
     );
 
     res.status(HTTP_STATUS.OK).json(
@@ -548,24 +570,22 @@ export const verifyPasswordResetToken = async (
         {
           message: "Password reset token verified successfully",
           email: user.email,
-          userId: user._id,
+          userId: user.id,
         },
         MESSAGES.PASSWORD_RESET_TOKEN_VERIFIED
       )
     );
   } catch (err: unknown) {
-    const errorObj: CustomError =
-      err instanceof Error
-        ? { ...err }
-        : {
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          };
+    const errorObj = err as AppError;
 
     await error(
       "Password reset token verification failed with unexpected error",
-      { error: errorObj.message, stack: errorObj.stack },
+      {
+        email,
+        error: errorObj.message,
+        stack: errorObj.stack,
+        code: errorObj.code,
+      },
       { source: "auth.verifyPasswordResetToken" }
     );
 
@@ -586,26 +606,29 @@ export const resetPassword = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { email, password, token } = req.body;
-    let user: IUserDocument | null = null;
-    const source = "auth.resetPassword";
+  const source = "auth.resetPassword";
+  const { email, password, token } = req.body;
 
+  try {
     await info("Password reset attempt started", { email }, { source });
 
-    // ✅ CASE 1: OTP-based reset
+    let user = null;
+
+    // ✅ CASE 1: OTP-based reset (via email + token)
     if (token) {
       const hashedToken = crypto
         .createHash("sha256")
         .update(token)
         .digest("hex");
 
-      user = await User.findOne({
-        email,
-        passwordResetToken: hashedToken,
-      });
+      user = await findUserByEmail(email);
 
-      if (!user) {
+      if (
+        !user ||
+        user.password_reset_token !== hashedToken ||
+        !user.password_reset_expires ||
+        new Date(user.password_reset_expires) <= new Date()
+      ) {
         await warn(
           "Invalid or expired password reset token",
           { email },
@@ -617,26 +640,22 @@ export const resetPassword = async (
         return;
       }
     }
-    // ✅ CASE 2: JWT-based reset (auth middleware already decoded)
-    else if (
-      req.user &&
-      typeof req.user === "object" &&
-      "userEmail" in req.user
-    ) {
-      const userEmail = (req.user as { userEmail: string }).userEmail;
-      user = await User.findOne({ email: userEmail });
+    // ✅ CASE 2: JWT-based reset (req.user decoded by middleware)
+    else if (req.user && typeof req.user === "object" && "userId" in req.user) {
+      const { userId } = req.user as { userId: string };
+      user = await findUserById(userId);
 
       if (!user) {
         await warn(
           "User not found during JWT-based password reset",
-          { userEmail },
+          { userId },
           { source }
         );
         res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("User not found"));
         return;
       }
     } else {
-      // No token or JWT → unauthorized
+      // ❌ Missing OTP or JWT
       await warn(
         "Password reset failed - missing OTP or JWT",
         { email },
@@ -648,16 +667,16 @@ export const resetPassword = async (
       return;
     }
 
+    // ✅ Hash new password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     // ✅ Update password and clear reset fields
-    user.password = password;
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
-    await user.save();
+    await updateUserPassword(user.id!, hashedPassword);
 
     await info(
       "Password reset successful",
-      { email: user.email, userId: user._id },
-      { userId: user._id.toString(), source }
+      { email: user.email, userId: user.id },
+      { userId: user.id!, source }
     );
 
     res.status(HTTP_STATUS.OK).json(
@@ -670,14 +689,18 @@ export const resetPassword = async (
       )
     );
   } catch (err: unknown) {
-    const errorObj =
-      err instanceof Error
-        ? { name: err.name, message: err.message, stack: err.stack }
-        : { name: "UnknownError", message: "An unknown error occurred" };
+    const errorObj = err as AppError;
 
-    await error("Password reset failed with unexpected error", errorObj, {
-      source: "auth.resetPassword",
-    });
+    await error(
+      "Password reset failed with unexpected error",
+      {
+        email,
+        error: errorObj.message,
+        stack: errorObj.stack,
+        code: errorObj.code,
+      },
+      { source }
+    );
 
     next(errorObj);
   }
@@ -697,6 +720,8 @@ export const googleAuth = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  const source = "auth.googleAuth";
+
   try {
     const { idToken, roleCode } = req.body;
 
@@ -710,10 +735,10 @@ export const googleAuth = async (
     await info(
       "Google authentication attempt started",
       { hasRoleCode: !!roleCode },
-      { source: "auth.googleAuth" }
+      { source }
     );
 
-    // Verify Firebase token
+    // ✅ Verify Firebase token
     let decodedToken;
     try {
       decodedToken = await verifyFirebaseToken(idToken);
@@ -721,7 +746,7 @@ export const googleAuth = async (
       await warn(
         "Google auth failed - invalid Firebase token",
         { error: err instanceof Error ? err.message : "Unknown error" },
-        { source: "auth.googleAuth" }
+        { source }
       );
       res
         .status(HTTP_STATUS.UNAUTHORIZED)
@@ -732,57 +757,45 @@ export const googleAuth = async (
     const { uid, email, name, picture } = decodedToken;
 
     if (!email) {
-      await warn(
-        "Google auth failed - no email in token",
-        { uid },
-        { source: "auth.googleAuth" }
-      );
+      await warn("Google auth failed - no email in token", { uid }, { source });
       res
         .status(HTTP_STATUS.BAD_REQUEST)
         .json(errorResponse("Email not found in Google account"));
       return;
     }
 
-    // Check if user already exists
-    let user: IUserDocument | null = await User.findOne({
-      $or: [{ email }, { firebaseUid: uid }],
-    });
-
+    const db = await getDB();
+    let user = await findUserByEmail(email);
     let isNewUser = false;
 
+    // ✅ Case: New User Registration
     if (!user) {
-      // New user registration
       isNewUser = true;
 
-      // Get or validate role
-      let role: IRoleDocument | null;
-
+      // Determine role
+      let roleName = "user";
       if (roleCode) {
-        const roleName = RoleCodeMap[roleCode];
-
-        if (!roleName) {
+        const mappedRole = RoleCodeMap[roleCode];
+        if (!mappedRole) {
           await warn(
             "Google auth failed - invalid role code",
             { email, roleCode },
-            { source: "auth.googleAuth" }
+            { source }
           );
           res
             .status(HTTP_STATUS.BAD_REQUEST)
             .json(errorResponse(MESSAGES.ROLE_INVALID_ID));
           return;
         }
-
-        role = await Role.findOne({ name: roleName });
-      } else {
-        // Default to 'user' role if not specified
-        role = await Role.findOne({ name: "user" });
+        roleName = mappedRole;
       }
 
+      const role = await findRoleByName(roleName);
       if (!role) {
         await warn(
           "Google auth failed - role not found",
           { email },
-          { source: "auth.googleAuth" }
+          { source }
         );
         res
           .status(HTTP_STATUS.BAD_REQUEST)
@@ -790,66 +803,79 @@ export const googleAuth = async (
         return;
       }
 
-      // Create new user
-      user = new User({
-        name: name || email.split("@")[0],
+      // Insert new user
+      const insertUserQuery = `
+        INSERT INTO users (name, email, firebase_uid, role_id, is_email_verified, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, true, NOW(), NOW())
+        RETURNING id, name, email, role_id;
+      `;
+      const result = await db.query(insertUserQuery, [
+        name || email.split("@")[0],
         email,
-        firebaseUid: uid,
-        profilePicture: picture,
-        roleId: role._id.toString(),
-        isEmailVerified: true, // Google accounts are pre-verified
-      });
-
-      await user.save();
+        uid,
+        role.id,
+      ]);
+      user = result.rows[0] as IUser;
 
       await info(
         "New user created via Google Sign-In",
-        { userId: user._id, email, roleCode },
-        { userId: user._id.toString(), source: "auth.googleAuth" }
+        { userId: user.id, email, roleCode },
+        { userId: user.id!, source }
       );
 
-      // Create empty user profile
-      await UserProfile.create({
-        userId: user._id,
-      });
+      // Create user profile entry
+      await db.query(
+        `INSERT INTO user_profiles (user_id, created_at, updated_at) VALUES ($1, NOW(), NOW());`,
+        [user.id]
+      );
 
       await info(
         "User profile created for Google user",
-        { userId: user._id },
-        { userId: user._id.toString(), source: "auth.googleAuth" }
+        { userId: user.id },
+        { userId: user.id!, source }
       );
     } else {
-      // Existing user login
+      // ✅ Case: Existing user
+      const updates: string[] = [];
+      const values: unknown[] = [];
+      let index = 1;
 
-      // Update Firebase UID if not set
-      if (!user.firebaseUid) {
-        user.firebaseUid = uid;
-        await user.save();
+      if (!user.firebase_uid) {
+        updates.push(`firebase_uid = $${index++}`);
+        values.push(uid);
+      }
+      if (picture && user.profile_picture !== picture) {
+        updates.push(`profile_picture = $${index++}`);
+        values.push(picture);
       }
 
-      // Update profile picture if changed
-      if (picture && user.profilePicture !== picture) {
-        user.profilePicture = picture;
-        await user.save();
+      if (updates.length > 0) {
+        const updateQuery = `
+          UPDATE users SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${index}
+        `;
+        values.push(user.id);
+        await db.query(updateQuery, values);
       }
 
       await info(
         "Existing user logged in via Google",
-        { userId: user._id, email },
-        { userId: user._id.toString(), source: "auth.googleAuth" }
+        { userId: user.id, email },
+        { userId: user.id!, source }
       );
     }
 
-    // Fetch role for JWT
-    const role = (await Role.findById(user.roleId).select(
-      "name"
-    )) as IRoleDocument | null;
+    // ✅ Fetch role name for JWT
+    const roleResult = await db.query(
+      `SELECT name FROM roles WHERE id = $1 LIMIT 1;`,
+      [user.role_id]
+    );
+    const roleName = roleResult.rows[0]?.name;
 
-    if (!role) {
+    if (!roleName) {
       await error(
         "Google auth failed - role not found for user",
-        { email, userId: user._id, roleId: user.roleId },
-        { userId: user._id.toString(), source: "auth.googleAuth" }
+        { email, userId: user.id, roleId: user.role_id },
+        { userId: user.id!, source }
       );
       res
         .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
@@ -857,17 +883,13 @@ export const googleAuth = async (
       return;
     }
 
-    // Generate JWT token
-    const token = generateToken(
-      user.email as string,
-      role.name as string,
-      user._id.toString()
-    );
+    // ✅ Generate JWT token
+    const token = generateToken(user.email, roleName, user.id!);
 
     await info(
       "Google authentication successful",
-      { userId: user._id, email, isNewUser, roleName: role.name },
-      { userId: user._id.toString(), source: "auth.googleAuth" }
+      { userId: user.id, email, isNewUser, roleName },
+      { userId: user.id!, source }
     );
 
     res.status(HTTP_STATUS.OK).json(
@@ -876,29 +898,22 @@ export const googleAuth = async (
           token,
           isNewUser,
           user: {
-            id: user._id,
+            id: user.id,
             name: user.name,
             email: user.email,
-            profilePicture: user.profilePicture,
+            profilePicture: user.profile_picture,
           },
         },
         isNewUser ? MESSAGES.USER_CREATED : MESSAGES.LOGIN_SUCCESS
       )
     );
   } catch (err: unknown) {
-    const errorObj: CustomError =
-      err instanceof Error
-        ? { ...err }
-        : {
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          };
+    const errorObj = err as AppError;
 
     await error(
       "Google authentication failed with unexpected error",
-      { error: errorObj.message, stack: errorObj.stack },
-      { source: "auth.googleAuth" }
+      { error: errorObj.message, stack: errorObj.stack, code: errorObj.code },
+      { source }
     );
 
     next(errorObj);

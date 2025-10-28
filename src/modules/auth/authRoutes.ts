@@ -59,7 +59,7 @@ const router = Router();
  *               roleCode:
  *                 type: string
  *                 description: Code of the role assigned to the user
- *                 example: A
+ *                 example: U
  *               phoneNumber:
  *                 type: string
  *                 description: User's phone number (optional)
