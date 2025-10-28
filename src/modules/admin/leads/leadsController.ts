@@ -7,12 +7,12 @@ import {
   successResponse,
 } from "../../../core/utils/responseFormatter";
 import { error, info } from "../../../core/utils/logger";
-import User from "../../auth/authModel";
 import Lead from "./leadsModule";
 import PartnerProfile, {
   IPartnerProfile,
 } from "../../partnerProfile/partnerProfileModel";
 import { sendLeadEmails } from "../../../core/services/emailService";
+import config from "../../../core/config/env";
 
 // extended type for response
 export interface IPartnerProfileResponse extends Omit<IPartnerProfile, "_id"> {
@@ -202,7 +202,7 @@ export const createLead = async (
 
     // Prepare user data
     const userData = {
-      email: "gurpreetsingh02979@gmail.com",
+      email: user.email,
       name: user.name!,
     };
 
@@ -215,12 +215,14 @@ export const createLead = async (
       timestamp: new Date().toLocaleString(),
     };
 
-    // Get admin email from environment variable
-    const adminEmail = "ranjeet.singh@digisoftsolution.com";
-
     // Send emails to user, partners, and admin
     try {
-      await sendLeadEmails(userData, partnersData, adminEmail, leadDetails);
+      await sendLeadEmails(
+        userData,
+        partnersData,
+        config.ADMIN_EMAIL,
+        leadDetails
+      );
 
       await info(
         "Lead created & emails sent successfully to the user , partner & admin",

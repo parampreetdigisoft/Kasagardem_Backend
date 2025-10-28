@@ -1,6 +1,5 @@
 import { Response, NextFunction } from "express";
 import { ZodError } from "zod";
-import Question from "../questions/questionModel";
 import { AuthRequest } from "../../../core/middleware/authMiddleware";
 import { HTTP_STATUS, MESSAGES } from "../../../core/utils/constants";
 import {
@@ -8,7 +7,18 @@ import {
   successResponse,
 } from "../../../core/utils/responseFormatter";
 import { info } from "../../../core/utils/logger";
-import User from "../../auth/authModel";
+import { findUserByEmail } from "../../auth/authRepository";
+import {
+  createQuestion,
+  findAllQuestions,
+  softDeleteQuestion,
+  updateQuestion,
+} from "./questionModel";
+
+export interface AuthUserPayload {
+  userEmail?: string;
+  role?: string;
+}
 
 /**
  * Retrieves all questions from the database.
@@ -20,54 +30,39 @@ import User from "../../auth/authModel";
  * @returns Promise<void>
  */
 export const getAllQuestions = async (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // const userPayload = req.user as { userEmail?: string } | undefined;
-  // if (!userPayload?.userEmail) {
-  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
-  //   return;
-  // }
-
-  // const user = await User.findOne({ email: userPayload.userEmail });
-  // if (!user) {
-  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-  //   return;
-  // }
-
   try {
-    // await info("Get all questions request started", {}, { userId: user._id });
+    // Retrieve all active questions (with options) from PostgreSQL
+    const questions = await findAllQuestions();
 
-    // Retrieve all questions
-    const questions = await Question.aggregate([
-      { $match: { isDeleted: false } },
-      { $sort: { order: 1 } },
-      { $project: { createdAt: 0, updatedAt: 0, __v: 0, isDeleted: 0 } },
-    ]);
-
-    // Map _id → questionId and drop _id
-    const formattedQuestions = questions.map(({ _id, ...rest }) => ({
-      questionId: _id, // rename _id
+    // Format data if needed — rename "id" to "question_id" for clarity
+    const formattedQuestions = questions.map(({ id, ...rest }) => ({
+      question_id: id,
       ...rest,
     }));
 
-    await info(
-      "Questions retrieved successfully",
-      { questionsCount: questions.length }
-      // { userId: user._id }
-    );
+    // Success log
+    await info("Questions retrieved successfully", {
+      count: formattedQuestions.length,
+    });
 
     res
       .status(HTTP_STATUS.OK)
       .json(
-        successResponse({ formattedQuestions }, MESSAGES.QUESTIONS_RETRIEVED)
+        successResponse(
+          { questions: formattedQuestions },
+          MESSAGES.QUESTIONS_RETRIEVED
+        )
       );
   } catch (err: unknown) {
     if (err instanceof ZodError) {
       res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
       return;
     }
+    console.error("❌ Error fetching questions:", err);
     next(err);
   }
 };
@@ -82,51 +77,52 @@ export const getAllQuestions = async (
  * @param next - Express next middleware function for error handling
  * @returns Promise<void>
  */
-export const createQuestion = async (
+export const createQuestionController = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const userPayload = req.user as { userEmail?: string } | undefined;
+  const userPayload = req.user as AuthUserPayload | undefined;
+
   if (!userPayload?.userEmail) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
     return;
   }
 
-  const user = await User.findOne({ email: userPayload.userEmail });
+  const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
   }
 
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
+    return;
+  }
+
   try {
-    const { text, options, order } = req.body;
+    const { question_text, options, order } = req.body;
 
     await info(
       "Question creation attempt started",
-      { text, options },
-      { userId: user._id }
+      { question_text, options },
+      { userId: user.id! }
     );
 
-    const existing = await Question.findOne({ text });
-    if (existing) {
-      res
-        .status(HTTP_STATUS.CONFLICT)
-        .json(errorResponse("Question already exists"));
-      return;
-    }
-
-    const newQuestion = await Question.createValidated({
-      questionText: text, // ✅ map "text" → "questionText"
-      options,
+    // ✅ Call PostgreSQL service layer
+    const newQuestion = await createQuestion({
+      question_text: question_text,
+      options: options?.map((opt: string) => ({ option_text: opt })),
       order,
-      isDeleted: false,
+      is_deleted: false,
     });
 
     await info(
       "Question created successfully",
-      { questionId: newQuestion._id },
-      { userId: user._id }
+      { questionId: newQuestion.id },
+      { userId: user.id! }
     );
 
     res
@@ -137,6 +133,7 @@ export const createQuestion = async (
       res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
       return;
     }
+    console.error("❌ Failed to create question:", err);
     next(err);
   }
 };
@@ -151,50 +148,66 @@ export const createQuestion = async (
  * @param next - Express next middleware function for error handling
  * @returns Promise<void>
  */
-export const updateQuestion = async (
+export const updateQuestionController = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   const userPayload = req.user as { userEmail?: string } | undefined;
+
   if (!userPayload?.userEmail) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
     return;
   }
 
-  const user = await User.findOne({ email: userPayload.userEmail });
+  const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
   }
+
   try {
-    const { text, options, order } = req.body;
+    const questionId = req.params.id;
+    const { question_text, options, order, is_deleted } = req.body;
 
     await info(
       "Question update attempt started",
-      { text, options, order },
-      { userId: user._id }
+      { questionId, question_text, options, order },
+      { userId: user.id! }
     );
 
-    // Map incoming fields before sending to updateValidated
-    const mappedData = {
-      questionText: text,
-      options,
+    // ✅ Map body to PostgreSQL schema
+    const updateData = {
+      question_text: question_text,
+      options: options?.map((opt: string) => ({ option_text: opt })),
       order,
-      isDeleted: false, // or keep original if optional
+      is_deleted: is_deleted ?? false,
     };
 
-    const updated = await Question.updateValidated(req.params.id!, mappedData);
-    if (!updated) {
+    const updatedQuestion = await updateQuestion(questionId!, updateData);
+
+    if (!updatedQuestion) {
       res
         .status(HTTP_STATUS.NOT_FOUND)
         .json(errorResponse("Question not found"));
       return;
     }
+
+    await info(
+      "Question updated successfully",
+      { questionId },
+      { userId: user.id! }
+    );
+
     res
       .status(HTTP_STATUS.OK)
-      .json(successResponse(updated, MESSAGES.QUESTION_UPDATED));
-  } catch (err) {
+      .json(successResponse(null, MESSAGES.QUESTION_UPDATED));
+  } catch (err: unknown) {
+    if (err instanceof ZodError) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
+      return;
+    }
+    console.error("❌ Failed to update question:", err);
     next(err);
   }
 };
@@ -208,23 +221,54 @@ export const updateQuestion = async (
  * @param next - Express next middleware function for error handling
  * @returns Promise<void>
  */
-export const deleteQuestion = async (
+export const deleteQuestionController = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const deleted = await Question.findByIdAndDelete(req.params.id);
+    const userPayload = req.user as { userEmail?: string } | undefined;
+    if (!userPayload?.userEmail) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    }
+
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user) {
+      res
+        .status(HTTP_STATUS.UNAUTHORIZED)
+        .json(errorResponse("User not found"));
+      return;
+    }
+
+    const questionId = req.params.id;
+
+    await info(
+      "Question delete attempt started",
+      { questionId },
+      { userId: user.id! }
+    );
+
+    const deleted = await softDeleteQuestion(questionId!);
+
     if (!deleted) {
       res
         .status(HTTP_STATUS.NOT_FOUND)
         .json(errorResponse("Question not found"));
       return;
     }
+
+    await info(
+      "Question soft deleted successfully",
+      { questionId },
+      { userId: user.id! }
+    );
+
     res
       .status(HTTP_STATUS.OK)
       .json(successResponse(null, MESSAGES.QUESTION_DELETED));
   } catch (err) {
+    console.error("❌ Failed to delete question:", err);
     next(err);
   }
 };

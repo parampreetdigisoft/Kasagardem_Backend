@@ -7,10 +7,10 @@ import {
   successResponse,
 } from "../../../core/utils/responseFormatter";
 import { info } from "../../../core/utils/logger";
-import User from "../../auth/authModel";
 import Rule from "./rulesModel";
 import Question, { IQuestionDocument } from "../questions/questionModel";
 import mongoose, { Types } from "mongoose";
+import { findUserByEmail } from "../../auth/authRepository";
 
 // Define a clean type for the API response
 type RuleResponse = {
@@ -42,14 +42,14 @@ export const getAllRules = async (
     return;
   }
 
-  const user = await User.findOne({ email: userPayload.userEmail });
+  const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
   }
 
   try {
-    await info("Get all rules request started", {}, { userId: user._id });
+    await info("Get all rules request started", {}, { userId: user.id! });
 
     // Populate questionId with questionText from Question collection
     const rules = await Rule.find({ isDeleted: false })
@@ -78,7 +78,7 @@ export const getAllRules = async (
     await info(
       "Rules retrieved successfully",
       { rulesCount: rules.length },
-      { userId: user._id }
+      { userId: user.id! }
     );
 
     res
@@ -108,14 +108,14 @@ export const createRule = async (
     return;
   }
 
-  const user = await User.findOne({ email: userPayload.userEmail });
+  const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
   }
 
   try {
-    await info("Rule creation attempt started", req.body, { userId: user._id });
+    await info("Rule creation attempt started", req.body, { userId: user.id! });
 
     const { conditions } = req.body;
 
@@ -145,7 +145,7 @@ export const createRule = async (
     await info(
       "Rule created successfully",
       { ruleId: newRule._id },
-      { userId: user._id }
+      { userId: user.id! }
     );
 
     res
@@ -177,7 +177,7 @@ export const updateRule = async (
     return;
   }
 
-  const user = await User.findOne({ email: userPayload.userEmail });
+  const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
@@ -187,7 +187,7 @@ export const updateRule = async (
     await info(
       "Rule update attempt started",
       { ruleId: req.params.id, body: req.body },
-      { userId: user._id }
+      { userId: user.id! }
     );
 
     const updatedRule = await Rule.updateValidated(req.params.id!, req.body);

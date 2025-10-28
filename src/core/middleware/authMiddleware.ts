@@ -64,9 +64,12 @@ const auth = async (
         { ...requestInfo },
         { source: "middleware.auth" }
       );
-      res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse(MESSAGES.UNAUTHORIZED));
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(
+        errorResponse(MESSAGES.TOKEN_MISSING, {
+          code: "TOKEN_MISSING",
+          statusCode: HTTP_STATUS.UNAUTHORIZED,
+        })
+      );
       return;
     }
 
@@ -111,9 +114,12 @@ const auth = async (
         },
         { source: "middleware.auth" }
       );
-      res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse(MESSAGES.TOKEN_EXPIRED));
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(
+        errorResponse(MESSAGES.TOKEN_EXPIRED, {
+          code: "TOKEN_EXPIRED",
+          statusCode: HTTP_STATUS.UNAUTHORIZED,
+        })
+      );
       return;
     }
 
@@ -123,9 +129,12 @@ const auth = async (
         { ...requestInfo, errorName: err.name, errorMessage: err.message },
         { source: "middleware.auth" }
       );
-      res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse(MESSAGES.TOKEN_INVALID));
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(
+        errorResponse(MESSAGES.TOKEN_INVALID, {
+          code: "TOKEN_INVALID",
+          statusCode: HTTP_STATUS.UNAUTHORIZED,
+        })
+      );
       return;
     }
 
@@ -135,9 +144,12 @@ const auth = async (
         { ...requestInfo, notBefore: err.date ? err.date.toISOString() : null },
         { source: "middleware.auth" }
       );
-      res
-        .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse(MESSAGES.TOKEN_INVALID));
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(
+        errorResponse(MESSAGES.TOKEN_NOT_ACTIVE, {
+          code: "TOKEN_NOT_ACTIVE",
+          statusCode: HTTP_STATUS.UNAUTHORIZED,
+        })
+      );
       return;
     }
 
@@ -153,9 +165,12 @@ const auth = async (
       source: "middleware.auth",
     });
 
-    res
-      .status(HTTP_STATUS.UNAUTHORIZED)
-      .json(errorResponse(MESSAGES.TOKEN_INVALID));
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(
+      errorResponse(MESSAGES.JWT_UNKNOWN_ERROR, {
+        code: "JWT_UNKNOWN_ERROR",
+        statusCode: HTTP_STATUS.UNAUTHORIZED,
+      })
+    );
   }
 };
 

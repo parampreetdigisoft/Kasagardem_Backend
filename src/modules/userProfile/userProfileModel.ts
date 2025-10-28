@@ -1,145 +1,138 @@
-import mongoose, { Document, Schema } from "mongoose";
-import { IAddress, ISocialLinks } from "../../interface/index";
-import { createUserProfileDto } from "../../dto/userProfileDto";
 import { ZodError } from "zod";
-
-export interface IUserProfile extends Document {
-  _id: mongoose.Types.ObjectId;
-  userId: mongoose.Types.ObjectId;
-  profileImage?: string;
-  dateOfBirth?: Date;
-  gender?: "male" | "female" | "other";
-  bio?: string;
-  address?: IAddress;
-  socialLinks?: ISocialLinks;
-  occupation?: string;
-  company?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-// Schema definition
-const userProfileSchema = new Schema<IUserProfile>(
-  {
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      unique: true,
-    },
-    profileImage: {
-      type: String,
-      trim: true,
-    },
-    dateOfBirth: {
-      type: Date,
-    },
-    gender: {
-      type: String,
-      enum: ["male", "female", "other",""],
-      lowercase: true,
-    },
-    bio: {
-      type: String,
-      maxlength: [500, "Bio cannot exceed 500 characters"],
-      trim: true,
-    },
-    address: {
-      street: { type: String, trim: true },
-      city: { type: String, trim: true },
-      state: { type: String, trim: true },
-      country: { type: String, trim: true },
-      zipCode: { type: String, trim: true },
-    },
-    socialLinks: {
-      facebook: { type: String, trim: true },
-      twitter: { type: String, trim: true },
-      linkedin: { type: String, trim: true },
-      instagram: { type: String, trim: true },
-    },
-    occupation: {
-      type: String,
-      trim: true,
-      maxlength: [100, "Occupation cannot exceed 100 characters"],
-    },
-    company: {
-      type: String,
-      trim: true,
-      maxlength: [100, "Company name cannot exceed 100 characters"],
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
-
-// --------------------
-// Static Methods
-// --------------------
+import { createUserProfileDto } from "../../dto/userProfileDto";
+import { getDB } from "../../core/config/db";
+import { IUserProfile } from "../../interface/userProfile";
 
 /**
- * Create a UserProfile after validating with Zod DTO.
- * @param data - Unvalidated profile data
- * @returns Created UserProfile document
- * @throws ZodError if validation fails
+ * Creates a new validated user profile in PostgreSQL.
+ * @param data - Unvalidated user profile input
+ * @returns The created user profile record
  */
-userProfileSchema.statics.createValidated = async function (
+export async function createValidatedUserProfile(
   data: unknown
 ): Promise<IUserProfile> {
+  const client = await getDB();
   try {
     const parsedData = createUserProfileDto.parse(data);
 
-    const profile = new this(parsedData) as IUserProfile;
-    await profile.save();
-    return profile;
+    const query = `
+      INSERT INTO userprofiles (
+        user_id, profile_image, date_of_birth, gender, bio,
+        street, city, state, country, zip_code, occupation, company
+      )
+      VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10, $11, $12
+      )
+      RETURNING *;
+    `;
+
+    const values = [
+      parsedData.userId,
+      parsedData.profileImage,
+      parsedData.dateOfBirth,
+      parsedData.gender,
+      parsedData.bio,
+      parsedData.street,
+      parsedData.city,
+      parsedData.state,
+      parsedData.country,
+      parsedData.zipCode,
+      parsedData.occupation,
+      parsedData.company,
+    ];
+
+    const result = await client.query<IUserProfile>(query, values);
+    return result.rows[0]!;
   } catch (err) {
-    if (err instanceof ZodError) {
-      throw err;
-    }
+    if (err instanceof ZodError) throw err;
     throw err;
   }
-};
+}
 
 /**
- * Update a UserProfile with strict validation.
- * @param profileId - The profile's _id
- * @param data - Unvalidated update data
- * @returns Updated UserProfile document or null if not found
- * @throws ZodError if validation fails
+ * Updates an existing user profile with validation.
+ * @param profileId - UUID of the profile to update
+ * @param data - Unvalidated input data
+ * @returns Updated profile record or null if not found
  */
-userProfileSchema.statics.updateValidated = async function (
+export async function updateValidatedUserProfile(
   profileId: string,
   data: unknown
 ): Promise<IUserProfile | null> {
+  const client = await getDB();
+
   try {
+    // Validate the input data using Zod schema
     const parsedData = createUserProfileDto.parse(data);
 
-    const updatedProfile = await this.findByIdAndUpdate(profileId, parsedData, {
-      new: true,
-      runValidators: true,
-    });
+    // Update query — only set updated_at, do not touch created_at
+    const query = `
+      UPDATE userprofiles
+      SET
+        profile_image = $1,
+        date_of_birth = $2,
+        gender = $3,
+        bio = $4,
+        street = $5,
+        city = $6,
+        state = $7,
+        country = $8,
+        zip_code = $9,
+        occupation = $10,
+        company = $11,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $12
+      RETURNING 
+        id,
+        user_id,
+        profile_image,
+        date_of_birth,
+        gender,
+        bio,
+        street,
+        city,
+        state,
+        country,
+        zip_code,
+        occupation,
+        company,
+        updated_at;
+    `;
 
-    return updatedProfile;
+    const values = [
+      parsedData.profileImage,
+      parsedData.dateOfBirth,
+      parsedData.gender,
+      parsedData.bio,
+      parsedData.street,
+      parsedData.city,
+      parsedData.state,
+      parsedData.country,
+      parsedData.zipCode,
+      parsedData.occupation,
+      parsedData.company,
+      profileId,
+    ];
+
+    const result = await client.query<IUserProfile>(query, values);
+
+    if (result.rows.length === 0) return null;
+
+    const row = result.rows[0];
+
+    // ✅ Normalize timestamp fields to string
+    const normalizedRow = {
+      ...row,
+      updated_at:
+        row?.updatedAt instanceof Date
+          ? row.updatedAt.toISOString()
+          : row?.updatedAt,
+    };
+
+    return normalizedRow as unknown as IUserProfile;
   } catch (err) {
-    if (err instanceof ZodError) {
-      throw err;
-    }
+    if (err instanceof ZodError) throw err;
     throw err;
   }
-};
-
-// Model type with static methods
-interface IUserProfileModel extends mongoose.Model<IUserProfile> {
-  createValidated(data: unknown): Promise<IUserProfile>;
-  updateValidated(
-    profileId: string,
-    data: unknown
-  ): Promise<IUserProfile | null>;
 }
-
-const UserProfile = mongoose.model<IUserProfile, IUserProfileModel>(
-  "UserProfile",
-  userProfileSchema
-);
-
-export default UserProfile;

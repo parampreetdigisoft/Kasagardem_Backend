@@ -1,5 +1,4 @@
 import app from "./app";
-import connectDB from "./core/config/db";
 import config from "./core/config/env";
 
 /**
@@ -9,7 +8,6 @@ import config from "./core/config/env";
  */
 const startServer = async (): Promise<void> => {
   try {
-    await connectDB();
     // Start server
     app.listen(config.PORT, () => {
       console.error(

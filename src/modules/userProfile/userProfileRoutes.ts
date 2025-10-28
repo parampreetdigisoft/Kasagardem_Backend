@@ -3,7 +3,6 @@ import {
   createUserProfile,
   getCurrentUserProfile,
   updateUserProfile,
-  deleteUserProfile,
 } from "./userProfileController";
 import {
   createUserProfileValidation,
@@ -38,51 +37,64 @@ const router = Router();
  *             properties:
  *               profileImage:
  *                 type: string
- *                 description: Base64 encoded image string
+ *                 description: Base64 encoded image string (uploaded to BunnyCDN)
  *                 example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
  *               dateOfBirth:
  *                 type: string
  *                 format: date
- *                 example: 1990-01-01
+ *                 description: User's date of birth (cannot be in the future)
+ *                 example: "1990-01-01"
  *               gender:
  *                 type: string
- *                 enum: [male, female, other]
- *                 example: male
+ *                 enum: [male, female, other, ""]
+ *                 description: User's gender (optional)
+ *                 example: "male"
  *               bio:
  *                 type: string
  *                 maxLength: 500
- *                 example: Software developer passionate about technology
- *               address:
- *                 type: object
- *                 properties:
- *                   street:
- *                     type: string
- *                     example: 123 Main St
- *                   city:
- *                     type: string
- *                     example: New York
- *                   state:
- *                     type: string
- *                     example: NY
- *                   country:
- *                     type: string
- *                     example: USA
- *                   zipCode:
- *                     type: string
- *                     example: 10001
+ *                 description: Short biography or description about the user
+ *                 example: "Software developer passionate about technology."
+ *               street:
+ *                 type: string
+ *                 description: Street address (optional)
+ *                 example: "123 Main St"
+ *               city:
+ *                 type: string
+ *                 description: City (optional)
+ *                 example: "New York"
+ *               state:
+ *                 type: string
+ *                 description: State or province (optional)
+ *                 example: "NY"
+ *               country:
+ *                 type: string
+ *                 description: Country (optional)
+ *                 example: "USA"
+ *               zipCode:
+ *                 type: string
+ *                 description: Postal or ZIP code (optional)
+ *                 example: "10001"
  *               occupation:
  *                 type: string
- *                 example: Software Developer
+ *                 maxLength: 255
+ *                 description: Occupation or job title
+ *                 example: "Software Developer"
  *               company:
  *                 type: string
- *                 example: TechCorp Inc
+ *                 maxLength: 255
+ *                 description: Company or organization name
+ *                 example: "TechCorp Inc"
  *     responses:
  *       201:
  *         description: Profile created successfully
  *       409:
  *         description: Profile already exists
+ *       400:
+ *         description: Validation failed or image upload error
  *       401:
  *         description: Unauthorized
+ *       404:
+ *         description: User not found
  */
 router.post(
   "/",
@@ -118,7 +130,7 @@ router.get("/", auth, getCurrentUserProfile);
  *     security:
  *       - bearerAuth: []
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
@@ -126,76 +138,68 @@ router.get("/", auth, getCurrentUserProfile);
  *             properties:
  *               profileImage:
  *                 type: string
- *                 description: Base64 encoded image string
+ *                 description: Base64 encoded image string (uploaded to BunnyCDN)
  *                 example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
  *               dateOfBirth:
  *                 type: string
  *                 format: date
- *                 example: 1990-01-01
+ *                 description: User's date of birth (cannot be in the future)
+ *                 example: "1990-01-01"
  *               gender:
  *                 type: string
- *                 enum: [male, female, other]
- *                 example: female
+ *                 enum: [male, female, other, ""]
+ *                 description: User's gender (optional)
+ *                 example: "female"
  *               bio:
  *                 type: string
  *                 maxLength: 500
- *                 example: Experienced software engineer
- *               address:
- *                 type: object
- *                 properties:
- *                   street:
- *                     type: string
- *                     example: 456 Elm St
- *                   city:
- *                     type: string
- *                     example: Los Angeles
- *                   state:
- *                     type: string
- *                     example: CA
- *                   country:
- *                     type: string
- *                     example: USA
- *                   zipCode:
- *                     type: string
- *                     example: 90001
+ *                 description: Short biography or personal summary
+ *                 example: "Experienced software engineer with 8+ years in backend development."
+ *               street:
+ *                 type: string
+ *                 description: Street address (optional)
+ *                 example: "456 Elm St"
+ *               city:
+ *                 type: string
+ *                 description: City (optional)
+ *                 example: "Los Angeles"
+ *               state:
+ *                 type: string
+ *                 description: State or province (optional)
+ *                 example: "CA"
+ *               country:
+ *                 type: string
+ *                 description: Country (optional)
+ *                 example: "USA"
+ *               zipCode:
+ *                 type: string
+ *                 description: Postal or ZIP code (optional)
+ *                 example: "90001"
  *               occupation:
  *                 type: string
- *                 example: Senior Developer
+ *                 maxLength: 255
+ *                 description: User's current occupation or job title
+ *                 example: "Senior Developer"
  *               company:
  *                 type: string
- *                 example: InnovateTech Inc
+ *                 maxLength: 255
+ *                 description: User's company or organization
+ *                 example: "InnovateTech Inc"
  *     responses:
  *       200:
  *         description: Profile updated successfully
- *       404:
- *         description: Profile not found
+ *       400:
+ *         description: Validation failed or image upload error
  *       401:
  *         description: Unauthorized
+ *       404:
+ *         description: Profile not found
  */
-
 router.put(
   "/",
   auth,
   validateRequest(updateUserProfileValidation),
   updateUserProfile
 );
-
-/**
- * @swagger
- * /api/v1/userProfile:
- *   delete:
- *     summary: Delete current user's profile
- *     tags: [UserProfile]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Profile deleted successfully
- *       404:
- *         description: Profile not found
- *       401:
- *         description: Unauthorized
- */
-router.delete("/", auth, deleteUserProfile);
 
 export default router;

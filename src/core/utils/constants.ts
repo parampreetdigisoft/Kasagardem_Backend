@@ -18,8 +18,12 @@ export const MESSAGES = {
   LOGIN_SUCCESS: "Login successful",
   INVALID_CREDENTIALS: "Invalid email or password",
   USER_EXISTS: "User with this email already exists",
+  // Token and Auth-related Messages
   TOKEN_INVALID: "Invalid token",
-  TOKEN_EXPIRED: "Expired token",
+  TOKEN_EXPIRED: "Token has expired",
+  TOKEN_MISSING: "Unauthorized: Missing authentication token",
+  TOKEN_NOT_ACTIVE: "Token not active yet",
+  JWT_UNKNOWN_ERROR: "Unexpected authentication error",
   UNAUTHORIZED: "Access denied. No token provided.",
   //#endregion
 

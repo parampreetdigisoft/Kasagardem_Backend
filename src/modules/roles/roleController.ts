@@ -1,15 +1,27 @@
 import { Response, NextFunction } from "express";
-import Role, { IRoleDocument } from "./roleModel";
+import {
+  createValidatedRole,
+  deleteRoleById,
+  findRoleById,
+  findRoleByName,
+  getAllRoles,
+  updateValidatedRole,
+} from "./roleRepository";
 import {
   successResponse,
   errorResponse,
 } from "../../core/utils/responseFormatter";
 import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { error, info, warn } from "../../core/utils/logger";
-import { CustomError } from "../../interface/error";
-import User from "../auth/authModel";
+import { CustomError } from "../../interface/Error";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
 import { ZodError } from "zod";
+import { findUserByEmail } from "../auth/authRepository";
+
+export interface AuthUserPayload {
+  userEmail?: string;
+  role?: string;
+}
 
 /**
  * Creates a new role in the system.
@@ -29,7 +41,8 @@ export const createRole = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const userPayload = req.user as { userEmail?: string } | undefined;
+  const userPayload = req.user as AuthUserPayload | undefined;
+
   if (!userPayload?.userEmail) {
     res
       .status(HTTP_STATUS.UNAUTHORIZED)
@@ -37,9 +50,15 @@ export const createRole = async (
     return;
   }
 
-  const user = await User.findOne({ email: userPayload.userEmail });
+  const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+    return;
+  }
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
     return;
   }
 
@@ -49,38 +68,32 @@ export const createRole = async (
     await info(
       "Role creation attempt started",
       { roleName: name, hasDescription: !!description },
-      { userId: user._id, source: "role.createRole" }
+      { userId: user.id!, source: "role.createRole" }
     );
 
-    // Check if role already exists
-    const existing = await Role.findOne({ name });
-    if (existing) {
-      await warn(
-        "Role creation failed - role already exists",
-        { roleName: name, existingRoleId: existing._id },
-        { userId: user._id, source: "role.createRole" }
-      );
-
+    // ✅ Check if role already exists in PostgreSQL
+    const existingRoleId = await findRoleByName(name);
+    if (existingRoleId) {
       res.status(HTTP_STATUS.CONFLICT).json(errorResponse(MESSAGES.ROLE_EXIST));
       return;
     }
 
-    // ✅ Use createValidated to enforce DTO rules
-    const newRole = await Role.createValidated({ name, description });
+    // ✅ Create new role (validated using Zod internally)
+    const newRole = await createValidatedRole({ name, description });
 
     await info(
       "Role creation successful",
       {
-        roleId: newRole._id,
+        roleId: newRole.id,
         roleName: newRole.name,
         hasDescription: !!newRole.description,
       },
-      { userId: user._id, source: "role.createRole" }
+      { userId: user.id!, source: "role.createRole" }
     );
 
     res
       .status(HTTP_STATUS.CREATED)
-      .json(successResponse(null, MESSAGES.ROLE_CREATED));
+      .json(successResponse(newRole, MESSAGES.ROLE_CREATED));
   } catch (err: unknown) {
     // Handle Zod validation errors
     if (err instanceof ZodError) {
@@ -88,11 +101,13 @@ export const createRole = async (
         field: e.path.join("."),
         message: e.message,
       }));
+
       await warn(
         "Role creation failed - validation errors",
         { errors: formattedErrors },
-        { userId: user._id, source: "role.createRole" }
+        { userId: user?.id!, source: "role.createRole" }
       );
+
       res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
         message: "Validation failed",
@@ -112,12 +127,13 @@ export const createRole = async (
 
     await error(
       "Role creation failed with unexpected error",
-      { error: errorObj.message, stack: errorObj.stack, userId: user._id },
-      { userId: user._id, source: "role.createRole" }
+      { error: errorObj.message, stack: errorObj.stack, userId: user?.id! },
+      { userId: user?.id!, source: "role.createRole" }
     );
     next(errorObj);
   }
 };
+
 /**
  * Retrieves all roles.
  * @param req - Express request object containing role data (`name`, `description`) in the body
@@ -130,8 +146,8 @@ export const getRoles = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract user info from JWT populated by auth middleware
-  const userPayload = req.user as { userEmail?: string } | undefined;
+  // ✅ 1. Verify authentication
+  const userPayload = req.user as AuthUserPayload | undefined;
   if (!userPayload?.userEmail) {
     res
       .status(HTTP_STATUS.UNAUTHORIZED)
@@ -139,32 +155,38 @@ export const getRoles = async (
     return;
   }
 
-  // Fetch user by email
-  const user = await User.findOne({ email: userPayload?.userEmail });
+  // ✅ 2. Fetch user by email
+  const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+    return;
+  }
+
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
     return;
   }
   try {
     await info(
       "Get all roles request started",
       {},
-      { userId: user._id, source: "role.getRoles" }
+      { userId: user.id!, source: "role.getRoles" }
     );
 
-    const roles: IRoleDocument[] = await Role.find().select(
-      "-createdAt -updatedAt -__v"
-    );
+    // ✅ 3. Connect to DB and fetch roles
+    const roles = await getAllRoles();
 
     await info(
       "Get all roles successful",
-      { roleCount: roles.length, roleNames: roles.map((role) => role.name) },
-      { userId: user._id, source: "role.getRoles" }
+      { roleCount: roles.length, roleNames: roles.map((r) => r.name) },
+      { userId: user.id!, source: "role.getRoles" }
     );
 
+    // ✅ Send response without created_at or updated_at
     res.status(HTTP_STATUS.OK).json(successResponse(roles));
   } catch (err: unknown) {
-    // Type guard to safely convert unknown to CustomError
     const errorObj: CustomError =
       err instanceof Error
         ? (err as CustomError)
@@ -177,7 +199,7 @@ export const getRoles = async (
     await error(
       "Get all roles failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack },
-      { userId: user._id, source: "role.getRoles" }
+      { userId: user.id!, source: "role.getRoles" }
     );
     next(errorObj);
   }
@@ -198,7 +220,8 @@ export const updateRole = async (
   const roleId = req.params.id;
   const updateData = req.body;
 
-  const userPayload = req.user as { userEmail?: string } | undefined;
+  // ✅ 1. Authenticate user
+  const userPayload = req.user as AuthUserPayload | undefined;
   if (!userPayload?.userEmail) {
     res
       .status(HTTP_STATUS.UNAUTHORIZED)
@@ -206,9 +229,17 @@ export const updateRole = async (
     return;
   }
 
-  const user = await User.findOne({ email: userPayload.userEmail });
+  // ✅ 2. Validate user existence
+  const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+    return;
+  }
+
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
     return;
   }
 
@@ -216,52 +247,71 @@ export const updateRole = async (
     await info(
       "Role update attempt started",
       { roleId, updateFields: Object.keys(updateData), updateData },
-      { userId: user._id, source: "role.updateRole" }
+      { userId: user.id!, source: "role.updateRole" }
     );
 
-    // ✅ Use updateValidated for strict DTO validation
-    const updatedRole = await Role.updateValidated(roleId, updateData);
+    // ✅ 3. Check if role exists in PostgreSQL
+    const existingRole = await findRoleById(roleId!);
 
-    if (!updatedRole) {
+    if (!existingRole) {
       await warn(
         "Role update failed - role not found",
         { roleId },
-        { userId: user._id, source: "role.updateRole" }
+        { userId: user.id!, source: "role.updateRole" }
       );
+
       res
         .status(HTTP_STATUS.NOT_FOUND)
         .json(errorResponse(MESSAGES.ROLE_NOT_EXIST));
       return;
     }
 
+    // ✅ 4. Use validated update logic
+    const updatedRole = await updateValidatedRole(roleId!, updateData);
+
+    if (!updatedRole) {
+      await warn(
+        "Role update failed - could not update record",
+        { roleId },
+        { userId: user.id!, source: "role.updateRole" }
+      );
+
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("Failed to update role"));
+      return;
+    }
+
     await info(
       "Role update successful",
       {
-        roleId: updatedRole._id,
-        roleName: updatedRole.name,
+        roleId: updatedRole.id,
         updatedFields: Object.keys(updateData),
         newData: {
           name: updatedRole.name,
           description: updatedRole.description,
         },
       },
-      { userId: user._id, source: "role.updateRole" }
+      { userId: user.id!, source: "role.updateRole" }
     );
 
     res
       .status(HTTP_STATUS.OK)
-      .json(successResponse(null, MESSAGES.ROLE_UPDATED));
+      .json(successResponse(updatedRole, MESSAGES.ROLE_UPDATED));
   } catch (err: unknown) {
+    // ✅ Handle Zod validation errors
     if (err instanceof ZodError) {
       const formattedErrors = err.issues.map((e) => ({
         field: e.path.join("."),
         message: e.message,
       }));
+
       await warn(
         "Role update failed - validation errors",
         { errors: formattedErrors, roleId },
-        { userId: user._id, source: "role.updateRole" }
+        { userId: user.id!, source: "role.updateRole" }
       );
+
       res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
         message: "Validation failed",
@@ -270,6 +320,7 @@ export const updateRole = async (
       return;
     }
 
+    // ✅ Catch-all error handling
     const errorObj: CustomError =
       err instanceof Error
         ? (err as CustomError)
@@ -286,9 +337,9 @@ export const updateRole = async (
         updateData,
         error: errorObj.message,
         stack: errorObj.stack,
-        userId: user._id,
+        userId: user.id!,
       },
-      { userId: user._id, source: "role.updateRole" }
+      { userId: user.id!, source: "role.updateRole" }
     );
     next(errorObj);
   }
@@ -308,8 +359,8 @@ export const deleteRole = async (
 ): Promise<void> => {
   const roleId = req.params.id;
 
-  // Extract user info from JWT populated by auth middleware
-  const userPayload = req.user as { userEmail?: string } | undefined;
+  // ✅ 1. Validate authentication
+  const userPayload = req.user as AuthUserPayload | undefined;
   if (!userPayload?.userEmail) {
     res
       .status(HTTP_STATUS.UNAUTHORIZED)
@@ -317,63 +368,74 @@ export const deleteRole = async (
     return;
   }
 
-  // Fetch user by email
-  const user = await User.findOne({ email: userPayload?.userEmail });
+  // ✅ 2. Verify user existence
+  const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
   }
 
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
+    return;
+  }
   try {
     await info(
       "Role deletion attempt started",
       { roleId },
-      { userId: user._id, source: "role.deleteRole" }
+      { userId: user.id!, source: "role.deleteRole" }
     );
 
-    const deletedRole = await Role.findByIdAndDelete(roleId);
+    // ✅ 3. Check if role exists
+    const roleToDelete = await findRoleById(roleId!);
 
-    if (!deletedRole) {
+    if (!roleToDelete) {
       await warn(
         "Role deletion failed - role not found",
         { roleId },
-        { userId: user._id, source: "role.deleteRole" }
+        { userId: user.id!, source: "role.deleteRole" }
       );
+
       res
         .status(HTTP_STATUS.NOT_FOUND)
         .json(errorResponse(MESSAGES.ROLE_NOT_EXIST));
       return;
     }
 
+    // ✅ 4. Delete the role
+    await deleteRoleById(roleId!);
+
     await info(
       "Role deletion successful",
       {
-        roleId: deletedRole._id,
-        deletedRoleName: deletedRole.name,
-        deletedRoleDescription: deletedRole.description,
+        roleId: roleToDelete.id,
+        deletedRoleName: roleToDelete.name,
+        deletedRoleDescription: roleToDelete.description,
       },
-      { userId: user._id, source: "role.deleteRole" }
+      { userId: user.id!, source: "role.deleteRole" }
     );
 
     res
       .status(HTTP_STATUS.OK)
       .json(successResponse(null, MESSAGES.ROLE_DELETED));
   } catch (err: unknown) {
-    // Type guard to safely convert unknown to CustomError
     const errorObj: CustomError =
       err instanceof Error
         ? (err as CustomError)
-        : ({
+        : {
             name: "UnknownError",
             message:
               typeof err === "string" ? err : "An unknown error occurred",
-          } as CustomError);
+          };
 
     await error(
       "Role deletion failed with unexpected error",
       { roleId, error: errorObj.message, stack: errorObj.stack },
-      { userId: user._id, source: "role.deleteRole" }
+      { userId: user.id!, source: "role.deleteRole" }
     );
+
     next(errorObj);
   }
 };

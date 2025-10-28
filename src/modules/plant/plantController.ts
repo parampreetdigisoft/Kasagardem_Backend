@@ -7,9 +7,9 @@ import {
   successResponse,
 } from "../../core/utils/responseFormatter";
 import Plant from "./plantModel";
-import User from "../auth/authModel";
 import { info } from "console";
 import { uploadBase64ToBunny } from "../../core/services/bunnyUploadService";
+import { findUserByEmail } from "../auth/authRepository";
 
 /**
  * Handles creation of a new plant.
@@ -31,7 +31,7 @@ export const createPlant = async (
     return;
   }
 
-  const user = await User.findOne({ email: userPayload.userEmail });
+  const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
@@ -43,7 +43,7 @@ export const createPlant = async (
     await info(
       "Plant creation attempt started",
       { plantData },
-      { userId: user._id }
+      { userId: user.id! }
     );
 
     let imageUrl = plantData.image_search_url;
@@ -69,7 +69,7 @@ export const createPlant = async (
     await info(
       "Plant created successfully",
       { plantId: newPlant._id },
-      { userId: user._id }
+      { userId: user.id! }
     );
 
     res
