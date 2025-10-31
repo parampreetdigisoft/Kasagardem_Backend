@@ -1,258 +1,384 @@
+import { getDB } from "../../core/config/db";
 import { FieldIndex } from "../../interface";
-import { escapeRegExp } from "lodash";
 import {
   IAnswerType1,
   IAnswerType2,
   IPartnerRecommendation,
+  IPlantRecommendation,
   ISubmitAnswer,
   IUserAnswer,
 } from "../../interface/answer";
-import Rule from "../admin/rules/rulesModel";
-import PartnerProfile from "../partnerProfile/partnerProfileModel";
-import Plant, { IPlantDocument } from "../plant/plantModel";
+
+// ===============================
+// Plant Recommendations
+// ===============================
 
 /**
  * Retrieves a list of recommended plants based on the user's provided answers.
+ * Uses PostgreSQL with optimized joins and indexing.
  *
- * Builds dynamic MongoDB filters from the user's answers and queries the plants collection.
- *
- * @param {IUserAnswer[]} answers - Array of user answers used to generate filters for plant recommendations.
- * @returns {Promise<IPlantDocument[]>} A promise that resolves to an array of plant documents matching the recommendations.
+ * @param {IUserAnswer[]} answers - Array of user answers used to generate filters
+ * @returns {Promise<IPlantRecommendation[]>} Array of plant recommendations
  */
 export const getRecommendedPlants = async (
   answers: IUserAnswer[]
-): Promise<Array<Partial<IPlantDocument> & { whyRecommended: string[] }>> => {
-  const filters: Record<string, unknown> = { isDeleted: false };
-  const keywordFilters: Record<string, unknown> = {};
-  const matchCriteria: Record<string, RegExp> = {};
+): Promise<IPlantRecommendation[]> => {
+  const client = await getDB();
 
-  for (const [i, ans] of answers.entries()) {
-    if (!ans) continue;
+  try {
+    const conditions: string[] = ["p.is_deleted = FALSE"];
+    const params: unknown[] = [];
+    let paramIndex = 1;
 
-    switch (i) {
-      case FieldIndex.space_types:
-      case FieldIndex.area_sizes:
-      case FieldIndex.challenges:
-      case FieldIndex.tech_preferences: {
-        const value = ans.selectedOption?.trim();
-        if (value) {
-          const regex = new RegExp(escapeRegExp(value), "i");
-          const key = FieldIndex[i];
-          keywordFilters[key] = { $regex: regex };
-          matchCriteria[key] = regex;
+    // Store match criteria for why recommended
+    const matchCriteria: Record<string, string> = {};
+
+    for (const [i, ans] of answers.entries()) {
+      if (!ans) continue;
+
+      switch (i) {
+        case FieldIndex.space_types: {
+          const value = ans.selectedOption?.trim();
+          if (value) {
+            conditions.push(
+              `EXISTS (
+                SELECT 1 FROM plant_space_types pst 
+                WHERE pst.plant_id = p.id 
+                AND pst.space_type ILIKE $${paramIndex}
+              )`
+            );
+            params.push(`%${value}%`);
+            matchCriteria.space_types = value;
+            paramIndex++;
+          }
+          break;
         }
-        break;
+
+        case FieldIndex.area_sizes: {
+          const value = ans.selectedOption?.trim();
+          if (value) {
+            conditions.push(
+              `EXISTS (
+                SELECT 1 FROM plant_area_sizes pas 
+                WHERE pas.plant_id = p.id 
+                AND pas.area_size ILIKE $${paramIndex}
+              )`
+            );
+            params.push(`%${value}%`);
+            matchCriteria.area_sizes = value;
+            paramIndex++;
+          }
+          break;
+        }
+
+        case FieldIndex.challenges: {
+          const value = ans.selectedOption?.trim();
+          if (value) {
+            conditions.push(
+              `EXISTS (
+                SELECT 1 FROM plant_challenges pc 
+                WHERE pc.plant_id = p.id 
+                AND pc.challenge ILIKE $${paramIndex}
+              )`
+            );
+            params.push(`%${value}%`);
+            matchCriteria.challenges = value;
+            paramIndex++;
+          }
+          break;
+        }
+
+        case FieldIndex.tech_preferences: {
+          const value = ans.selectedOption?.trim();
+          if (value) {
+            conditions.push(
+              `EXISTS (
+                SELECT 1 FROM plant_tech_preferences ptp 
+                WHERE ptp.plant_id = p.id 
+                AND ptp.tech_preference ILIKE $${paramIndex}
+              )`
+            );
+            params.push(`%${value}%`);
+            matchCriteria.tech_preferences = value;
+            paramIndex++;
+          }
+          break;
+        }
+
+        case FieldIndex.locations:
+          if (ans.selectedAddress?.state || ans.selectedAddress?.city) {
+            const stateVariations = ans.selectedAddress?.state
+              ? getLocationVariations(ans.selectedAddress.state)
+              : [];
+            const cityVariations = ans.selectedAddress?.city
+              ? getLocationVariations(ans.selectedAddress.city)
+              : [];
+
+            // Normalize both state and city
+            const normalizedStates = stateVariations.map((s) =>
+              normalizeText(s)
+            );
+            const normalizedCities = cityVariations.map((c) =>
+              normalizeText(c)
+            );
+
+            // Add SQL to normalize database side using unaccent + lower
+            conditions.push(`
+      EXISTS (
+        SELECT 1 FROM plant_locations pl
+        WHERE pl.plant_id = p.id
+        AND unaccent(lower(pl.location_type)) = ANY($${paramIndex})
+        AND unaccent(lower(pl.location_value)) = ANY($${paramIndex + 1})
+      )
+    `);
+
+            params.push(normalizedStates, normalizedCities);
+            matchCriteria.locations = `${cityVariations.join(", ")}, ${stateVariations.join(", ")}`;
+            paramIndex += 2;
+          }
+          break;
+      }
+    }
+
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    // Main query with aggregated data
+    const query = `
+  SELECT 
+    p.id,
+    p.scientific_name,
+    p.common_name,
+    p.image_search_url,
+    p.description,
+
+    -- 🌿 Space Types
+    COALESCE(
+      (
+        SELECT json_agg(pst.space_type)
+        FROM plant_space_types pst
+        WHERE pst.plant_id = p.id
+      ), '[]'::json
+    ) AS space_types,
+
+    -- 📏 Area Sizes
+    COALESCE(
+      (
+        SELECT json_agg(pas.area_size)
+        FROM plant_area_sizes pas
+        WHERE pas.plant_id = p.id
+      ), '[]'::json
+    ) AS area_sizes,
+
+    -- ⚙️ Challenges
+    COALESCE(
+      (
+        SELECT json_agg(pc.challenge)
+        FROM plant_challenges pc
+        WHERE pc.plant_id = p.id
+      ), '[]'::json
+    ) AS challenges,
+
+    -- 💧 Tech Preferences
+    COALESCE(
+      (
+        SELECT json_agg(ptp.tech_preference)
+        FROM plant_tech_preferences ptp
+        WHERE ptp.plant_id = p.id
+      ), '[]'::json
+    ) AS tech_preferences,
+
+    -- 📍 Locations (state = location_type, city = location_value)
+    COALESCE(
+      (
+        SELECT json_agg(
+          json_build_object(
+            'state', pl.location_type,
+            'city', pl.location_value
+          )
+        )
+        FROM plant_locations pl
+        WHERE pl.plant_id = p.id
+      ), '[]'::json
+    ) AS locations
+
+  FROM plants p
+  ${whereClause}
+  LIMIT 20;
+`;
+
+    const result = await client.query(query, params);
+
+    // Build "why recommended" for each plant
+    const enhanced: IPlantRecommendation[] = result.rows.map((plant) => {
+      const why: string[] = [];
+
+      if (matchCriteria.space_types && plant.space_types?.length) {
+        const match = plant.space_types.find((st: string) =>
+          st.toLowerCase().includes(matchCriteria.space_types!.toLowerCase())
+        );
+        if (match) {
+          why.push(`Matches your preference for space types (${match})`);
+        }
       }
 
-      case FieldIndex.locations:
-        if (ans.selectedAddress?.state) {
-          const state = ans.selectedAddress.state ?? "";
-          const city = ans.selectedAddress.city ?? "";
-          filters.locations = {
-            $elemMatch: {
-              type: new RegExp(escapeRegExp(state), "i"),
-              value: new RegExp(escapeRegExp(city), "i"),
-            },
-          };
+      if (matchCriteria.area_sizes && plant.area_sizes?.length) {
+        const match = plant.area_sizes.find((as: string) =>
+          as.toLowerCase().includes(matchCriteria.area_sizes!.toLowerCase())
+        );
+        if (match) {
+          why.push(`Matches your preference for area sizes (${match})`);
         }
+      }
 
-        break;
-    }
+      if (matchCriteria.challenges && plant.challenges?.length) {
+        const match = plant.challenges.find((c: string) =>
+          c.toLowerCase().includes(matchCriteria.challenges!.toLowerCase())
+        );
+        if (match) {
+          why.push(`Matches your challenge (${match})`);
+        }
+      }
+
+      if (matchCriteria.tech_preferences && plant.tech_preferences?.length) {
+        const match = plant.tech_preferences.find((tp: string) =>
+          tp
+            .toLowerCase()
+            .includes(matchCriteria.tech_preferences!.toLowerCase())
+        );
+        if (match) {
+          why.push(`Matches your tech preference (${match})`);
+        }
+      }
+
+      if (matchCriteria.locations && plant.locations?.length) {
+        why.push(`Available in your location (${matchCriteria.locations})`);
+      }
+
+      return {
+        ...plant,
+        whyRecommended: why,
+      };
+    });
+
+    return enhanced;
+  } catch (error) {
+    console.error("Error getting recommended plants:", error);
+    throw error;
   }
-
-  const query = { ...filters, ...keywordFilters };
-
-  const plants = await Plant.find(query)
-    .select(
-      "scientific_name common_name image_search_url description space_types area_sizes challenges tech_preferences locations"
-    )
-    .limit(20)
-    .lean(); // returns plain JS objects
-
-  const enhanced = plants.map((plant) => {
-    const why: string[] = [];
-
-    for (const [key, regex] of Object.entries(matchCriteria)) {
-      type PlantKey = keyof IPlantDocument;
-      const value = plant[key as PlantKey];
-
-      if (!value) continue;
-
-      if (Array.isArray(value)) {
-        const match = value.find((v) => regex.test(v));
-        if (match)
-          why.push(
-            `Matches your preference for ${key.replace("_", " ")} (${match})`
-          );
-      } else if (typeof value === "string" && regex.test(value)) {
-        why.push(`Related to your ${key.replace("_", " ")} choice (${value})`);
-      }
-    }
-
-    return { ...plant, whyRecommended: why };
-  });
-
-  return enhanced;
 };
+
+// ===============================
+// Partner Recommendations
+// ===============================
 
 /**
  * Generates recommended partner profiles based on submitted answers.
+ * Uses PostgreSQL with multilingual location matching.
  *
- * @param answers - An array of user-submitted answers used to filter or rank partners.
- * @returns A promise that resolves to an array of partner recommendations.
+ * @param answers - User-submitted answers
+ * @returns Array of partner recommendations
  */
 export const getRecommendedPartners = async (
   answers: ISubmitAnswer[]
-): Promise<Array<IPartnerRecommendation & { whyRecommended: string }>> => {
+): Promise<Array<IPartnerRecommendation>> => {
+  const client = await getDB();
+
   try {
-    // Step 1: Find rules with name "Professional Partner Recommendation"
-    const partnerRules = await Rule.find({
-      name: "Professional Partner Recommendation",
-      isDeleted: false,
-    });
-
-    if (partnerRules.length === 0) {
-      return [];
-    }
-
-    // Step 2: Extract type 1 answers (selectedOption answers)
-    const type1Answers = answers.filter(
-      (ans): ans is IAnswerType1 => ans.type === 1
-    );
-
-    // Step 3: Extract type 2 address info for filtering
+    // Extract type 2 address info
     const type2Answer = answers.find(
       (ans): ans is IAnswerType2 => ans.type === 2
     );
     const userAddress = type2Answer?.selectedAddress;
 
     if (!userAddress?.state || !userAddress?.city) {
-      return []; // No address info to filter by
-    }
-
-    // Step 4: Check which rules match the answers
-    const matchingRules = [];
-    const matchedConditions: Array<{
-      questionId: string;
-      selectedOption: string;
-      ruleName: string;
-    }> = [];
-
-    for (const rule of partnerRules) {
-      let ruleMatches = false;
-
-      for (const condition of rule.conditions) {
-        // Find the answer for this condition's questionId
-        const relevantAnswer = type1Answers.find(
-          (ans) =>
-            ans.questionId &&
-            ans.questionId.toString() === condition.questionId.toString()
-        );
-
-        if (relevantAnswer && relevantAnswer.selectedOption) {
-          // Check if the selected option matches the condition values
-          switch (condition.operator) {
-            case "equals":
-              if (condition.values.includes(relevantAnswer.selectedOption)) {
-                ruleMatches = true;
-              }
-              break;
-            case "in":
-              if (condition.values.includes(relevantAnswer.selectedOption)) {
-                ruleMatches = true;
-              }
-              break;
-            // Add more operators as needed (and, or)
-            default:
-              if (condition.values.includes(relevantAnswer.selectedOption)) {
-                ruleMatches = true;
-              }
-          }
-
-          if (ruleMatches) {
-            matchedConditions.push({
-              questionId: condition.questionId.toString(),
-              selectedOption: relevantAnswer.selectedOption,
-              ruleName: rule.name,
-            });
-          }
-        }
-
-        // If any condition matches, we consider this rule matched
-        // You might want to implement more complex logic for 'and'/'or' operators
-        if (ruleMatches) break;
-      }
-
-      if (ruleMatches) {
-        matchingRules.push(rule);
-      }
-    }
-
-    if (matchingRules.length === 0) {
       return [];
     }
 
-    // Step 5: Create multilingual patterns for state and city
-    const statePattern = createMultilingualPattern(userAddress.state);
-    const cityPattern = createMultilingualPattern(userAddress.city);
+    // Normalize and generate multilingual variations
+    const stateVariations = getLocationVariations(userAddress.state);
+    const cityVariations = getLocationVariations(userAddress.city);
 
-    const partners = await PartnerProfile.find({
-      status: "active",
-      $and: [
-        {
-          $or: [
-            // Exact state matches using multilingual pattern
-            {
-              "address.state": statePattern,
-            },
-          ],
-        },
-        {
-          $or: [
-            // Exact city matches using multilingual pattern
-            {
-              "address.city": cityPattern,
-            },
-          ],
-        },
-      ],
-    });
+    // Build query
+    const conditions: string[] = ["status = 'active'"];
+    const params: unknown[] = [];
+    let paramIndex = 1;
 
-    /**
-     * Builds a human-readable explanation of why partners were recommended.
-     * Includes location matching and criteria matching based on user answers.
-     *
-     * @returns {string} A formatted string describing the match reasons
-     */
-    const buildMatchReason = (): string => {
-      const reasons = [];
+    // State matching (accent-insensitive)
+    if (stateVariations.length > 0) {
+      const statePlaceholders = stateVariations
+        .map(() => `$${paramIndex++}`)
+        .join(", ");
+      conditions.push(`unaccent(lower(state)) IN (${statePlaceholders})`);
+      params.push(...stateVariations.map((s) => normalizeText(s)));
+    }
 
-      // Add location match
-      reasons.push(`Location match: ${userAddress.city}, ${userAddress.state}`);
+    // City matching (accent-insensitive)
+    if (cityVariations.length > 0) {
+      const cityPlaceholders = cityVariations
+        .map(() => `$${paramIndex++}`)
+        .join(", ");
+      conditions.push(`unaccent(lower(city)) IN (${cityPlaceholders})`);
+      params.push(...cityVariations.map((c) => normalizeText(c)));
+    }
 
-      // Add matched conditions
-      if (matchedConditions.length > 0) {
-        const uniqueOptions = [
-          ...new Set(matchedConditions.map((c) => c.selectedOption)),
-        ];
-        reasons.push(`Criteria match: ${uniqueOptions.join(", ")}`);
-      }
+    const query = `
+  SELECT 
+    id,
+    email,
+    mobile_number,
+    company_name,
+    speciality_1,
+    speciality_2,
+    speciality_3,
+    street,
+    city,
+    state,
+    country,
+    zip_code,
+    website,
+    contact_person,
+    project_image_url,
+    rating
+  FROM partner_profiles
+  WHERE ${conditions.join(" AND ")}
+  ORDER BY rating DESC NULLS LAST
+  LIMIT 20
+`;
 
-      return reasons.join(" | ");
-    };
+    const result = await client.query(query, params);
 
-    const whyRecommended = buildMatchReason();
+    // Build match reason
+    const matchedOptions = answers
+      .filter((ans): ans is IAnswerType1 => ans.type === 1)
+      .map((ans) => ans.selectedOption)
+      .filter(Boolean);
 
-    // Map to the return type with match reason
-    return partners.map((partner) => ({
+    const whyRecommended = buildMatchReason(
+      userAddress,
+      matchedOptions as string[]
+    );
+
+    // Map to return type
+    return result.rows.map((partner) => ({
       email: partner.email,
-      mobileNumber: partner.mobileNumber,
-      companyName: partner.companyName!,
-      speciality: partner.speciality!,
-      address: partner.address!,
-      website: partner.website!,
-      contactPerson: partner.contactPerson!,
-      projectImageUrl: partner.projectImageUrl!,
+      mobileNumber: partner.mobile_number,
+      companyName: partner.company_name || "",
+      speciality: [
+        partner.speciality_1,
+        partner.speciality_2,
+        partner.speciality_3,
+      ].filter(Boolean),
+      address: {
+        street: partner.street || "",
+        city: partner.city || "",
+        state: partner.state || "",
+        country: partner.country || "",
+        zipCode: partner.zip_code || "",
+      },
+      website: partner.website || "",
+      contactPerson: partner.contact_person || "",
+      projectImageUrl: partner.project_image_url || "",
       whyRecommended,
     }));
   } catch (error) {
@@ -261,18 +387,48 @@ export const getRecommendedPartners = async (
   }
 };
 
+// ===============================
+// Helper Functions
+// ===============================
+
 /**
- * Normalizes a string for multilingual matching by converting to lowercase,
- * removing accents/diacritics, and replacing certain accented characters.
+ * Builds a descriptive reason for recommending partners based on the user's location
+ * and their selected preferences.
  *
- * @param text - The input text to normalize.
- * @returns The normalized text.
+ * @param address - The user's selected address.
+ * @param address.city - The city selected by the user.
+ * @param address.state - The state selected by the user.
+ * @param matchedOptions - A list of selected options that influenced the recommendation.
+ * @returns A human-readable string explaining why the partner was recommended.
+ */
+const buildMatchReason = (
+  address: { city: string; state: string },
+  matchedOptions: string[]
+): string => {
+  const reasons = [];
+
+  reasons.push(`Location match: ${address.city}, ${address.state}`);
+
+  if (matchedOptions.length > 0) {
+    const uniqueOptions = [...new Set(matchedOptions)];
+    reasons.push(`Criteria match: ${uniqueOptions.join(", ")}`);
+  }
+
+  return reasons.join(" | ");
+};
+
+/**
+ * Normalizes a text string for case-insensitive and whitespace-tolerant comparisons.
+ * Converts the text to lowercase and trims extra spaces.
+ *
+ * @param text - The input string to normalize.
+ * @returns The normalized version of the input string.
  */
 const normalizeText = (text: string): string => {
   return text
     .toLowerCase()
     .trim()
-    .normalize("NFD") // Remove accents and diacritics
+    .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/ã|á|à|â|ä/g, "a")
     .replace(/ç/g, "c")
@@ -283,9 +439,7 @@ const normalizeText = (text: string): string => {
     .replace(/\s+/g, " ");
 };
 
-// City/State name mappings for different languages
 const locationMappings: Record<string, string[]> = {
-  // Brazilian cities
   belo_horizonte: ["belo horizonte", "bh"],
   brasilia: ["brasília", "brasilia", "df"],
   salvador: ["salvador", "ssa"],
@@ -294,8 +448,6 @@ const locationMappings: Record<string, string[]> = {
   curitiba: ["curitiba", "cwb"],
   recife: ["recife", "rec"],
   porto_alegre: ["porto alegre", "poa"],
-
-  // Brazilian states
   sao_paulo: ["são paulo", "sao paulo", "sp"],
   rio_de_janeiro: ["rio de janeiro", "rj"],
   minas_gerais: ["minas gerais", "mg"],
@@ -306,8 +458,6 @@ const locationMappings: Record<string, string[]> = {
   goias: ["goiás", "goias", "go"],
   ceara: ["ceará", "ceara", "ce"],
   pernambuco: ["pernambuco", "pe"],
-
-  // Portuguese cities
   lisboa: ["lisboa", "lisbon"],
   porto: ["porto", "oporto"],
   braga: ["braga"],
@@ -316,47 +466,27 @@ const locationMappings: Record<string, string[]> = {
 };
 
 /**
- * Returns all possible normalized variations of a given location name,
- * including known aliases from the `locationMappings`.
+ * Generates possible text variations for a given location name.
+ * Used to improve flexible matching across multilingual or differently formatted entries.
  *
- * @param location - The name of the location to generate variations for.
- * @returns An array of normalized variations for the location.
+ * @param location - The location string (e.g., a city or state name).
+ * @returns An array of possible normalized variations of the input location.
  */
 const getLocationVariations = (location: string): string[] => {
   const normalized = normalizeText(location);
   const variations = [location, normalized];
 
-  // Check if the normalized location matches any key in locationMappings
   for (const [key, values] of Object.entries(locationMappings)) {
     if (normalizeText(key) === normalized) {
       variations.push(...values);
       break;
     }
-    // Also check if the location matches any of the mapped values
     if (values.some((v) => normalizeText(v) === normalized)) {
       variations.push(...values);
-      variations.push(key); // Add the key as well
+      variations.push(key);
       break;
     }
   }
 
-  return [...new Set(variations.map((v) => normalizeText(v)))]; // Remove duplicates and normalize all
-};
-
-/**
- * Creates a case-insensitive regex pattern that matches any variation
- * of the given text based on normalized and mapped location names.
- *
- * @param text - The text to generate a regex pattern for.
- * @returns A RegExp that matches any normalized variation of the text.
- */
-const createMultilingualPattern = (text: string): RegExp => {
-  const variations = getLocationVariations(text);
-
-  const escapedPatterns = variations.map(
-    (v) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") // Escape regex special chars
-  );
-
-  const combinedPattern = escapedPatterns.join("|");
-  return new RegExp(`^(${combinedPattern})$`, "i"); // Added ^ and $ for exact matching
+  return [...new Set(variations.map((v) => normalizeText(v)))];
 };

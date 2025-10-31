@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { errorResponse } from "../utils/responseFormatter";
 import { HTTP_STATUS } from "../utils/constants";
-import { CustomError } from "../../interface/error";
+import { CustomError } from "../../interface/Error";
 
 /**
  * Global error-handling middleware for Express.

@@ -7,107 +7,53 @@ import {
   successResponse,
 } from "../../../core/utils/responseFormatter";
 import { error, info } from "../../../core/utils/logger";
-import Lead from "./leadsModule";
-import PartnerProfile, {
-  IPartnerProfile,
-} from "../../partnerProfile/partnerProfileModel";
+import { createLead, findAllLeads } from "./leadsModule"; // ✅ functional PostgreSQL module
 import { sendLeadEmails } from "../../../core/services/emailService";
 import config from "../../../core/config/env";
+import { getDB } from "../../../core/config/db";
+import { findUserByEmail } from "../../auth/authRepository";
 
-// extended type for response
-export interface IPartnerProfileResponse extends Omit<IPartnerProfile, "_id"> {
-  partnerProfileId: string;
+interface PartnerProfile {
+  id: string;
+  email: string;
+  company_name: string;
+  projectimageurl: string | null;
+}
+
+interface PartnerData {
+  email: string;
+  name: string;
+  logoUrl: string;
 }
 
 /**
- * Retrieves all leads from the database.
- * Validates the authenticated user and returns all leads.
- *
- * @param req - Express request object
- * @param res - Express response object for sending the API response
- * @param next - Express next middleware function for error handling
- * @returns Promise<void>
+ * Get all leads (PostgreSQL version)
+ * @param req
+ * @param res
+ * @param next
  */
 export const getAllLeads = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const userPayload = req.user as
-    | { userEmail?: string; role?: string }
-    | undefined;
-
-  if (!userPayload?.userEmail || userPayload?.role === "User") {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
-    return;
-  }
-
-  const user = await User.findOne({ email: userPayload?.userEmail });
-  if (!user) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-    return;
-  }
-
   try {
-    await info("Get all leads request started", {}, { userId: user._id });
+    const userPayload = req.user as
+      | { userEmail?: string; role?: string }
+      | undefined;
 
-    // Retrieve all leads
-    const leads = await Lead.aggregate([
-      { $match: { isDeleted: false } },
-      { $sort: { createdAt: -1 } },
-      {
-        $project: {
-          __v: 0,
-          isDeleted: 0,
-          createdAt: 0,
-          updatedAt: 0, // removed timestamps
-        },
-      },
-    ]);
+    if (!userPayload?.userEmail || userPayload?.role === "User") {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    }
 
-    // Enrich each lead with user info + partnerProfiles
-    const formattedLeads = await Promise.all(
-      leads.map(async ({ _id, userId, partnerProfileIds, ...rest }) => {
-        // Fetch user details
-        const leadUser = await User.findById(userId).select("name email");
+    await info("Fetching all leads from PostgreSQL");
 
-        // Fetch partner profiles
-        const partnerProfiles: IPartnerProfileResponse[] = [];
-        for (const pid of partnerProfileIds) {
-          const profile = await PartnerProfile.findById(pid)
-            .select("-__v -createdAt -updatedAt") // remove unwanted fields
-            .lean();
-          if (profile) {
-            const { _id, ...profileRest } = profile;
-            partnerProfiles.push({
-              partnerProfileId: _id.toString(),
-              ...profileRest,
-            });
-          }
-        }
-
-        return {
-          leadId: _id,
-          user: leadUser
-            ? { name: leadUser.name, email: leadUser.email }
-            : null,
-          partnerProfiles,
-          ...rest,
-        };
-      })
-    );
-
-    await info(
-      "Leads retrieved successfully",
-      { leadsCount: formattedLeads.length },
-      { userId: user._id }
-    );
+    const leads = await findAllLeads(); // ✅ uses PostgreSQL
 
     res
       .status(HTTP_STATUS.OK)
-      .json(
-        successResponse({ formattedLeads }, "All Leads fetched successfully")
-      );
+      .json(successResponse(leads, "All leads fetched successfully"));
   } catch (err: unknown) {
     if (err instanceof ZodError) {
       res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
@@ -118,36 +64,27 @@ export const getAllLeads = async (
 };
 
 /**
- * Handles the creation of a new lead.
- * Validates the authenticated user, checks for duplicate leads,
- * and saves the new lead to the database if valid.
- *
- * @param req - Express request object containing lead data in the body
- * @param res - Express response object for sending the API response
- * @param next - Express next middleware function for error handling
- * @returns Promise<void>
+ * Create a new lead (PostgreSQL version)
+ * @param req
+ * @param res
+ * @param next
  */
-export const createLead = async (
+export const createLeadController = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const userPayload = req.user as
-    | { userEmail?: string; role?: string }
-    | undefined;
-  if (!userPayload?.userEmail || userPayload?.role !== "User") {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
-    return;
-  }
-
-  const user = await User.findOne({ email: userPayload?.userEmail });
-  if (!user) {
-    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-    return;
-  }
-
   try {
-    const { partnerProfileIds } = req.body;
+    const userPayload = req.user as
+      | { userEmail?: string; role?: string; userId?: string }
+      | undefined;
+
+    if (!userPayload?.userEmail || userPayload?.role !== "User") {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    }
+
+    const { partnerProfileIds, message, service } = req.body;
 
     if (!Array.isArray(partnerProfileIds) || partnerProfileIds.length === 0) {
       res
@@ -156,66 +93,59 @@ export const createLead = async (
       return;
     }
 
-    await info(
-      "Lead creation attempt started",
-      { partnerProfileIds, userId: user._id },
-      { userId: user._id }
-    );
+    await info("Lead creation started", {
+      partnerProfileIds,
+      email: userPayload.userEmail,
+    });
 
-    // Create leads for all partnerProfileIds
-    const createdLead = await Lead.createValidated({
-      partnerProfileIds, // array of IDs
-      userId: user._id.toString(),
+    // ✅ PostgreSQL lead creation
+    const createdLead = await createLead({
+      partnerProfileIds,
+      userId: userPayload.userId, // user id from auth payload
       leadsStatus: "new",
       isDeleted: false,
     });
 
-    await info(
-      "Leads created successfully",
-      { partnerProfileIds, userId: user._id },
-      { userId: user._id }
-    );
-
-    const partnerProfiles: IPartnerProfile[] = [];
-
-    for (const id of partnerProfileIds) {
-      const profile = await await PartnerProfile.findById(id);
-
-      if (profile) {
-        partnerProfiles.push(profile);
-      }
-    }
-
-    if (partnerProfiles.length === 0) {
+    if (!createdLead) {
       res
-        .status(HTTP_STATUS.NOT_FOUND)
-        .json(errorResponse("No valid partner profiles found"));
+        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        .json(errorResponse("Lead could not be created"));
       return;
     }
 
-    // Prepare partner data for emails
-    const partnersData = partnerProfiles.map((profile) => ({
-      email: profile.email!,
-      name: profile.companyName!,
-      logoUrl: profile.projectImageUrl!,
-    }));
+    // Prepare notification details
+    const userRecord = await findUserByEmail(userPayload.userEmail!);
 
-    // Prepare user data
     const userData = {
-      email: user.email,
-      name: user.name!,
+      email: userPayload.userEmail!,
+      name: userRecord?.name!,
     };
 
-    // Prepare lead details
+    const db = getDB();
+
+    const query = `
+  SELECT id, email, company_name, project_image_url
+  FROM public.partner_profiles
+  WHERE id = ANY($1::uuid[])
+  ORDER BY id ASC;
+`;
+
+    const { rows } = await db.query<PartnerProfile>(query, [partnerProfileIds]);
+
+    const partnersData: PartnerData[] = rows.map((row) => ({
+      email: row.email,
+      name: row.company_name,
+      logoUrl: row.projectimageurl || "",
+    }));
+
     const leadDetails = {
-      phone: user.phoneNumber!,
-      message: req.body.message!,
-      service: req.body.service!,
-      leadId: createdLead._id.toString(),
+      phone: userRecord?.phone_number ?? "N/A",
+      message,
+      service,
+      leadId: createdLead.id!,
       timestamp: new Date().toLocaleString(),
     };
 
-    // Send emails to user, partners, and admin
     try {
       await sendLeadEmails(
         userData,
@@ -223,28 +153,18 @@ export const createLead = async (
         config.ADMIN_EMAIL,
         leadDetails
       );
-
-      await info(
-        "Lead created & emails sent successfully to the user , partner & admin",
-        { leadId: createdLead._id, recipientCount: partnersData.length + 2 },
-        { userId: user._id }
-      );
-    } catch (emailError: unknown) {
-      const errObj =
-        emailError instanceof Error
-          ? {
-              message: emailError.message,
-              stack: emailError.stack,
-              leadId: createdLead._id,
-            }
-          : { error: String(emailError), leadId: createdLead._id };
-
-      await error("Failed to send lead emails", errObj);
+      await info("Lead emails sent successfully", { leadId: createdLead.id });
+    } catch (emailError) {
+      await error("Failed to send lead emails", {
+        message:
+          emailError instanceof Error ? emailError.message : String(emailError),
+        leadId: createdLead.id,
+      });
     }
 
     res
       .status(HTTP_STATUS.CREATED)
-      .json(successResponse(null, "New Leads created successfully"));
+      .json(successResponse(createdLead, "Lead created successfully"));
   } catch (err: unknown) {
     if (err instanceof ZodError) {
       res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });

@@ -9,7 +9,7 @@ const router: Router = express.Router();
  * @swagger
  * tags:
  *   name: Answers
- *   description: API for submitting answers to diagnostic questions
+ *   description: API for submitting survey answers
  */
 
 /**
@@ -24,8 +24,9 @@ const router: Router = express.Router();
  *       properties:
  *         questionId:
  *           type: string
- *           description: Unique identifier of the question
- *           example: "6501a1b9f0e7c3d5e89abc12"
+ *           format: uuid
+ *           description: Unique identifier of the question (UUID from PostgreSQL)
+ *           example: "c9d4c053-49b6-410c-bc78-2d54a9991870"
  *         type:
  *           type: integer
  *           enum: [1, 2]
@@ -34,19 +35,18 @@ const router: Router = express.Router();
  *         selectedOption:
  *           type: string
  *           description: Option selected by the user (required if type=1)
- *           example: "Asthetics"
+ *           example: "Aesthetics"
  *         selectedAddress:
  *           type: object
  *           description: Address selected by the user (required if type=2)
  *           properties:
  *             state:
  *               type: string
- *               description: State selected
  *               example: "California"
  *             city:
  *               type: string
- *               description: City selected
  *               example: "Los Angeles"
+ *
  *     AnswerInput:
  *       type: object
  *       required:
@@ -60,6 +60,7 @@ const router: Router = express.Router();
  *           type: boolean
  *           description: Soft delete flag (optional)
  *           default: false
+ *
  *     ApiResponse:
  *       type: object
  *       properties:
@@ -75,12 +76,9 @@ const router: Router = express.Router();
  * @swagger
  * /api/v1/answer:
  *   post:
- *     summary: Submit answers for diagnostic questions
- *     description: Submit multiple answers for a user in one request.
- *                  Each answer can be either a selected option (type=1) or a selected address (type=2).
+ *     summary: Submit answers for survey questions
+ *     description: Submit multiple answers in a single request. Supports both selected options and selected addresses.
  *     tags: [Answers]
- *     security:
- *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -89,8 +87,16 @@ const router: Router = express.Router();
  *             $ref: '#/components/schemas/AnswerInput'
  *           example:
  *             answers: [
- *               { questionId: "6501a1b9f0e7c3d5e89abc12", type: 1, selectedOption: "Asthetics" },
- *               { questionId: "6501a1b9f0e7c3d5e89abc34", type: 2, selectedAddress: { state: "California", city: "Los Angeles" } }
+ *               {
+ *                 questionId: "c9d4c053-49b6-410c-bc78-2d54a9991870",
+ *                 type: 1,
+ *                 selectedOption: "Aesthetics"
+ *               },
+ *               {
+ *                 questionId: "d2f6a8c2-4fcb-4e4b-8f67-458a3c97a9f5",
+ *                 type: 2,
+ *                 selectedAddress: { state: "California", city: "Los Angeles" }
+ *               }
  *             ]
  *     responses:
  *       201:
@@ -100,21 +106,17 @@ const router: Router = express.Router();
  *             schema:
  *               allOf:
  *                 - $ref: '#/components/schemas/ApiResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       $ref: '#/components/schemas/AnswerInput'
  *             example:
  *               success: true
  *               message: "Answers submitted successfully"
  *               data:
- *                 answers: [
- *                   { questionId: "6501a1b9f0e7c3d5e89abc12", type: 1, selectedOption: "Ashthetics" },
- *                   { questionId: "6501a1b9f0e7c3d5e89abc34", type: 2, selectedAddress: { state: "California", city: "Los Angeles" } }
- *                 ]
+ *                 responseId: "b6e64bdb-61e2-4d58-bb58-5fcd6b9c8a77"
+ *                 plantRecommendations: []
+ *                 partnerRecommendations: []
  *       400:
  *         description: Validation error
  */
+
 router.post("/answer", validateRequest(answerValidation), submitAnswer);
 
 export default router;

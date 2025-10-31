@@ -47,6 +47,7 @@ export const getAllQuestions = async (
     // Success log
     await info("Questions retrieved successfully", {
       count: formattedQuestions.length,
+      req,
     });
 
     res
@@ -108,7 +109,7 @@ export const createQuestionController = async (
     await info(
       "Question creation attempt started",
       { question_text, options },
-      { userId: user.id! }
+      { userId: user.id!, req }
     );
 
     // ✅ Call PostgreSQL service layer
@@ -122,7 +123,7 @@ export const createQuestionController = async (
     await info(
       "Question created successfully",
       { questionId: newQuestion.id },
-      { userId: user.id! }
+      { userId: user.id!, req }
     );
 
     res
@@ -173,7 +174,7 @@ export const updateQuestionController = async (
     await info(
       "Question update attempt started",
       { questionId, question_text, options, order },
-      { userId: user.id! }
+      { userId: user.id!, req }
     );
 
     // ✅ Map body to PostgreSQL schema
@@ -196,7 +197,7 @@ export const updateQuestionController = async (
     await info(
       "Question updated successfully",
       { questionId },
-      { userId: user.id! }
+      { userId: user.id!, req }
     );
 
     res
@@ -246,7 +247,7 @@ export const deleteQuestionController = async (
     await info(
       "Question delete attempt started",
       { questionId },
-      { userId: user.id! }
+      { userId: user.id!, req }
     );
 
     const deleted = await softDeleteQuestion(questionId!);
@@ -261,7 +262,7 @@ export const deleteQuestionController = async (
     await info(
       "Question soft deleted successfully",
       { questionId },
-      { userId: user.id! }
+      { userId: user.id!, req }
     );
 
     res

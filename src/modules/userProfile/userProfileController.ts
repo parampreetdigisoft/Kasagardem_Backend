@@ -46,6 +46,7 @@ export const createUserProfile = async (
     await info("User profile creation attempt", {
       email: userPayload.userEmail,
       action: "createUserProfile",
+      req,
     });
 
     // 1️⃣ Check if user exists
@@ -54,6 +55,7 @@ export const createUserProfile = async (
       await error("Profile creation failed - User not found", {
         email: userPayload.userEmail,
         action: "createUserProfile",
+        req,
       });
       res
         .status(HTTP_STATUS.NOT_FOUND)
@@ -72,6 +74,7 @@ export const createUserProfile = async (
         email: userPayload.userEmail,
         userId: userExists.id,
         action: "createUserProfile",
+        req,
       });
       res
         .status(HTTP_STATUS.CONFLICT)
@@ -98,6 +101,7 @@ export const createUserProfile = async (
           userId: userExists.id,
           imageUrl: uploadedImageUrl,
           action: "createUserProfile",
+          req,
         });
       } catch (uploadErr: unknown) {
         const uploadError =
@@ -109,6 +113,7 @@ export const createUserProfile = async (
           email: userPayload.userEmail,
           userId: userExists.id,
           error: uploadError.message,
+          req,
         });
 
         res
@@ -161,6 +166,7 @@ export const createUserProfile = async (
       profileId: createdProfile?.id,
       action: "createUserProfile",
       profileFields: Object.keys(req.body),
+      req,
     });
 
     res
@@ -180,6 +186,7 @@ export const createUserProfile = async (
       error: errorObj.message,
       stack: errorObj.stack,
       action: "createUserProfile",
+      req,
     });
 
     next(errorObj);
@@ -217,6 +224,7 @@ export const getCurrentUserProfile = async (
     await info("User profile retrieval attempt", {
       email: userPayload.userEmail,
       action: "getCurrentUserProfile",
+      req,
     });
 
     // 1️⃣ Get user basic details
@@ -225,6 +233,7 @@ export const getCurrentUserProfile = async (
       await error("Profile retrieval failed - User not found", {
         email: userPayload.userEmail,
         action: "getCurrentUserProfile",
+        req,
       });
       res
         .status(HTTP_STATUS.NOT_FOUND)
@@ -284,6 +293,7 @@ export const getCurrentUserProfile = async (
       email: userPayload.userEmail,
       userId: user.id,
       action: "getCurrentUserProfile",
+      req,
     });
 
     res.status(HTTP_STATUS.OK).json(successResponse(fullProfile));
@@ -302,6 +312,7 @@ export const getCurrentUserProfile = async (
       error: errorObj.message,
       stack: errorObj.stack,
       action: "getCurrentUserProfile",
+      req,
     });
 
     next(errorObj);
@@ -340,6 +351,7 @@ export const updateUserProfile = async (
       email: userPayload.userEmail,
       action: "updateUserProfile",
       updateFields: Object.keys(req.body),
+      req,
     });
 
     // 1️⃣ Find user
@@ -348,6 +360,7 @@ export const updateUserProfile = async (
       await error("Profile update failed - User not found", {
         email: userPayload.userEmail,
         action: "updateUserProfile",
+        req,
       });
       res
         .status(HTTP_STATUS.NOT_FOUND)
@@ -368,6 +381,7 @@ export const updateUserProfile = async (
         email: userPayload.userEmail,
         userId: user.id,
         action: "updateUserProfile",
+        req,
       });
       res
         .status(HTTP_STATUS.NOT_FOUND)
@@ -394,12 +408,14 @@ export const updateUserProfile = async (
             email: userPayload.userEmail,
             userId: user.id,
             uploadedUrl,
+            req,
           });
         } catch (uploadErr: unknown) {
           await error("Image upload to Bunny failed", {
             email: userPayload.userEmail,
             userId: user.id,
             error: (uploadErr as Error).message,
+            req,
           });
           res
             .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
@@ -419,6 +435,7 @@ export const updateUserProfile = async (
       await warn("Profile update failed - No record updated", {
         email: userPayload.userEmail,
         userId: user.id,
+        req,
       });
       res
         .status(HTTP_STATUS.NOT_FOUND)
@@ -430,6 +447,7 @@ export const updateUserProfile = async (
       email: userPayload.userEmail,
       userId: user.id,
       updatedFields: Object.keys(req.body),
+      req,
     });
 
     res
@@ -449,6 +467,7 @@ export const updateUserProfile = async (
       error: errorObj.message,
       stack: errorObj.stack,
       action: "updateUserProfile",
+      req,
     });
 
     next(errorObj);

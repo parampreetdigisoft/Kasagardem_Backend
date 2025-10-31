@@ -68,7 +68,7 @@ export const createRole = async (
     await info(
       "Role creation attempt started",
       { roleName: name, hasDescription: !!description },
-      { userId: user.id!, source: "role.createRole" }
+      { userId: user.id!, source: "role.createRole", req }
     );
 
     // ✅ Check if role already exists in PostgreSQL
@@ -88,7 +88,7 @@ export const createRole = async (
         roleName: newRole.name,
         hasDescription: !!newRole.description,
       },
-      { userId: user.id!, source: "role.createRole" }
+      { userId: user.id!, source: "role.createRole", req }
     );
 
     res
@@ -105,7 +105,7 @@ export const createRole = async (
       await warn(
         "Role creation failed - validation errors",
         { errors: formattedErrors },
-        { userId: user?.id!, source: "role.createRole" }
+        { userId: user?.id!, source: "role.createRole", req }
       );
 
       res.status(HTTP_STATUS.BAD_REQUEST).json({
@@ -128,7 +128,7 @@ export const createRole = async (
     await error(
       "Role creation failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack, userId: user?.id! },
-      { userId: user?.id!, source: "role.createRole" }
+      { userId: user?.id!, source: "role.createRole", req }
     );
     next(errorObj);
   }
@@ -172,7 +172,7 @@ export const getRoles = async (
     await info(
       "Get all roles request started",
       {},
-      { userId: user.id!, source: "role.getRoles" }
+      { userId: user.id!, source: "role.getRoles", req }
     );
 
     // ✅ 3. Connect to DB and fetch roles
@@ -181,7 +181,7 @@ export const getRoles = async (
     await info(
       "Get all roles successful",
       { roleCount: roles.length, roleNames: roles.map((r) => r.name) },
-      { userId: user.id!, source: "role.getRoles" }
+      { userId: user.id!, source: "role.getRoles", req }
     );
 
     // ✅ Send response without created_at or updated_at
@@ -199,7 +199,7 @@ export const getRoles = async (
     await error(
       "Get all roles failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack },
-      { userId: user.id!, source: "role.getRoles" }
+      { userId: user.id!, source: "role.getRoles", req }
     );
     next(errorObj);
   }
@@ -247,7 +247,7 @@ export const updateRole = async (
     await info(
       "Role update attempt started",
       { roleId, updateFields: Object.keys(updateData), updateData },
-      { userId: user.id!, source: "role.updateRole" }
+      { userId: user.id!, source: "role.updateRole", req }
     );
 
     // ✅ 3. Check if role exists in PostgreSQL
@@ -257,7 +257,7 @@ export const updateRole = async (
       await warn(
         "Role update failed - role not found",
         { roleId },
-        { userId: user.id!, source: "role.updateRole" }
+        { userId: user.id!, source: "role.updateRole", req }
       );
 
       res
@@ -273,7 +273,7 @@ export const updateRole = async (
       await warn(
         "Role update failed - could not update record",
         { roleId },
-        { userId: user.id!, source: "role.updateRole" }
+        { userId: user.id!, source: "role.updateRole", req }
       );
 
       res
@@ -292,7 +292,7 @@ export const updateRole = async (
           description: updatedRole.description,
         },
       },
-      { userId: user.id!, source: "role.updateRole" }
+      { userId: user.id!, source: "role.updateRole", req }
     );
 
     res
@@ -309,7 +309,7 @@ export const updateRole = async (
       await warn(
         "Role update failed - validation errors",
         { errors: formattedErrors, roleId },
-        { userId: user.id!, source: "role.updateRole" }
+        { userId: user.id!, source: "role.updateRole", req }
       );
 
       res.status(HTTP_STATUS.BAD_REQUEST).json({
@@ -339,7 +339,7 @@ export const updateRole = async (
         stack: errorObj.stack,
         userId: user.id!,
       },
-      { userId: user.id!, source: "role.updateRole" }
+      { userId: user.id!, source: "role.updateRole", req }
     );
     next(errorObj);
   }
@@ -385,7 +385,7 @@ export const deleteRole = async (
     await info(
       "Role deletion attempt started",
       { roleId },
-      { userId: user.id!, source: "role.deleteRole" }
+      { userId: user.id!, source: "role.deleteRole", req }
     );
 
     // ✅ 3. Check if role exists
@@ -395,7 +395,7 @@ export const deleteRole = async (
       await warn(
         "Role deletion failed - role not found",
         { roleId },
-        { userId: user.id!, source: "role.deleteRole" }
+        { userId: user.id!, source: "role.deleteRole", req }
       );
 
       res
@@ -414,7 +414,7 @@ export const deleteRole = async (
         deletedRoleName: roleToDelete.name,
         deletedRoleDescription: roleToDelete.description,
       },
-      { userId: user.id!, source: "role.deleteRole" }
+      { userId: user.id!, source: "role.deleteRole", req }
     );
 
     res
@@ -433,7 +433,7 @@ export const deleteRole = async (
     await error(
       "Role deletion failed with unexpected error",
       { roleId, error: errorObj.message, stack: errorObj.stack },
-      { userId: user.id!, source: "role.deleteRole" }
+      { userId: user.id!, source: "role.deleteRole", req }
     );
 
     next(errorObj);

@@ -1,7 +1,7 @@
 import express, { Router } from "express";
 import auth from "../../../core/middleware/authMiddleware";
 import validateRequest from "../../../core/middleware/validateRequest";
-import { createLead, getAllLeads } from "./leadsController";
+import { createLeadController, getAllLeads } from "./leadsController";
 import { leadValidation } from "./leadsValidation";
 
 const router: Router = express.Router();
@@ -98,7 +98,12 @@ const router: Router = express.Router();
  *         description: Conflict - One or more leads already exist for the given partnerProfileIds and user
  */
 
-router.post("/leads", auth, validateRequest(leadValidation), createLead);
+router.post(
+  "/leads",
+  auth,
+  validateRequest(leadValidation),
+  createLeadController
+);
 
 /**
  * @swagger

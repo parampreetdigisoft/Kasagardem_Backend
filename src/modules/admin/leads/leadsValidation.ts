@@ -3,12 +3,9 @@ import Joi, { ObjectSchema } from "joi";
 export const leadValidation: ObjectSchema = Joi.object({
   partnerProfileIds: Joi.array()
     .items(
-      Joi.string()
-        .pattern(/^[0-9a-fA-F]{24}$/)
-        .messages({
-          "string.pattern.base":
-            "Each partner profile ID must be a valid ObjectId",
-        })
+      Joi.string().uuid({ version: "uuidv4" }).messages({
+        "string.guid": "Each partner profile ID must be a valid UUID",
+      })
     )
     .min(1)
     .required()

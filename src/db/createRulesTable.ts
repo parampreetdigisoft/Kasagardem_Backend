@@ -1,11 +1,11 @@
-import connectDB from "../core/config/db";
+import { getDB } from "../core/config/db";
 
 /**
  * Creates the "rules" and "rule_conditions" tables in PostgreSQL.
  */
 export async function createRulesTables(): Promise<void> {
   try {
-    const client = await connectDB();
+    const client = await getDB();
 
     // 1️⃣ Create main "rules" table
     const rulesTableQuery = `

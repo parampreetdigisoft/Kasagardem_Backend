@@ -1,293 +1,247 @@
-// src/core/utils/logger.ts
-import { MongoClient, Db, ObjectId } from "mongodb";
-import config from "../config/env";
-import { MongoValidationError } from "../../interface/Error";
-import { LogEntry, LogOptions } from "../../interface/logs";
+import { Client } from "pg";
+import { getDB } from "../config/db";
+import { LogOptions } from "../../interface/logs";
+import type { Request } from "express";
 
 /**
- * Logger class for writing logs to a MongoDB collection.
- * Handles MongoDB connection and provides a reusable client instance.
+ * Logger class for writing logs to PostgreSQL.
+ * Handles connection and log insertion with flattened fields (no JSON).
  */
 class Logger {
-  private mongoUrl: string;
-  private dbName: string;
-  private client: MongoClient | null = null;
-  private db: Db | null = null;
+  private client: Client | null = null;
   public isConnected = false;
 
   /**
-   * Creates a new Logger instance to handle MongoDB logging.
-   *
-   * @param mongoUrl - The MongoDB connection URL.
-   * @param dbName - The name of the MongoDB database for logs.
-   */
-  constructor(mongoUrl: string, dbName: string) {
-    this.mongoUrl = mongoUrl;
-    this.dbName = dbName;
-  }
-
-  /**
-   * Initializes the MongoDB connection for the logger.
-   * Establishes a connection to the database if not already connected.
-   * Sets the `isConnected` flag to true upon successful connection.
-   *
-   * @returns A promise that resolves when the initialization is complete.
+   * Initializes the PostgreSQL connection.
    */
   async initialize(): Promise<void> {
-    try {
-      if (!this.isConnected) {
-        this.client = new MongoClient(this.mongoUrl);
-        await this.client.connect();
-        this.db = this.client.db(this.dbName);
-        this.isConnected = true;
-      }
-    } catch (error: unknown) {
-      const errObj: Error =
-        error instanceof Error
-          ? error
-          : new Error(typeof error === "string" ? error : "Unknown error");
-
-      console.error("Failed to connect to MongoDB for logging:", errObj);
-      this.isConnected = false;
+    if (!this.isConnected) {
+      this.client = getDB();
+      this.isConnected = true;
     }
   }
 
   /**
-   * Sanitizes the metadata object by:
-   *  - Removing undefined values and functions
-   *  - Converting MongoDB ObjectIds to strings
-   *  - Recursively sanitizing nested objects
+   * Inserts a log entry into PostgreSQL logs table.
    *
-   * @param meta - The metadata object to sanitize
-   * @returns A new object with sanitized metadata
-   */
-  private sanitizeMeta(meta: Record<string, unknown>): Record<string, unknown> {
-    if (!meta || typeof meta !== "object") return {};
-
-    const sanitized: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(meta)) {
-      if (value === undefined || typeof value === "function") continue;
-
-      if (value instanceof ObjectId) {
-        sanitized[key] = value.toString();
-      } else if (value && typeof value === "object" && !Array.isArray(value)) {
-        // Narrow type for recursive call
-        sanitized[key] = this.sanitizeMeta(value as Record<string, unknown>);
-      } else {
-        sanitized[key] = value;
-      }
-    }
-
-    return sanitized;
-  }
-
-  /**
-   * Logs a message to the MongoDB collection with optional metadata and options.
-   * Sanitizes metadata, converts ObjectIds to strings, and validates user/session IDs.
-   *
-   * @param level - The log level (e.g., "info", "warn", "error").
-   * @param message - The log message to store.
-   * @param meta - Optional metadata object with additional information.
-   * @param options - Optional logging options, such as source, userId, and sessionId.
-   * @returns A promise that resolves when the log has been saved to MongoDB.
+   * @param level - Log level ("info", "error", "warn", "debug")
+   * @param message - Log message
+   * @param meta - Metadata fields (flattened)
+   * @param options - Optional logging options like userId, source, sessionId, req
    */
   async log(
     level: string,
     message: string,
     meta: Record<string, unknown> = {},
-    options: LogOptions = {}
+    options: LogOptions & { req?: Request } = {}
   ): Promise<void> {
-    const timestamp = new Date();
-    const createdAt = new Date();
-
     try {
       if (!this.isConnected) await this.initialize();
+      if (!this.client) throw new Error("PostgreSQL client not available");
 
-      if (this.isConnected && this.db) {
-        const sanitizedMeta = this.sanitizeMeta(meta);
+      const req = options.req;
 
-        const logEntry: LogEntry = {
-          level: level.toLowerCase(),
-          message: message || "",
-          timestamp,
-          meta: sanitizedMeta,
-          createdAt,
-          source: options.source || "application",
-        };
+      // Auto-detect metadata from request if not provided
+      const method = meta.method ?? req?.method ?? null;
+      const url = meta.url ?? req?.originalUrl ?? null;
+      const ip =
+        meta.ip ??
+        (req?.headers["x-forwarded-for"] as string) ??
+        req?.socket.remoteAddress ??
+        null;
+      const userAgent = meta.userAgent ?? req?.headers["user-agent"] ?? null;
 
-        if (options.userId && ObjectId.isValid(options.userId.toString())) {
-          logEntry.userId = new ObjectId(options.userId.toString());
-        }
+      const email = meta.email ?? null;
+      const role = meta.role ?? null;
+      const tokenExp = meta.tokenExp ? new Date(meta.tokenExp as string) : null;
+      const hasAuthHeader =
+        meta.hasAuthHeader ?? (req?.headers.authorization ? true : null);
 
-        if (options.sessionId) {
-          logEntry.sessionId = options.sessionId.toString();
-        }
+      const timestamp = new Date();
+      const createdAt = new Date();
 
-        await this.db.collection<LogEntry>("logs").insertOne(logEntry);
-      }
-    } catch (error: unknown) {
-      // Narrow unknown to MongoValidationError safely
-      const errObj: MongoValidationError =
-        error instanceof Error
-          ? { ...error }
-          : { name: "UnknownError", message: "An unknown error occurred" };
+      const query = `
+        INSERT INTO logs (
+          level, message, "timestamp", source,
+          method, url, ip, user_agent, email, role,
+          token_exp, has_auth_header, "userId", "sessionId", "createdAt"
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
+      `;
 
-      console.error("Failed to save log to MongoDB:", errObj.message);
+      const values = [
+        level.toLowerCase(),
+        message,
+        timestamp,
+        options.source || "application",
+        method,
+        url,
+        ip,
+        userAgent,
+        email,
+        role,
+        tokenExp,
+        hasAuthHeader,
+        options.userId ?? null,
+        options.sessionId ?? null,
+        createdAt,
+      ];
 
-      if (errObj.code === 121) {
-        console.error("MongoDB Validation Error Details:");
-        console.error("- Level:", level?.toLowerCase());
-        console.error("- Message length:", message?.length || 0);
-        console.error("- Meta keys:", Object.keys(meta || {}));
-        console.error("- Source:", options.source);
-        console.error("- UserId type:", typeof options.userId);
-        console.error("- SessionId type:", typeof options.sessionId);
-
-        if (errObj.errInfo?.details) {
-          console.error(
-            "- Validation details:",
-            JSON.stringify(errObj.errInfo.details, null, 2)
-          );
-        }
-      }
+      await this.client.query(query, values);
+    } catch (error) {
+      console.error("❌ Failed to insert log:", (error as Error).message);
     }
   }
 
   /**
-   * Closes the MongoDB client connection if it is currently connected.
-   * Sets `isConnected` to false after closing.
+   * Fetch logs with filters, limit, and sorting.
    *
-   * @returns A promise that resolves when the MongoDB connection is closed.
+   * @param filter - Object with filter fields.
+   * @param options - Query options like limit, offset, sorting.
+   * @param options.limit
+   * @param options.offset
+   * @param options.orderBy
+   * @param options.orderDir
+   * @returns Promise<any[]> - Array of log records.
+   */
+  async getLogs(
+    filter: Partial<Record<string, unknown>> = {},
+    options: {
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      orderDir?: "ASC" | "DESC";
+    } = {}
+  ): Promise<Record<string, unknown>[]> {
+    if (!this.isConnected) await this.initialize();
+    if (!this.client) throw new Error("PostgreSQL client not available");
+
+    const {
+      limit = 100,
+      offset = 0,
+      orderBy = "createdAt",
+      orderDir = "DESC",
+    } = options;
+
+    const whereClauses: string[] = [];
+    const values: unknown[] = [];
+    let i = 1;
+
+    for (const [key, value] of Object.entries(filter)) {
+      whereClauses.push(`${key} = $${i++}`);
+      values.push(value);
+    }
+
+    const whereSQL = whereClauses.length
+      ? `WHERE ${whereClauses.join(" AND ")}`
+      : "";
+
+    const query = `
+      SELECT *
+      FROM logs
+      ${whereSQL}
+      ORDER BY "${orderBy}" ${orderDir}
+      LIMIT ${limit} OFFSET ${offset};
+    `;
+
+    const result = await this.client.query(query, values);
+    return result.rows as Record<string, unknown>[];
+  }
+
+  /**
+   * Gracefully closes the PostgreSQL client connection.
    */
   async close(): Promise<void> {
-    if (this.client && this.isConnected) {
-      await this.client.close();
+    if (this.client) {
+      await this.client.end();
+      this.client = null;
       this.isConnected = false;
     }
   }
-  /**
-   * Retrieves log entries from the MongoDB collection based on a filter and options.
-   *
-   * @param filter - MongoDB filter object to query logs.
-   * @param options - Optional query parameters.
-   * @param options.limit - Maximum number of log entries to return (default: 100).
-   * @param options.skip - Number of log entries to skip (default: 0).
-   * @param options.sort - Sorting order for the results (default: { createdAt: -1 }).
-   * @returns A promise that resolves to an array of `LogEntry` objects matching the query.
-   */
-  async getLogs(
-    filter: Record<string, unknown> = {},
-    options: {
-      limit?: number;
-      skip?: number;
-      sort?: Record<string, 1 | -1>; // <-- Type-safe for MongoDB sort
-    } = {}
-  ): Promise<LogEntry[]> {
-    if (!this.isConnected) await this.initialize();
-    if (!this.db) return [];
-
-    const { limit = 100, skip = 0, sort = { createdAt: -1 } } = options;
-
-    return this.db
-      .collection<LogEntry>("logs")
-      .find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .toArray();
-  }
 }
 
-// Singleton instance
-const logger = new Logger(config.MONGODB_URI, config.MONGODB_NAME);
-
+// ---------- Singleton Setup ----------
+const logger = new Logger();
 let initPromise: Promise<void> | null = null;
 
 /**
- * Ensures that the logger is initialized before use.
- * If the initialization hasn't started yet, it triggers it and waits for completion.
- *
- * @returns A promise that resolves once the logger is initialized.
+ * Ensures logger is initialized before logging.
+ * @returns Promise<void>
  */
 const ensureInitialized = async (): Promise<void> => {
-  if (!initPromise) {
-    initPromise = logger.initialize();
-  }
+  if (!initPromise) initPromise = logger.initialize();
   await initPromise;
 };
 
+// ---------- LOGGING HELPERS (Now with `req`) ----------
+
 /**
- * Logs an informational message to the MongoDB logger.
- *
- * @param message - The message to log.
- * @param meta - Additional metadata to store with the log.
- * @param options - Optional logging options like source, userId, or sessionId.
- * @returns A promise that resolves once the log has been saved.
+ * Logs an informational message.
+ * @param message
+ * @param meta
+ * @param options
+ * @returns Promise<void>
  */
 export const info = async (
   message: string,
   meta: Record<string, unknown> = {},
-  options: LogOptions = {}
+  options: LogOptions & { req?: Request } = {}
 ): Promise<void> => {
   await ensureInitialized();
   return logger.log("info", message, meta, options);
 };
 
 /**
- * Logs an error message to the MongoDB logger.
- *
- * @param message - The error message to log.
- * @param meta - Additional metadata to store with the log.
- * @param options - Optional logging options like source, userId, or sessionId.
- * @returns A promise that resolves once the log has been saved.
+ * Logs an error message.
+ * @param message
+ * @param meta
+ * @param options
+ * @returns Promise<void>
  */
 export const error = async (
   message: string,
   meta: Record<string, unknown> = {},
-  options: LogOptions = {}
+  options: LogOptions & { req?: Request } = {}
 ): Promise<void> => {
   await ensureInitialized();
   return logger.log("error", message, meta, options);
 };
 
 /**
- * Logs a warning message to the MongoDB logger.
- *
- * @param message - The warning message to log.
- * @param meta - Additional metadata to store with the log.
- * @param options - Optional logging options like source, userId, or sessionId.
- * @returns A promise that resolves once the log has been saved.
+ * Logs a warning message.
+ * @param message
+ * @param meta
+ * @param options
+ * @returns Promise<void>
  */
 export const warn = async (
   message: string,
   meta: Record<string, unknown> = {},
-  options: LogOptions = {}
+  options: LogOptions & { req?: Request } = {}
 ): Promise<void> => {
   await ensureInitialized();
   return logger.log("warn", message, meta, options);
 };
 
 /**
- * Logs a debug message to the MongoDB logger.
- *
- * @param message - The debug message to log.
- * @param meta - Additional metadata to store with the log.
- * @param options - Optional logging options like source, userId, or sessionId.
- * @returns A promise that resolves once the log has been saved.
+ * Logs a debug message.
+ * @param message
+ * @param meta
+ * @param options
+ * @returns Promise<void>
  */
 export const debug = async (
   message: string,
   meta: Record<string, unknown> = {},
-  options: LogOptions = {}
+  options: LogOptions & { req?: Request } = {}
 ): Promise<void> => {
   await ensureInitialized();
   return logger.log("debug", message, meta, options);
 };
 
 /**
- * Closes the MongoDB logger connection.
- *
- * @returns A promise that resolves once the connection has been closed.
+ * Closes the logger.
+ * @returns Promise<void>
  */
 export const close = (): Promise<void> => logger.close();
 

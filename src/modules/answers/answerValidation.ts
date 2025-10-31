@@ -1,40 +1,23 @@
 import Joi, { ObjectSchema } from "joi";
-import { Types } from "mongoose";
 
 /**
- * Validates that a given value is a valid MongoDB ObjectId string.
- *
- * @param value - The input string to validate.
- * @param helpers - Joi helpers used to report validation errors.
- * @returns The original value if it is a valid ObjectId, otherwise a Joi error report.
+ * Validates UUID format for PostgreSQL IDs.
  */
-const objectIdValidator = (
-  value: string,
-  helpers: Joi.CustomHelpers
-): string | Joi.ErrorReport => {
-  if (!Types.ObjectId.isValid(value)) {
-    return helpers.error("any.invalid");
-  }
-  return value;
-};
+const uuidValidator = Joi.string()
+  .guid({ version: ["uuidv4", "uuidv5"] })
+  .message("Question ID must be a valid UUID");
 
+/**
+ * Validation schema for submitting answers.
+ */
 export const answerValidation: ObjectSchema = Joi.object({
   answers: Joi.array()
     .items(
       Joi.object({
-        questionId: Joi.alternatives()
-          .try(
-            Joi.string().custom(objectIdValidator).messages({
-              "any.invalid": "Question ID must be a valid ObjectId",
-            }),
-            Joi.object().instance(Types.ObjectId)
-          )
-          .required()
-          .messages({
-            "any.required": "Question ID is required",
-          }),
+        questionId: uuidValidator.required().messages({
+          "any.required": "Question ID is required",
+        }),
 
-        // Changed to number to match MongoDB bsonType: "int"
         type: Joi.number().integer().valid(1, 2).required().messages({
           "any.only": "Type must be either 1 (option) or 2 (address)",
           "any.required": "Type is required",
@@ -71,7 +54,6 @@ export const answerValidation: ObjectSchema = Joi.object({
               "any.required": "City is required",
             }),
           })
-            .strict() // No additional properties in address (matches MongoDB additionalProperties: false)
             .required()
             .messages({
               "any.required": "Selected address is required when type=2",
@@ -83,7 +65,6 @@ export const answerValidation: ObjectSchema = Joi.object({
           }),
         }),
       })
-        .strict() // No additional properties in answer items (matches MongoDB additionalProperties: false)
         .required()
         .messages({
           "object.unknown":
@@ -101,13 +82,8 @@ export const answerValidation: ObjectSchema = Joi.object({
   isDeleted: Joi.boolean().optional().default(false).messages({
     "boolean.base": "isDeleted must be true or false",
   }),
-
-  // Optional fields that might be set by the application/mongoose
-  createdAt: Joi.date().optional(),
-  updatedAt: Joi.date().optional(),
-  __v: Joi.number().integer().optional(), // Mongoose version key
 })
-  .strict() // No additional properties at root level (matches MongoDB additionalProperties: false)
+  .strict()
   .messages({
     "object.unknown": "Additional properties are not allowed",
   });

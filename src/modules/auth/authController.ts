@@ -52,7 +52,7 @@ export const register = async (
     await info(
       "User registration attempt started",
       { email, roleCode, hasPhoneNumber: !!phoneNumber },
-      { source: "auth.register" }
+      { source: "auth.register", req }
     );
 
     // ✅ Validate role code
@@ -61,7 +61,7 @@ export const register = async (
       await warn(
         "Invalid role code",
         { email, roleCode },
-        { source: "auth.register" }
+        { source: "auth.register", req }
       );
       res
         .status(HTTP_STATUS.BAD_REQUEST)
@@ -76,7 +76,7 @@ export const register = async (
       await warn(
         "Role not found in database",
         { email, roleName },
-        { source: "auth.register" }
+        { source: "auth.register", req }
       );
       res
         .status(HTTP_STATUS.BAD_REQUEST)
@@ -87,7 +87,11 @@ export const register = async (
     // ✅ Check if email already exists
     const existingUser = await findUserByEmail(email);
     if (existingUser) {
-      await warn("User already exists", { email }, { source: "auth.register" });
+      await warn(
+        "User already exists",
+        { email },
+        { source: "auth.register", req }
+      );
       res
         .status(HTTP_STATUS.CONFLICT)
         .json(errorResponse(MESSAGES.USER_EXISTS));
@@ -107,6 +111,7 @@ export const register = async (
       userId: newUser.id,
       email,
       roleCode,
+      req,
     });
 
     // ✅ Create empty user profile (if you have a `user_profiles` table)
@@ -115,7 +120,7 @@ export const register = async (
     await info(
       "User profile created successfully",
       { userId: newUser.id },
-      { source: "auth.register" }
+      { source: "auth.register", req }
     );
 
     res
@@ -132,7 +137,7 @@ export const register = async (
       await warn(
         "Validation failed",
         { errors: formattedErrors },
-        { source: "auth.register" }
+        { source: "auth.register", req }
       );
 
       res.status(HTTP_STATUS.BAD_REQUEST).json({
@@ -160,7 +165,7 @@ export const register = async (
       await warn(
         "Duplicate email constraint violation",
         { error: errorMessage },
-        { source: "auth.register" }
+        { source: "auth.register", req }
       );
       res
         .status(HTTP_STATUS.CONFLICT)
@@ -172,7 +177,7 @@ export const register = async (
     await error(
       "Unexpected error during user registration",
       { error: errorMessage, stack: errorStack },
-      { source: "auth.register" }
+      { source: "auth.register", req }
     );
 
     next(err);
@@ -195,11 +200,7 @@ export const login = async (
   try {
     const { email, password } = req.body;
 
-    await info(
-      "User login attempt started",
-      { email },
-      { source: "auth.login" }
-    );
+    await info("User login attempt", { email }, { source: "auth.login", req });
 
     // ✅ 1. Find user by email
     const user = await findUserByEmail(email);
@@ -208,11 +209,9 @@ export const login = async (
       await warn(
         "Login failed - user not found or missing password",
         { email },
-        { source: "auth.login" }
+        { source: "auth.login", req }
       );
-      res
-        .status(HTTP_STATUS.OK)
-        .json(errorResponse(MESSAGES.INVALID_CREDENTIALS));
+      res.status(HTTP_STATUS.OK).json(errorResponse(MESSAGES.USER_NOTFOUND));
       return;
     }
 
@@ -222,7 +221,7 @@ export const login = async (
       await warn(
         "Login failed - invalid password",
         { email, userId: user.id },
-        { userId: user.id!, source: "auth.login" }
+        { userId: user.id!, source: "auth.login", req }
       );
       res
         .status(HTTP_STATUS.OK)
@@ -237,7 +236,7 @@ export const login = async (
       await error(
         "Login failed - role not found",
         { email, userId: user.id, roleId: user.role_id },
-        { userId: user.id!, source: "auth.login" }
+        { userId: user.id!, source: "auth.login", req }
       );
       res.status(HTTP_STATUS.OK).json(errorResponse("Role not found"));
       return;
@@ -249,7 +248,7 @@ export const login = async (
     await info(
       "User login successful",
       { email, userId: user.id, roleName: role.name },
-      { userId: user.id!, source: "auth.login" }
+      { userId: user.id!, source: "auth.login", req }
     );
 
     // ✅ 5. Send success response
@@ -269,7 +268,7 @@ export const login = async (
     await error(
       "Login failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack },
-      { source: "auth.login" }
+      { source: "auth.login", req }
     );
 
     next(errorObj);
@@ -315,7 +314,7 @@ export const refreshTokenLogin = async (
     await info(
       "Refresh User login attempt started",
       { userId: userPayload.userId },
-      { source: "auth.refresh" }
+      { source: "auth.refresh", req }
     );
 
     // ✅ 1. Fetch user by ID
@@ -325,7 +324,7 @@ export const refreshTokenLogin = async (
       await warn(
         "Refresh Login failed - user not found",
         { userId: userPayload.userId },
-        { source: "auth.refresh" }
+        { source: "auth.refresh", req }
       );
       res
         .status(HTTP_STATUS.OK)
@@ -340,7 +339,7 @@ export const refreshTokenLogin = async (
       await error(
         "Refresh Login failed - role not found",
         { userId: user.id, roleId: user.role_id },
-        { userId: user.id!, source: "auth.refresh" }
+        { userId: user.id!, source: "auth.refresh", req }
       );
       res.status(HTTP_STATUS.OK).json(errorResponse("Role not found"));
       return;
@@ -352,7 +351,7 @@ export const refreshTokenLogin = async (
     await info(
       "User refresh login successful",
       { userId: user.id, roleName: role.name },
-      { userId: user.id!, source: "auth.refresh" }
+      { userId: user.id!, source: "auth.refresh", req }
     );
 
     // ✅ 4. Return refreshed token
@@ -372,7 +371,7 @@ export const refreshTokenLogin = async (
     await error(
       "Refresh Login failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack },
-      { source: "auth.refresh" }
+      { source: "auth.refresh", req }
     );
 
     next(errorObj);
@@ -398,7 +397,7 @@ export const handlePasswordResetToken = async (
     await info(
       `${isResend ? "Resend" : "Send"} password reset token request started`,
       { email },
-      { source: "auth.handlePasswordResetToken" }
+      { source: "auth.handlePasswordResetToken", req }
     );
 
     // Step 1️⃣: Find user by email
@@ -408,7 +407,7 @@ export const handlePasswordResetToken = async (
       await warn(
         "Password reset failed - user not found",
         { email },
-        { source: "auth.handlePasswordResetToken" }
+        { source: "auth.handlePasswordResetToken", req }
       );
       res
         .status(HTTP_STATUS.OK)
@@ -458,7 +457,7 @@ export const handlePasswordResetToken = async (
       await info(
         `${isResend ? "Resend" : "Send"} password reset token success`,
         { email, userId: user.id },
-        { userId: user.id!, source: "auth.handlePasswordResetToken" }
+        { userId: user.id!, source: "auth.handlePasswordResetToken", req }
       );
 
       res.status(HTTP_STATUS.OK).json(
@@ -478,7 +477,7 @@ export const handlePasswordResetToken = async (
       await error(
         "Failed to send password reset token email",
         { email, userId: user.id, error: emailError },
-        { userId: user.id!, source: "auth.handlePasswordResetToken" }
+        { userId: user.id!, source: "auth.handlePasswordResetToken", req }
       );
 
       res
@@ -496,7 +495,7 @@ export const handlePasswordResetToken = async (
         stack: errorObj.stack,
         code: errorObj.code,
       },
-      { source: "auth.handlePasswordResetToken" }
+      { source: "auth.handlePasswordResetToken", req }
     );
     next(errorObj);
   }
@@ -521,7 +520,7 @@ export const verifyPasswordResetToken = async (
     await info(
       "Password reset token verification attempt started",
       { email },
-      { source: "auth.verifyPasswordResetToken" }
+      { source: "auth.verifyPasswordResetToken", req }
     );
 
     // Step 1️⃣: Find user by email
@@ -531,7 +530,7 @@ export const verifyPasswordResetToken = async (
       await warn(
         "Token verification failed - user not found",
         { email },
-        { source: "auth.verifyPasswordResetToken" }
+        { source: "auth.verifyPasswordResetToken", req }
       );
       res
         .status(HTTP_STATUS.OK)
@@ -551,7 +550,7 @@ export const verifyPasswordResetToken = async (
       await warn(
         "Password reset token verification failed - invalid or expired token",
         { email },
-        { source: "auth.verifyPasswordResetToken" }
+        { source: "auth.verifyPasswordResetToken", req }
       );
       res
         .status(HTTP_STATUS.OK)
@@ -562,7 +561,7 @@ export const verifyPasswordResetToken = async (
     await info(
       "Password reset token verification successful",
       { email, userId: user.id },
-      { userId: user.id!, source: "auth.verifyPasswordResetToken" }
+      { userId: user.id!, source: "auth.verifyPasswordResetToken", req }
     );
 
     res.status(HTTP_STATUS.OK).json(
@@ -586,7 +585,7 @@ export const verifyPasswordResetToken = async (
         stack: errorObj.stack,
         code: errorObj.code,
       },
-      { source: "auth.verifyPasswordResetToken" }
+      { source: "auth.verifyPasswordResetToken", req }
     );
 
     next(errorObj);
@@ -610,7 +609,7 @@ export const resetPassword = async (
   const { email, password, token } = req.body;
 
   try {
-    await info("Password reset attempt started", { email }, { source });
+    await info("Password reset attempt started", { email }, { source, req });
 
     let user = null;
 
@@ -632,7 +631,7 @@ export const resetPassword = async (
         await warn(
           "Invalid or expired password reset token",
           { email },
-          { source }
+          { source, req }
         );
         res
           .status(HTTP_STATUS.OK)
@@ -649,7 +648,7 @@ export const resetPassword = async (
         await warn(
           "User not found during JWT-based password reset",
           { userId },
-          { source }
+          { source, req }
         );
         res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("User not found"));
         return;
@@ -659,7 +658,7 @@ export const resetPassword = async (
       await warn(
         "Password reset failed - missing OTP or JWT",
         { email },
-        { source }
+        { source, req }
       );
       res
         .status(HTTP_STATUS.UNAUTHORIZED)
@@ -676,7 +675,7 @@ export const resetPassword = async (
     await info(
       "Password reset successful",
       { email: user.email, userId: user.id },
-      { userId: user.id!, source }
+      { userId: user.id!, source, req }
     );
 
     res.status(HTTP_STATUS.OK).json(
@@ -699,7 +698,7 @@ export const resetPassword = async (
         stack: errorObj.stack,
         code: errorObj.code,
       },
-      { source }
+      { source, req }
     );
 
     next(errorObj);
@@ -735,7 +734,7 @@ export const googleAuth = async (
     await info(
       "Google authentication attempt started",
       { hasRoleCode: !!roleCode },
-      { source }
+      { source, req }
     );
 
     // ✅ Verify Firebase token
@@ -746,7 +745,7 @@ export const googleAuth = async (
       await warn(
         "Google auth failed - invalid Firebase token",
         { error: err instanceof Error ? err.message : "Unknown error" },
-        { source }
+        { source, req }
       );
       res
         .status(HTTP_STATUS.UNAUTHORIZED)
@@ -757,7 +756,11 @@ export const googleAuth = async (
     const { uid, email, name, picture } = decodedToken;
 
     if (!email) {
-      await warn("Google auth failed - no email in token", { uid }, { source });
+      await warn(
+        "Google auth failed - no email in token",
+        { uid },
+        { source, req }
+      );
       res
         .status(HTTP_STATUS.BAD_REQUEST)
         .json(errorResponse("Email not found in Google account"));
@@ -780,7 +783,7 @@ export const googleAuth = async (
           await warn(
             "Google auth failed - invalid role code",
             { email, roleCode },
-            { source }
+            { source, req }
           );
           res
             .status(HTTP_STATUS.BAD_REQUEST)
@@ -795,7 +798,7 @@ export const googleAuth = async (
         await warn(
           "Google auth failed - role not found",
           { email },
-          { source }
+          { source, req }
         );
         res
           .status(HTTP_STATUS.BAD_REQUEST)
@@ -820,7 +823,7 @@ export const googleAuth = async (
       await info(
         "New user created via Google Sign-In",
         { userId: user.id, email, roleCode },
-        { userId: user.id!, source }
+        { userId: user.id!, source, req }
       );
 
       // Create user profile entry
@@ -832,7 +835,7 @@ export const googleAuth = async (
       await info(
         "User profile created for Google user",
         { userId: user.id },
-        { userId: user.id!, source }
+        { userId: user.id!, source, req }
       );
     } else {
       // ✅ Case: Existing user
@@ -860,7 +863,7 @@ export const googleAuth = async (
       await info(
         "Existing user logged in via Google",
         { userId: user.id, email },
-        { userId: user.id!, source }
+        { userId: user.id!, source, req }
       );
     }
 
@@ -875,7 +878,7 @@ export const googleAuth = async (
       await error(
         "Google auth failed - role not found for user",
         { email, userId: user.id, roleId: user.role_id },
-        { userId: user.id!, source }
+        { userId: user.id!, source, req }
       );
       res
         .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
@@ -889,7 +892,7 @@ export const googleAuth = async (
     await info(
       "Google authentication successful",
       { userId: user.id, email, isNewUser, roleName },
-      { userId: user.id!, source }
+      { userId: user.id!, source, req }
     );
 
     res.status(HTTP_STATUS.OK).json(
@@ -913,7 +916,7 @@ export const googleAuth = async (
     await error(
       "Google authentication failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack, code: errorObj.code },
-      { source }
+      { source, req }
     );
 
     next(errorObj);

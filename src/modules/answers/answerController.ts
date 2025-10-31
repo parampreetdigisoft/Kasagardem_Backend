@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
-import Answer from "./answerModel";
+import { createSurveyResponse } from "./answerModel";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import {
   errorResponse,
@@ -10,6 +10,9 @@ import {
   getRecommendedPartners,
   getRecommendedPlants,
 } from "./answerRepository";
+import { translateObject } from "./answerUtility";
+import { IPartnerRecommendation, ISurveyAnswer } from "../../interface/answer";
+import { detectLanguage } from "../../core/middleware/translationMiddleware";
 
 /**
  * Handles submission of answers for multiple questions.
@@ -29,62 +32,54 @@ export const submitAnswer = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // const userPayload = req.user as { userEmail?: string } | undefined;
-  // if (!userPayload?.userEmail) {
-  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
-  //   return;
-  // }
-
-  // const user = await User.findOne({ email: userPayload.userEmail });
-  // if (!user) {
-  //   res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-  //   return;
-  // }
-
   try {
-    const { answers } = req.body;
+    let { answers } = req.body;
 
-    // Optional: additional server-side validation for type consistency
-    for (const ans of answers) {
-      if (ans.type === 1 && !ans.selectedOption) {
-        res
-          .status(HTTP_STATUS.BAD_REQUEST)
-          .json(errorResponse("selectedOption is required when type=1"));
-        return;
-      }
-      if (
-        ans.type === 2 &&
-        (!ans.selectedAddress ||
-          !ans.selectedAddress.state ||
-          !ans.selectedAddress.city)
-      ) {
-        res
-          .status(HTTP_STATUS.BAD_REQUEST)
-          .json(
-            errorResponse(
-              "selectedAddress with state & city is required when type=2"
-            )
-          );
-        return;
-      }
+    if (!answers || !Array.isArray(answers) || answers.length === 0) {
+      res.status(400).json({ message: "No answers provided" });
+      return;
     }
 
-    // Map userId automatically from authenticated user
-    await Answer.createValidated({
+    // 🔍 Detect language from first string field (fast heuristic)
+    const firstText =
+      answers.find((a) => typeof a.selectedOption === "string")
+        ?.selectedOption ||
+      answers.find((a) => a.selectedAddress?.city)?.selectedAddress?.city ||
+      "";
+
+    const detectedLang = firstText ? await detectLanguage(firstText) : null;
+
+    // 🌍 If request is in Portuguese → translate to English
+    if (detectedLang?.startsWith("pt")) {
+      answers = await translateObject<ISurveyAnswer[]>(answers, "en");
+    }
+
+    // ✅ Insert into survey_responses + survey_answers
+    const { responseId } = await createSurveyResponse({
       answers,
-      isDeleted: false,
     });
-    // Get plants recommendations
+
+    // ✅ Fetch recommendations
     const recommendedPlants = await getRecommendedPlants(answers);
+    // 🧠 Check if user selected "Aesthetics" for the 3rd question
+    const thirdQuestionAnswer = answers[2]?.selectedOption; // assuming index 2 = 3rd question
+    const showPartnerRecommendations =
+      typeof thirdQuestionAnswer === "string" &&
+      thirdQuestionAnswer.toLowerCase().includes("aesthetic");
 
-    // Get partner recommendations
-    const recommendedPartners = await getRecommendedPartners(answers);
+    let recommendedPartners: IPartnerRecommendation[] = [];
 
+    if (showPartnerRecommendations) {
+      recommendedPartners = await getRecommendedPartners(answers);
+    }
+
+    // ✅ Success response
     res.status(HTTP_STATUS.CREATED).json(
       successResponse(
         {
+          responseId,
           plantRecommendations: recommendedPlants.map((p) => ({
-            id: p._id,
+            id: p.id,
             name: p.common_name,
             scientific: p.scientific_name,
             image: p.image_search_url,
@@ -107,10 +102,21 @@ export const submitAnswer = async (
       )
     );
   } catch (err: unknown) {
+    // ✅ Handle validation errors
     if (err instanceof ZodError) {
-      res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("Validation failed", { issues: err.issues }));
       return;
     }
+
+    // ✅ Handle all other errors
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse("Something went wrong", {
+        details: (err as Error).message,
+      })
+    );
+
     next(err);
   }
 };

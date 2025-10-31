@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import translate from "google-translate-api-x";
 import NodeCache from "node-cache";
 
-const translationCache = new NodeCache({ stdTTL: 86400 }); // Cache for 24 hours
+export const translationCache = new NodeCache({ stdTTL: 86400 }); // Cache for 24 hours
 
 interface JsonResponseBody {
   message?: string;
@@ -110,7 +110,7 @@ function looksLikeId(str: string): boolean {
  * @param text - Text to detect language
  * @returns Language code (e.g., 'en', 'pt', 'es') or null if detection fails
  */
-async function detectLanguage(text: string): Promise<string | null> {
+export async function detectLanguage(text: string): Promise<string | null> {
   try {
     // Use translation API to detect language
     const result = await translate(text, { from: "auto", to: "en" });
