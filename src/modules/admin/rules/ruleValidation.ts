@@ -34,7 +34,4 @@ export const ruleValidation: ObjectSchema = Joi.object({
     "array.min": "At least one condition is required",
     "any.required": "Conditions are required",
   }),
-  affiliateFor: Joi.string().allow(null).optional().messages({
-    "string.base": "affiliateFor must be a string or null",
-  }), // ✅ new field
 });

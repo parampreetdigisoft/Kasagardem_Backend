@@ -2,14 +2,9 @@
 export interface Config {
   NODE_ENV: string;
   PORT: number;
-  MONGODB_URI: string;
-  MONGODB_NAME: string;
   JWT_SECRET: string;
   JWT_EXPIRE: string;
   APPDEV_URL: string;
-  KASAGARDEM_PLANTAPI_KEY: string;
-  KASAGARDEM_PLANTAPI_URL: string;
-  KASAGARDEM_PLANTAPI_KEY_NAME: string;
   AWS_ACCESS_KEY_ID: string;
   AWS_SECRET_ACCESS_KEY: string;
   AWS_REGION: string;

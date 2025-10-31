@@ -14,13 +14,17 @@ import answerRoutes from "./modules/answers/answerRoutes";
 import plantRoutes from "./modules/plant/plantRoutes";
 import stateCityRoutes from "./modules/stateCity/stateCityRoutes";
 import leadsRoutes from "./modules/admin/leads/leadsRoute";
-import ApiService from "./core/services/apiService";
-import config from "./core/config/env";
 import translationMiddleware from "./core/middleware/translationMiddleware";
 import { connectDB } from "./core/config/db";
-// import { createSurveyTables } from "./db/createAnswersTable";
+//import { createLeadsTable } from "./db/createLeadsTable";
+//import { createOptimizedIndexes } from "./db/createPartnerProfilesTable";
+//import { createPartnerProfilesTable } from "./db/createPartnerProfilesTable";
+//import { createPlantsTables } from "./db/createPlantsTables";
+
+//import { createSurveyTables } from "./db/createAnswersTable";
 // import { createRolesTable } from "./db/createRolesTable";
 // import { createQuestionsTable } from "./db/createQuestionsTable";
+// import { createLogsTable } from "./db/createLogsTable";
 // import { createRulesTables } from "./db/createRulesTable";
 // import { createUserProfilesTable } from "./db/createUserProfilesTable";
 // import { createUsersTable } from "./db/createUsersTable";
@@ -33,17 +37,18 @@ connectDB().catch((error) => {
   console.error("Failed to connect to database:", error);
   process.exit(1);
 });
+
 // createRulesTables();
 // createUserProfilesTable();
 // createUsersTable();
 // createRolesTable();
 // createQuestionsTable();
-// createSurveyTables();
-// Create an instance of ApiService for plant identification
-export const plantApiService = new ApiService(config.KASAGARDEM_PLANTAPI_URL, {
-  "Api-Key": config.KASAGARDEM_PLANTAPI_KEY || "",
-  "Content-Type": "application/json",
-});
+//createSurveyTables();
+// createLogsTable();
+//createPlantsTables();
+//createPartnerProfilesTable();
+//createOptimizedIndexes();
+//createLeadsTable();
 
 // Middleware
 const corsOptions = {

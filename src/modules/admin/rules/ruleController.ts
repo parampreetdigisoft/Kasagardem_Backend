@@ -7,29 +7,20 @@ import {
   successResponse,
 } from "../../../core/utils/responseFormatter";
 import { info } from "../../../core/utils/logger";
-import Rule from "./rulesModel";
-import Question, { IQuestionDocument } from "../questions/questionModel";
-import mongoose, { Types } from "mongoose";
+import {
+  createValidatedRule,
+  updateValidatedRule,
+  getAllRules as getAllRulesFromDB,
+  deleteRule as deleteRuleFromDB,
+} from "./rulesModel";
 import { findUserByEmail } from "../../auth/authRepository";
-
-// Define a clean type for the API response
-type RuleResponse = {
-  _id: mongoose.Types.ObjectId;
-  name: string;
-  affiliateFor: string;
-  conditions: {
-    questionId: mongoose.Types.ObjectId;
-    questionText: string;
-    operator: "and" | "or";
-    values: string[];
-  }[];
-};
 
 /**
  * Get all rules
  * @param req
  * @param res
  * @param next
+ * @returns All non-deleted rules with conditions
  */
 export const getAllRules = async (
   req: AuthRequest,
@@ -37,6 +28,7 @@ export const getAllRules = async (
   next: NextFunction
 ): Promise<void> => {
   const userPayload = req.user as { userEmail?: string } | undefined;
+
   if (!userPayload?.userEmail) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
     return;
@@ -51,29 +43,7 @@ export const getAllRules = async (
   try {
     await info("Get all rules request started", {}, { userId: user.id! });
 
-    // Populate questionId with questionText from Question collection
-    const rules = await Rule.find({ isDeleted: false })
-      .populate<{
-        conditions: {
-          questionId: IQuestionDocument;
-          operator: "and" | "or";
-          values: string[];
-        }[];
-      }>("conditions.questionId", "questionText")
-      .lean();
-
-    // Transform rules to include questionText in each condition
-    const transformedRules: RuleResponse[] = rules.map((rule) => ({
-      _id: rule._id,
-      name: rule.name,
-      affiliateFor: rule.affiliateFor!,
-      conditions: rule.conditions.map((cond) => ({
-        questionId: cond.questionId._id,
-        questionText: cond.questionId.questionText,
-        operator: cond.operator,
-        values: cond.values,
-      })),
-    }));
+    const rules = await getAllRulesFromDB();
 
     await info(
       "Rules retrieved successfully",
@@ -83,19 +53,18 @@ export const getAllRules = async (
 
     res
       .status(HTTP_STATUS.OK)
-      .json(
-        successResponse({ rules: transformedRules }, MESSAGES.RULES_RETRIEVED)
-      );
+      .json(successResponse({ rules }, MESSAGES.RULES_RETRIEVED));
   } catch (err) {
     next(err);
   }
 };
 
 /**
- * Create new rule
+ * Create a new rule
  * @param req
  * @param res
  * @param next
+ * @returns The created rule
  */
 export const createRule = async (
   req: AuthRequest,
@@ -103,6 +72,7 @@ export const createRule = async (
   next: NextFunction
 ): Promise<void> => {
   const userPayload = req.user as { userEmail?: string } | undefined;
+
   if (!userPayload?.userEmail) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
     return;
@@ -115,36 +85,20 @@ export const createRule = async (
   }
 
   try {
-    await info("Rule creation attempt started", req.body, { userId: user.id! });
-
-    const { conditions } = req.body;
-
-    // Validate that all questionIds exist
-    const questionIds = conditions.map(
-      (c: { questionId: string }) => new Types.ObjectId(c.questionId)
-    );
-    const existingQuestions = await Question.find({
-      _id: { $in: questionIds },
-      isDeleted: false,
-    }).lean();
-
-    if (existingQuestions.length !== questionIds.length) {
-      res
-        .status(HTTP_STATUS.BAD_REQUEST)
-        .json(errorResponse("Some questionIds are invalid or do not exist"));
-      return;
-    }
+    await info("Rule creation started", req.body, { userId: user.id! });
 
     const payload = {
       ...req.body,
-      isDeleted: false, // always default to false
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
-    const newRule = await Rule.createValidated(payload);
+    const newRule = await createValidatedRule(payload);
 
     await info(
       "Rule created successfully",
-      { ruleId: newRule._id },
+      { ruleId: newRule.id },
       { userId: user.id! }
     );
 
@@ -165,6 +119,7 @@ export const createRule = async (
  * @param req
  * @param res
  * @param next
+ * @returns Updated rule
  */
 export const updateRule = async (
   req: AuthRequest,
@@ -172,6 +127,7 @@ export const updateRule = async (
   next: NextFunction
 ): Promise<void> => {
   const userPayload = req.user as { userEmail?: string } | undefined;
+
   if (!userPayload?.userEmail) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
     return;
@@ -185,12 +141,17 @@ export const updateRule = async (
 
   try {
     await info(
-      "Rule update attempt started",
+      "Rule update started",
       { ruleId: req.params.id, body: req.body },
       { userId: user.id! }
     );
 
-    const updatedRule = await Rule.updateValidated(req.params.id!, req.body);
+    const payload = {
+      ...req.body,
+      updatedAt: new Date(),
+    };
+
+    const updatedRule = await updateValidatedRule(req.params.id!, payload);
 
     if (!updatedRule) {
       res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Rule not found"));
@@ -200,7 +161,7 @@ export const updateRule = async (
     res
       .status(HTTP_STATUS.OK)
       .json(successResponse(updatedRule, MESSAGES.RULE_UPDATED));
-  } catch (err) {
+  } catch (err: unknown) {
     if (err instanceof ZodError) {
       res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
       return;
@@ -210,10 +171,11 @@ export const updateRule = async (
 };
 
 /**
- * Delete rule by ID
+ * Delete rule by ID (soft delete)
  * @param req
  * @param res
  * @param next
+ * @returns Boolean indicating if deletion was successful
  */
 export const deleteRule = async (
   req: AuthRequest,
@@ -221,7 +183,8 @@ export const deleteRule = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const deleted = await Rule.findByIdAndDelete(req.params.id);
+    const deleted = await deleteRuleFromDB(req.params.id!);
+
     if (!deleted) {
       res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Rule not found"));
       return;

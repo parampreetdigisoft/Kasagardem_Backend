@@ -1,12 +1,12 @@
 import { z } from "zod";
 
-// DTO - strict validation
+// DTO - strict validation for PostgreSQL
 export const createLeadDto = z
   .object({
     partnerProfileIds: z
-      .array(z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId format"))
+      .array(z.string().uuid({ message: "Invalid UUID format" }))
       .min(1, "At least one partner profile ID is required"),
-    userId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId format"),
+    userId: z.string().uuid({ message: "Invalid UUID format" }),
     leadsStatus: z
       .enum(["new", "converted", "closed"])
       .optional()

@@ -56,11 +56,6 @@ const router: Router = express.Router();
  *           type: array
  *           items:
  *             $ref: "#/components/schemas/RuleCondition"
- *         affiliateFor:
- *           type: string
- *           nullable: true
- *           description: Affiliate keyword reference
- *           example: "fertilizer"
  *
  *     RuleWithQuestionText:
  *       type: object
@@ -88,11 +83,6 @@ const router: Router = express.Router();
  *                 type: array
  *                 items:
  *                   type: string
- *         affiliateFor:
- *           type: string
- *           nullable: true
- *           description: Affiliate keyword reference
- *           example: "fertilizer"
  */
 
 /**
