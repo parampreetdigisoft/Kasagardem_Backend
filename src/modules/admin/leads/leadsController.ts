@@ -93,11 +93,6 @@ export const createLeadController = async (
       return;
     }
 
-    await info("Lead creation started", {
-      partnerIds,
-      email: userPayload.userEmail,
-    });
-
     // ✅ Create lead in DB
     const createdLead = await createLead({
       partnerIds,
