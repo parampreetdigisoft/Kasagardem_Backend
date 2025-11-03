@@ -49,6 +49,9 @@ export const initializeFirebaseAdmin = (): void => {
 export const verifyFirebaseToken = async (
   idToken: string
 ): Promise<DecodedIdToken> => {
+  if (!firebaseInitialized) {
+    initializeFirebaseAdmin(); // ✅ Ensure it’s initialized
+  }
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     return decodedToken;

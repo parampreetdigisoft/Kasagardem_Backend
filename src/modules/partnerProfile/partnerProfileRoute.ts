@@ -207,7 +207,7 @@ router.put(
  * /api/v1/partnerProfile/rating:
  *   patch:
  *     summary: Update the rating of a partner profile
- *     description: Updates only the rating field of a specific partner profile using the partnerProfileId provided in the request body.
+ *     description: Updates only the rating field of a specific partner profile using the partnerId provided in the request body.
  *     tags: [PartnerProfile]
  *     security:
  *       - bearerAuth: []
@@ -218,10 +218,10 @@ router.put(
  *           schema:
  *             type: object
  *             required:
- *               - partnerProfileId
+ *               - partnerId
  *               - rating
  *             properties:
- *               partnerProfileId:
+ *               partnerId:
  *                 type: string
  *                 description: The unique ID of the partner profile
  *                 example: "652f8e9b4a5c9e5b4a3d9c22"

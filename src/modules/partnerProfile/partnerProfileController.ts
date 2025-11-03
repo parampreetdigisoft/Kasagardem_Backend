@@ -236,11 +236,11 @@ export const updatePartnerRating = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const { partnerProfileId, rating } = req.body;
+  const { partnerId, rating } = req.body;
 
   try {
     const updatedProfile = await PartnerProfile.updateRating(
-      partnerProfileId,
+      partnerId,
       rating
     );
 

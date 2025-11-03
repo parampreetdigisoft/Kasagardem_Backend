@@ -84,24 +84,24 @@ export const createLeadController = async (
       return;
     }
 
-    const { partnerProfileIds, message, service } = req.body;
+    const { partnerIds, message, service } = req.body;
 
-    if (!Array.isArray(partnerProfileIds) || partnerProfileIds.length === 0) {
+    if (!Array.isArray(partnerIds) || partnerIds.length === 0) {
       res
         .status(HTTP_STATUS.BAD_REQUEST)
-        .json(errorResponse("partnerProfileIds must be a non-empty array"));
+        .json(errorResponse("partnerIds must be a non-empty array"));
       return;
     }
 
     await info("Lead creation started", {
-      partnerProfileIds,
+      partnerIds,
       email: userPayload.userEmail,
     });
 
-    // ✅ PostgreSQL lead creation
+    // ✅ Create lead in DB
     const createdLead = await createLead({
-      partnerProfileIds,
-      userId: userPayload.userId, // user id from auth payload
+      partnerIds,
+      userId: userPayload.userId,
       leadsStatus: "new",
       isDeleted: false,
     });
@@ -113,58 +113,61 @@ export const createLeadController = async (
       return;
     }
 
-    // Prepare notification details
-    const userRecord = await findUserByEmail(userPayload.userEmail!);
-
-    const userData = {
-      email: userPayload.userEmail!,
-      name: userRecord?.name!,
-    };
-
-    const db = getDB();
-
-    const query = `
-  SELECT id, email, company_name, project_image_url
-  FROM public.partner_profiles
-  WHERE id = ANY($1::uuid[])
-  ORDER BY id ASC;
-`;
-
-    const { rows } = await db.query<PartnerProfile>(query, [partnerProfileIds]);
-
-    const partnersData: PartnerData[] = rows.map((row) => ({
-      email: row.email,
-      name: row.company_name,
-      logoUrl: row.projectimageurl || "",
-    }));
-
-    const leadDetails = {
-      phone: userRecord?.phone_number ?? "N/A",
-      message,
-      service,
-      leadId: createdLead.id!,
-      timestamp: new Date().toLocaleString(),
-    };
-
-    try {
-      await sendLeadEmails(
-        userData,
-        partnersData,
-        config.ADMIN_EMAIL,
-        leadDetails
-      );
-      await info("Lead emails sent successfully", { leadId: createdLead.id });
-    } catch (emailError) {
-      await error("Failed to send lead emails", {
-        message:
-          emailError instanceof Error ? emailError.message : String(emailError),
-        leadId: createdLead.id,
-      });
-    }
-
+    // ✅ Immediately send success response (non-blocking)
     res
       .status(HTTP_STATUS.CREATED)
-      .json(successResponse(createdLead, "Lead created successfully"));
+      .json(successResponse(null, "Lead created successfully"));
+
+    // ✅ Run background email task (does not block response)
+    (async (): Promise<void> => {
+      try {
+        const userRecord = await findUserByEmail(userPayload.userEmail!);
+        const userData = {
+          email: userPayload.userEmail!,
+          name: userRecord?.name ?? "User",
+        };
+
+        const db = getDB();
+        const query = `
+          SELECT id, email, company_name, project_image_url
+          FROM public.partner_profiles
+          WHERE id = ANY($1::uuid[])
+          ORDER BY id ASC;
+        `;
+
+        const { rows } = await db.query<PartnerProfile>(query, [partnerIds]);
+
+        const partnersData: PartnerData[] = rows.map((row) => ({
+          email: row.email,
+          name: row.company_name,
+          logoUrl: row.projectimageurl || "",
+        }));
+
+        const leadDetails = {
+          phone: userRecord?.phone_number ?? "N/A",
+          message,
+          service,
+          leadId: createdLead.id!,
+          timestamp: new Date().toLocaleString(),
+        };
+
+        await sendLeadEmails(
+          userData,
+          partnersData,
+          config.ADMIN_EMAIL,
+          leadDetails
+        );
+        await info("Lead emails sent successfully", { leadId: createdLead.id });
+      } catch (emailError) {
+        await error("Failed to send lead emails", {
+          message:
+            emailError instanceof Error
+              ? emailError.message
+              : String(emailError),
+          leadId: createdLead.id,
+        });
+      }
+    })();
   } catch (err: unknown) {
     if (err instanceof ZodError) {
       res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });

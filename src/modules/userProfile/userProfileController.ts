@@ -11,7 +11,15 @@ import { findUserByEmail } from "../auth/authRepository";
 import { getDB } from "../../core/config/db";
 import { IFullUserProfile, IUserProfile } from "../../interface/userProfile";
 import { uploadBase64ToBunny } from "../../core/services/bunnyUploadService";
-import { updateValidatedUserProfile } from "./userProfileModel";
+import {
+  getUserProfileById,
+  updateValidatedUserProfile,
+} from "./userProfileModel";
+import {
+  deleteFileFromS3,
+  getSignedFileUrl,
+  uploadBase64ToS3,
+} from "../../core/services/s3UploadService";
 
 /**
  * Handles the creation of a new user profile.
@@ -171,7 +179,7 @@ export const createUserProfile = async (
 
     res
       .status(HTTP_STATUS.CREATED)
-      .json(successResponse(createdProfile, MESSAGES.PROFILE_CREATED));
+      .json(successResponse(null, MESSAGES.PROFILE_CREATED));
   } catch (err: unknown) {
     const errorObj: CustomError =
       err instanceof Error
@@ -271,7 +279,8 @@ export const getCurrentUserProfile = async (
       name: user.name || null,
       email: user.email || null,
       contactNumber: user.phone_number || null,
-      profileImage: userProfile?.profile_image || null,
+      profileImage:
+        (await getSignedFileUrl(userProfile?.profile_image)) || null,
       dateOfBirth: userProfile?.date_of_birth
         ? new Date(userProfile.date_of_birth).toISOString().split("T")[0]
         : null,
@@ -398,16 +407,36 @@ export const updateUserProfile = async (
       );
       if (isBase64) {
         try {
-          const fileName = `profiles/${user.id}_${Date.now()}.jpg`;
-          const uploadedUrl = await uploadBase64ToBunny(
+          const plantName = `${Date.now()}.jpg`; // or `${user.id}_${Date.now()}.jpg`
+          const userId = user.id!.toString(); // ensure string type
+          const folder = "Users/ProfileImages"; // or any folder name you prefer
+          // Fetch old profile image from DB
+          const oldProfile = await getUserProfileById(profileId);
+          const oldFileKey = oldProfile?.profile_image || null;
+
+          // Upload new image
+          const uploadedFileKey = await uploadBase64ToS3(
             req.body.profileImage,
-            fileName
+            plantName,
+            userId,
+            folder
           );
-          req.body.profileImage = uploadedUrl;
+
+          // Delete old image (if exists)
+          if (oldFileKey) {
+            await deleteFileFromS3(oldFileKey);
+            await info("Deleted old profile image from S3", {
+              userId: user.id,
+              oldFileKey,
+            });
+          }
+
+          // Assign new file key to request body
+          req.body.profileImage = uploadedFileKey;
           await info("Profile image uploaded to Bunny CDN", {
             email: userPayload.userEmail,
             userId: user.id,
-            uploadedUrl,
+            uploadedFileKey,
             req,
           });
         } catch (uploadErr: unknown) {
@@ -452,7 +481,7 @@ export const updateUserProfile = async (
 
     res
       .status(HTTP_STATUS.OK)
-      .json(successResponse(updatedProfile, MESSAGES.PROFILE_UPDATED));
+      .json(successResponse(null, MESSAGES.PROFILE_UPDATED));
   } catch (err: unknown) {
     const errorObj: CustomError =
       err instanceof Error

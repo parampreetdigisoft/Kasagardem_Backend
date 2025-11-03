@@ -1,5 +1,4 @@
 import jwt, { SignOptions, Secret } from "jsonwebtoken";
-import { google } from "googleapis";
 import config from "../config/env";
 
 if (!config.JWT_SECRET) {
@@ -62,8 +61,4 @@ export const generateToken = (
   );
 };
 
-// Configure OAuth2 client
-export const oauth2Client = new google.auth.OAuth2(
-  config.GOOGLE_CLIENT_ID,
-  config.GOOGLE_CLIENT_SECRET
-);
+

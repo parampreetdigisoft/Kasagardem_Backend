@@ -58,7 +58,6 @@ const corsOptions = {
   exposedHeaders: ["Authorization"],
   credentials: true, // Set to true for cookies or HTTP auth
 };
-
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -76,7 +75,7 @@ app.use("/api/v1/admin", ruleRoutes);
 // Partner Profile Routes
 app.use("/api/v1/partnerProfile", partnerProfileRoutes);
 // Add Question Answer user selected data Routes
-app.use("/api/v1", answerRoutes);
+app.use("/api/v1/answers", answerRoutes);
 // Add Plants user selected data Routes
 app.use("/api/v1", plantRoutes);
 // State City Country Routes

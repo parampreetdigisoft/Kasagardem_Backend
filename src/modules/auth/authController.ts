@@ -85,7 +85,7 @@ export const register = async (
     }
 
     // ✅ Check if email already exists
-    const existingUser = await findUserByEmail(email);
+    const existingUser = await findUserByEmail(email.toLowerCase());
     if (existingUser) {
       await warn(
         "User already exists",
@@ -101,7 +101,7 @@ export const register = async (
     // ✅ Create user with validation
     const newUser = await createValidatedUser({
       name,
-      email,
+      email: email.toLowerCase(),
       password,
       roleId: role.id,
       phoneNumber,
@@ -203,7 +203,7 @@ export const login = async (
     await info("User login attempt", { email }, { source: "auth.login", req });
 
     // ✅ 1. Find user by email
-    const user = await findUserByEmail(email);
+    const user = await findUserByEmail(email.toLowerCase());
 
     if (!user || !user.password) {
       await warn(
@@ -243,7 +243,7 @@ export const login = async (
     }
 
     // ✅ 4. Generate JWT
-    const token = generateToken(user.email, role.name, user.id!);
+    const token = generateToken(user.email.toLowerCase(), role.name, user.id!);
 
     await info(
       "User login successful",

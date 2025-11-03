@@ -1,7 +1,11 @@
 import express, { Router } from "express";
 import validateRequest from "../../core/middleware/validateRequest";
 import { answerValidation } from "./answerValidation";
-import { submitAnswer } from "./answerController";
+import {
+  submitAnswer,
+  getRecommendedPlantsController,
+  getRecommendedPartnersController,
+} from "./answerController";
 
 const router: Router = express.Router();
 
@@ -9,7 +13,7 @@ const router: Router = express.Router();
  * @swagger
  * tags:
  *   name: Answers
- *   description: API for submitting survey answers
+ *   description: API for submitting survey answers and fetching recommendations
  */
 
 /**
@@ -56,10 +60,46 @@ const router: Router = express.Router();
  *           type: array
  *           items:
  *             $ref: '#/components/schemas/AnswerItem'
- *         isDeleted:
- *           type: boolean
- *           description: Soft delete flag (optional)
- *           default: false
+ *
+ *     PlantRecommendation:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         name:
+ *           type: string
+ *         scientific:
+ *           type: string
+ *         image:
+ *           type: string
+ *         description:
+ *           type: string
+ *         whyRecommended:
+ *           type: string
+ *
+ *     PartnerRecommendation:
+ *       type: object
+ *       properties:
+ *         partnerId:
+ *           type: string
+ *         companyName:
+ *           type: string
+ *         speciality:
+ *           type: string
+ *         email:
+ *           type: string
+ *         mobileNumber:
+ *           type: string
+ *         contactPerson:
+ *           type: string
+ *         website:
+ *           type: string
+ *         address:
+ *           type: string
+ *         projectImageUrl:
+ *           type: string
+ *         whyRecommended:
+ *           type: string
  *
  *     ApiResponse:
  *       type: object
@@ -74,7 +114,7 @@ const router: Router = express.Router();
 
 /**
  * @swagger
- * /api/v1/answer:
+ * /api/v1/answers:
  *   post:
  *     summary: Submit answers for survey questions
  *     description: Submit multiple answers in a single request. Supports both selected options and selected addresses.
@@ -85,19 +125,6 @@ const router: Router = express.Router();
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/AnswerInput'
- *           example:
- *             answers: [
- *               {
- *                 questionId: "c9d4c053-49b6-410c-bc78-2d54a9991870",
- *                 type: 1,
- *                 selectedOption: "Aesthetics"
- *               },
- *               {
- *                 questionId: "d2f6a8c2-4fcb-4e4b-8f67-458a3c97a9f5",
- *                 type: 2,
- *                 selectedAddress: { state: "California", city: "Los Angeles" }
- *               }
- *             ]
  *     responses:
  *       201:
  *         description: Answers submitted successfully
@@ -111,12 +138,94 @@ const router: Router = express.Router();
  *               message: "Answers submitted successfully"
  *               data:
  *                 responseId: "b6e64bdb-61e2-4d58-bb58-5fcd6b9c8a77"
- *                 plantRecommendations: []
- *                 partnerRecommendations: []
  *       400:
  *         description: Validation error
  */
 
-router.post("/answer", validateRequest(answerValidation), submitAnswer);
+/**
+ * @swagger
+ * /api/v1/answers/plants/{responseId}:
+ *   get:
+ *     summary: Get recommended plants for a submitted survey
+ *     description: Fetch plant recommendations using the survey answers associated with a given response ID.
+ *     tags: [Answers]
+ *     parameters:
+ *       - in: path
+ *         name: responseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Unique ID of the survey response
+ *     responses:
+ *       200:
+ *         description: Plant recommendations fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *             example:
+ *               success: true
+ *               message: "Plant recommendations fetched successfully"
+ *               data:
+ *                 responseId: "b6e64bdb-61e2-4d58-bb58-5fcd6b9c8a77"
+ *                 plantRecommendations:
+ *                   - id: "P001"
+ *                     name: "Rose"
+ *                     scientific: "Rosa"
+ *                     image: "https://example.com/rose.jpg"
+ *                     description: "A beautiful flowering plant."
+ *                     whyRecommended: "Best for aesthetic gardens"
+ *       404:
+ *         description: No answers found for this responseId
+ */
+
+/**
+ * @swagger
+ * /api/v1/answers/partners/{responseId}:
+ *   get:
+ *     summary: Get recommended professional partners for a survey
+ *     description: Fetch partner recommendations (landscapers, designers, etc.) for a given survey response ID.
+ *     tags: [Answers]
+ *     parameters:
+ *       - in: path
+ *         name: responseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Unique ID of the survey response
+ *     responses:
+ *       200:
+ *         description: Partner recommendations fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *             example:
+ *               success: true
+ *               message: "Partner recommendations fetched successfully"
+ *               data:
+ *                 responseId: "b6e64bdb-61e2-4d58-bb58-5fcd6b9c8a77"
+ *                 partnerRecommendations:
+ *                   - partnerId: "P001"
+ *                     companyName: "GreenLandscapes"
+ *                     speciality: "Garden design"
+ *                     email: "contact@greenland.com"
+ *                     mobileNumber: "+1-555-1234"
+ *                     contactPerson: "John Doe"
+ *                     address: "Los Angeles, CA"
+ *                     website: "https://greenland.com"
+ *                     projectImageUrl: "https://example.com/project.jpg"
+ *                     whyRecommended: "Matches your aesthetic preferences"
+ *       404:
+ *         description: No answers found for this responseId
+ */
+
+router.post("", validateRequest(answerValidation), submitAnswer);
+router.get("/plants/:responseId", getRecommendedPlantsController);
+router.get("/partners/:responseId", getRecommendedPartnersController);
 
 export default router;

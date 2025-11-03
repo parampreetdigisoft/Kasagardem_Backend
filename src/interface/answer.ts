@@ -1,25 +1,14 @@
 // Types for answers
-export interface IAnswerType1 {
-  type: 1;
+export interface IAnswerType1or2 {
+  type: 1 | 2;
   questionId: string;
   selectedOption: string;
 }
 
-export interface IAnswerType2 {
-  type: 2;
-  questionId: string;
-  selectedAddress: {
-    state: string;
-    city: string;
-    street?: string;
-    country?: string;
-    zipCode?: string;
-  };
-}
-
-export type ISubmitAnswer = IAnswerType1 | IAnswerType2;
+export type ISubmitAnswer = IAnswerType1or2;
 
 export interface IPartnerRecommendation {
+  partnerId: string;
   email: string;
   mobileNumber: string;
   companyName?: string;

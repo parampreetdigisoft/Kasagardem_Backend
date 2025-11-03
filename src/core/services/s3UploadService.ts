@@ -1,10 +1,23 @@
-import AWS from "aws-sdk";
+import {
+  S3Client,
+  PutObjectCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
+  CompletedPart,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import config from "../config/env";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const s3 = new AWS.S3({
-  accessKeyId: config.AWS_ACCESS_KEY_ID,
-  secretAccessKey: config.AWS_SECRET_ACCESS_KEY,
+const s3Client = new S3Client({
   region: config.AWS_REGION,
+  credentials: {
+    accessKeyId: config.AWS_ACCESS_KEY_ID,
+    secretAccessKey: config.AWS_SECRET_ACCESS_KEY,
+  },
 });
 
 // 1MB chunk size for multipart upload
@@ -18,21 +31,31 @@ const CHUNK_SIZE = 1024 * 1024; // 1MB
  * @param mimeType - The MIME type of the file.
  * @returns A promise that resolves to the public URL of the uploaded file.
  */
+/**
+ * Uploads a small file to AWS S3 using a simple upload and returns the file key.
+ *
+ * @param buffer - The file content as a Buffer.
+ * @param fileName - The desired file name in the S3 bucket.
+ * @param mimeType - The MIME type of the file.
+ * @returns A promise that resolves to the S3 file key.
+ */
 const simpleUpload = async (
   buffer: Buffer,
   fileName: string,
   mimeType: string
 ): Promise<string> => {
-  const params: AWS.S3.PutObjectRequest = {
+  const command = new PutObjectCommand({
     Bucket: config.AWS_S3_BUCKET!,
     Key: fileName,
     Body: buffer,
     ContentType: mimeType,
-    ACL: "public-read",
-  };
+    ServerSideEncryption: "AES256",
+  });
 
-  const { Location } = await s3.upload(params).promise();
-  return Location!;
+  await s3Client.send(command);
+
+  // ✅ Return only the S3 file key instead of the public URL
+  return fileName;
 };
 
 /**
@@ -40,18 +63,17 @@ const simpleUpload = async (
  * Uses a simple upload for small files and multipart upload with retry logic for larger files.
  *
  * @param base64Image - The base64 string representing the image, including MIME type prefix.
- * @param plantName - save plant name image
- * @param userId - save images in user folder wrt user id
- * @param folder - Optional S3 folder to store the file in. Defaults to "plants".
- * @param maxRetries - Optional number of retry attempts for multipart uploads. Defaults to 3.
- * @returns A promise that resolves to the public URL of the uploaded file.
- * @throws Will throw an error if the base64 string is invalid or the upload fails.
+ * @param plantName - The name of the plant, used as part of the file name.
+ * @param userId - The user ID, used to create a user-specific folder path.
+ * @param folder - The folder name inside the S3 bucket where the file will be stored.
+ * @param maxRetries - The maximum number of retry attempts for multipart uploads. Defaults to 3.
+ * @returns {Promise<string>} A promise that resolves to the public URL of the uploaded file.
  */
 export const uploadBase64ToS3 = async (
   base64Image: string,
   plantName: string,
   userId: string,
-  folder = "plants",
+  folder: string,
   maxRetries = 3
 ): Promise<string> => {
   try {
@@ -66,15 +88,14 @@ export const uploadBase64ToS3 = async (
     }
 
     const buffer = Buffer.from(base64Data, "base64");
-
-    const fileName = `${userId}/${folder}/${plantName}`;
+    const fileName = `${folder}/${userId}/${plantName}`;
 
     // Use simple upload for small files
     if (buffer.length < CHUNK_SIZE) {
       return await simpleUpload(buffer, fileName, mimeType);
     }
 
-    // Use multipart upload with retry logic
+    // Use multipart upload for large files
     return await multipartUploadWithRetry(
       buffer,
       fileName,
@@ -97,11 +118,10 @@ export const uploadBase64ToS3 = async (
  * Performs a multipart upload to S3 with retry logic for each part.
  *
  * @param buffer - The file data as a Buffer.
- * @param fileName - The destination file name in S3.
- * @param mimeType - The MIME type of the file.
- * @param maxRetries - Maximum retry attempts for each part in case of failure.
- * @returns A promise that resolves to the public URL of the uploaded file.
- * @throws Will throw an error if the multipart upload cannot be completed after retries.
+ * @param fileName - The destination file name in the S3 bucket.
+ * @param mimeType - The MIME type of the file being uploaded.
+ * @param maxRetries - The maximum number of retry attempts for each part upload.
+ * @returns {Promise<string>} A promise that resolves to the public URL of the uploaded file once the multipart upload is complete.
  */
 const multipartUploadWithRetry = async (
   buffer: Buffer,
@@ -113,22 +133,21 @@ const multipartUploadWithRetry = async (
 
   try {
     // Create multipart upload
-    const createParams: AWS.S3.CreateMultipartUploadRequest = {
+    const createCommand = new CreateMultipartUploadCommand({
       Bucket: config.AWS_S3_BUCKET!,
       Key: fileName,
       ContentType: mimeType,
       ACL: "public-read",
-    };
+    });
 
-    const { UploadId } = await s3.createMultipartUpload(createParams).promise();
-    uploadId = UploadId;
-
+    const createResponse = await s3Client.send(createCommand);
+    uploadId = createResponse.UploadId;
     if (!uploadId) {
       throw new Error("Failed to create multipart upload");
     }
 
     const totalParts = Math.ceil(buffer.length / CHUNK_SIZE);
-    const parts: AWS.S3.CompletedPart[] = [];
+    const parts: CompletedPart[] = [];
 
     // Upload each part with retry logic
     for (let i = 0; i < totalParts; i++) {
@@ -136,28 +155,27 @@ const multipartUploadWithRetry = async (
       const end = Math.min(start + CHUNK_SIZE, buffer.length);
       const partBuffer = buffer.slice(start, end);
 
-      let partResult: AWS.S3.CompletedPart | null = null;
+      let partResult: CompletedPart | null = null;
       let attempts = 0;
 
       while (attempts < maxRetries && !partResult) {
         try {
-          const uploadPartParams: AWS.S3.UploadPartRequest = {
+          const uploadPartCommand = new UploadPartCommand({
             Bucket: config.AWS_S3_BUCKET!,
             Key: fileName,
             PartNumber: i + 1,
             UploadId: uploadId,
             Body: partBuffer,
-          };
+          });
 
-          const result = await s3.uploadPart(uploadPartParams).promise();
+          const uploadResult = await s3Client.send(uploadPartCommand);
           partResult = {
-            ETag: result.ETag!,
+            ETag: uploadResult.ETag!,
             PartNumber: i + 1,
           };
         } catch (partError: unknown) {
           attempts++;
 
-          // Narrow unknown to Error
           const errObj: Error =
             partError instanceof Error
               ? partError
@@ -173,7 +191,7 @@ const multipartUploadWithRetry = async (
             );
           }
 
-          // Wait before retry (exponential backoff)
+          // Exponential backoff before retry
           await new Promise((resolve) =>
             setTimeout(resolve, Math.pow(2, attempts) * 1000)
           );
@@ -184,30 +202,29 @@ const multipartUploadWithRetry = async (
     }
 
     // Complete multipart upload
-    const completeParams: AWS.S3.CompleteMultipartUploadRequest = {
+    const completeCommand = new CompleteMultipartUploadCommand({
       Bucket: config.AWS_S3_BUCKET!,
       Key: fileName,
       UploadId: uploadId,
       MultipartUpload: {
-        Parts: parts.sort((a, b) => a.PartNumber! - b.PartNumber!),
+        Parts: parts.sort((a, b) => (a.PartNumber ?? 0) - (b.PartNumber ?? 0)),
       },
-    };
+    });
 
-    const { Location } = await s3
-      .completeMultipartUpload(completeParams)
-      .promise();
-    return Location!;
+    await s3Client.send(completeCommand);
+
+    // ✅ Return only the S3 key (fileName)
+    return fileName;
   } catch (error) {
     // Abort multipart upload on failure
     if (uploadId) {
       try {
-        await s3
-          .abortMultipartUpload({
-            Bucket: config.AWS_S3_BUCKET!,
-            Key: fileName,
-            UploadId: uploadId,
-          })
-          .promise();
+        const abortCommand = new AbortMultipartUploadCommand({
+          Bucket: config.AWS_S3_BUCKET!,
+          Key: fileName,
+          UploadId: uploadId,
+        });
+        await s3Client.send(abortCommand);
       } catch (abortError: unknown) {
         const errObj: Error =
           abortError instanceof Error
@@ -217,10 +234,42 @@ const multipartUploadWithRetry = async (
                   ? abortError
                   : "Unknown error during abort multipart upload"
               );
-
         console.error("Failed to abort multipart upload:", errObj.message);
       }
     }
     throw error;
+  }
+};
+
+/**
+ * Generates a pre-signed (temporary, secure) URL for accessing a private S3 object.
+ *
+ * @param fileKey - The key (path) of the file in the S3 bucket.
+ * @returns A Promise that resolves to a signed URL allowing temporary access to the file.
+ */
+export const getSignedFileUrl = async (fileKey: string): Promise<string> => {
+  const command = new GetObjectCommand({
+    Bucket: config.AWS_S3_BUCKET!,
+    Key: fileKey,
+  });
+
+  // expiresIn = seconds → 1 day = 86400 seconds
+  const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 86400 });
+  return signedUrl;
+};
+
+/**
+ * Deletes a file from S3.
+ * @param fileKey - The key (path) of the file to delete.
+ */
+export const deleteFileFromS3 = async (fileKey: string): Promise<void> => {
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: config.AWS_S3_BUCKET!,
+      Key: fileKey,
+    });
+    await s3Client.send(command);
+  } catch (err) {
+    console.error("❌ Failed to delete file from S3:", err);
   }
 };
