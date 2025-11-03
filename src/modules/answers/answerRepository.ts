@@ -1,8 +1,7 @@
 import { getDB } from "../../core/config/db";
 import { FieldIndex } from "../../interface";
 import {
-  IAnswerType1,
-  IAnswerType2,
+  IAnswerType1or2,
   IPartnerRecommendation,
   IPlantRecommendation,
   ISubmitAnswer,
@@ -285,11 +284,18 @@ export const getRecommendedPartners = async (
   const client = await getDB();
 
   try {
-    // Extract type 2 address info
-    const type2Answer = answers.find(
-      (ans): ans is IAnswerType2 => ans.type === 2
-    );
-    const userAddress = type2Answer?.selectedAddress;
+    const type2Answer = answers.find((ans) => ans.type === 2);
+
+    let userAddress: { state: string; city: string } | null = null;
+
+    if (type2Answer) {
+      const [state, city] = type2Answer.selectedOption
+        .split("/")
+        .map((s) => s.trim());
+      if (state && city) {
+        userAddress = { state, city };
+      }
+    }
 
     if (!userAddress?.state || !userAddress?.city) {
       return [];
@@ -350,7 +356,7 @@ export const getRecommendedPartners = async (
 
     // Build match reason
     const matchedOptions = answers
-      .filter((ans): ans is IAnswerType1 => ans.type === 1)
+      .filter((ans): ans is IAnswerType1or2 => ans.type === 1)
       .map((ans) => ans.selectedOption)
       .filter(Boolean);
 
@@ -361,6 +367,7 @@ export const getRecommendedPartners = async (
 
     // Map to return type
     return result.rows.map((partner) => ({
+      partnerId: partner.id,
       email: partner.email,
       mobileNumber: partner.mobile_number,
       companyName: partner.company_name || "",

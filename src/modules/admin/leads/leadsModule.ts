@@ -7,7 +7,7 @@ const updateLeadDto = createLeadDto.partial();
 
 export interface ILead {
   id?: string;
-  partnerProfileIds?: string[];
+  partnerIds?: string[];
   userId?: string;
   leadsStatus?: "new" | "converted" | "closed";
   isDeleted?: boolean;
@@ -22,7 +22,7 @@ export interface ILead {
  */
 function mapField(field: string): string {
   const mapping: Record<string, string> = {
-    partnerProfileIds: "partner_profile_ids",
+    partnerIds: "partner_profile_ids",
     userId: "user_id",
     leadsStatus: "leads_status",
     isDeleted: "is_deleted",
@@ -52,7 +52,7 @@ export async function createLead(data: unknown): Promise<ILead | null> {
     `;
 
     const values = [
-      parsedData.partnerProfileIds,
+      parsedData.partnerIds,
       parsedData.userId,
       parsedData.leadsStatus,
       parsedData.isDeleted,

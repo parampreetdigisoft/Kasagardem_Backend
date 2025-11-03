@@ -11,8 +11,9 @@ import {
   getRecommendedPlants,
 } from "./answerRepository";
 import { translateObject } from "./answerUtility";
-import { IPartnerRecommendation, ISurveyAnswer } from "../../interface/answer";
+import { ISurveyAnswer } from "../../interface/answer";
 import { detectLanguage } from "../../core/middleware/translationMiddleware";
+import { getDB } from "../../core/config/db";
 
 /**
  * Handles submission of answers for multiple questions.
@@ -49,35 +50,92 @@ export const submitAnswer = async (
 
     const detectedLang = firstText ? await detectLanguage(firstText) : null;
 
-    // 🌍 If request is in Portuguese → translate to English
+    //If request is in Portuguese → translate to English
     if (detectedLang?.startsWith("pt")) {
       answers = await translateObject<ISurveyAnswer[]>(answers, "en");
     }
 
-    // ✅ Insert into survey_responses + survey_answers
+    // Insert into survey_responses + survey_answers
     const { responseId } = await createSurveyResponse({
       answers,
     });
 
-    // ✅ Fetch recommendations
-    const recommendedPlants = await getRecommendedPlants(answers);
-    // 🧠 Check if user selected "Aesthetics" for the 3rd question
-    const thirdQuestionAnswer = answers[2]?.selectedOption; // assuming index 2 = 3rd question
-    const showPartnerRecommendations =
-      typeof thirdQuestionAnswer === "string" &&
-      thirdQuestionAnswer.toLowerCase().includes("aesthetic");
-
-    let recommendedPartners: IPartnerRecommendation[] = [];
-
-    if (showPartnerRecommendations) {
-      recommendedPartners = await getRecommendedPartners(answers);
-    }
-
-    // ✅ Success response
+    // Just return the responseId (no recommendation logic here)
     res.status(HTTP_STATUS.CREATED).json(
       successResponse(
         {
           responseId,
+        },
+        "Answers submitted successfully"
+      )
+    );
+  } catch (err: unknown) {
+    // Handle validation errors
+    if (err instanceof ZodError) {
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("Validation failed", { issues: err.issues }));
+      return;
+    }
+
+    // Handle all other errors
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse("Something went wrong", {
+        details: (err as Error).message,
+      })
+    );
+
+    next(err);
+  }
+};
+
+/**
+ * Get recommended plants based on survey answers associated with a response ID.
+ *
+ * @param req Express request object
+ * @param res Express response object
+ * @param next Express next function for error handling
+ */
+export const getRecommendedPlantsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { responseId } = req.params;
+
+    if (!responseId) {
+      res.status(400).json({ message: "responseId is required" });
+      return;
+    }
+
+    const client = await getDB();
+
+    // 🧠 Fetch all answers for this response
+    const result = await client.query(
+      `SELECT question_id, answer_type, selected_option
+       FROM survey_answers
+       WHERE response_id = $1`,
+      [responseId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ message: "No answers found for this responseId" });
+      return;
+    }
+
+    const answers = result.rows.map((row) => ({
+      questionId: row.question_id,
+      type: row.answer_type,
+      selectedOption: row.selected_option,
+    }));
+
+    // 🌿 Get plant recommendations
+    const recommendedPlants = await getRecommendedPlants(answers);
+
+    res.status(200).json(
+      successResponse(
+        {
           plantRecommendations: recommendedPlants.map((p) => ({
             id: p.id,
             name: p.common_name,
@@ -86,7 +144,86 @@ export const submitAnswer = async (
             description: p.description,
             whyRecommended: p.whyRecommended,
           })),
+        },
+        "Plant recommendations fetched successfully"
+      )
+    );
+  } catch (err) {
+    res.status(500).json(
+      errorResponse("Failed to fetch plant recommendations", {
+        details: (err as Error).message,
+      })
+    );
+    next(err);
+  }
+};
+
+/**
+ * Get recommended professional partners based on survey answers linked to a specific response ID.
+ *
+ * @param req Express request object
+ * @param res Express response object
+ * @param next Express next function for error handling
+ */
+export const getRecommendedPartnersController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { responseId } = req.params;
+
+    if (!responseId) {
+      res.status(400).json({ message: "responseId is required" });
+      return;
+    }
+
+    const client = await getDB();
+
+    // 🧠 Fetch all answers for this response
+    const result = await client.query(
+      `SELECT question_id, answer_type, selected_option
+       FROM survey_answers
+       WHERE response_id = $1`,
+      [responseId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ message: "No answers found for this responseId" });
+      return;
+    }
+
+    const answers = result.rows.map((row) => ({
+      questionId: row.question_id,
+      type: row.answer_type,
+      selectedOption: row.selected_option,
+    }));
+
+    // ✅ Determine if "aesthetic" answer was given (3rd question)
+    const thirdAnswer = answers[2]?.selectedOption?.toLowerCase() || "";
+    const showPartnerRecommendations = thirdAnswer.includes("aesthetic");
+
+    if (!showPartnerRecommendations) {
+      res.status(200).json(
+        successResponse(
+          {
+            responseId,
+            partnerRecommendations: [],
+          },
+          "No partner recommendations applicable for this response"
+        )
+      );
+      return;
+    }
+
+    // 👷 Get partner recommendations
+    const recommendedPartners = await getRecommendedPartners(answers);
+
+    res.status(200).json(
+      successResponse(
+        {
           partnerRecommendations: recommendedPartners.map((partner) => ({
+            partnerId: partner.partnerId,
             email: partner.email,
             mobileNumber: partner.mobileNumber,
             companyName: partner.companyName,
@@ -98,25 +235,15 @@ export const submitAnswer = async (
             whyRecommended: partner.whyRecommended,
           })),
         },
-        "Answers submitted successfully with plant and partner recommendations"
+        "Partner recommendations fetched successfully"
       )
     );
-  } catch (err: unknown) {
-    // ✅ Handle validation errors
-    if (err instanceof ZodError) {
-      res
-        .status(HTTP_STATUS.BAD_REQUEST)
-        .json(errorResponse("Validation failed", { issues: err.issues }));
-      return;
-    }
-
-    // ✅ Handle all other errors
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
-      errorResponse("Something went wrong", {
+  } catch (err) {
+    res.status(500).json(
+      errorResponse("Failed to fetch partner recommendations", {
         details: (err as Error).message,
       })
     );
-
     next(err);
   }
 };

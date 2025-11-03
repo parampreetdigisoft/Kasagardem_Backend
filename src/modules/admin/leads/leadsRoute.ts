@@ -24,7 +24,7 @@ const router: Router = express.Router();
  *           type: string
  *           description: Unique ID of the lead
  *           example: "64f5a7b2c1234567890abcde"
- *         partnerProfileId:
+ *         partnerId:
  *           type: string
  *           description: Reference ID of the partner profile associated with this lead
  *           example: "64f5a7b2c1234567890abcdf"
@@ -42,9 +42,9 @@ const router: Router = express.Router();
  *     LeadInput:
  *       type: object
  *       required:
- *         - partnerProfileIds
+ *         - partnerIds
  *       properties:
- *         partnerProfileIds:
+ *         partnerIds:
  *           type: array
  *           description: Array of partner profile IDs to create new leads
  *           items:
@@ -59,7 +59,7 @@ const router: Router = express.Router();
  * /api/v1/admin/leads:
  *   post:
  *     summary: Create new leads
- *     description: Create multiple leads using an array of partnerProfileIds
+ *     description: Create multiple leads using an array of partnerIds
  *     tags: [Leads]
  *     security:
  *       - bearerAuth: []
@@ -70,7 +70,7 @@ const router: Router = express.Router();
  *           schema:
  *             $ref: '#/components/schemas/LeadInput'
  *           example:
- *             partnerProfileIds: ["64f5a7b2c1234567890abcdf", "64f5a7b2c1234567890abce1"]
+ *             partnerIds: ["64f5a7b2c1234567890abcdf", "64f5a7b2c1234567890abce1"]
  *     responses:
  *       201:
  *         description: Leads created successfully
@@ -84,8 +84,8 @@ const router: Router = express.Router();
  *               message: "Leads created successfully"
  *               data:
  *                 createdLeads:
- *                   - partnerProfileId: "64f5a7b2c1234567890abcdf"
- *                   - partnerProfileId: "64f5a7b2c1234567890abce1"
+ *                   - partnerId: "64f5a7b2c1234567890abcdf"
+ *                   - partnerId: "64f5a7b2c1234567890abce1"
  *       400:
  *         description: Validation error
  *         content:
@@ -95,7 +95,7 @@ const router: Router = express.Router();
  *       401:
  *         description: Unauthorized - Invalid or missing authentication token
  *       409:
- *         description: Conflict - One or more leads already exist for the given partnerProfileIds and user
+ *         description: Conflict - One or more leads already exist for the given partnerIds and user
  */
 
 router.post(
@@ -137,13 +137,13 @@ router.post(
  *               data:
  *                 formattedLeads:
  *                   - leadId: "64f5a7b2c1234567890abcde"
- *                     partnerProfileId: "64f5a7b2c1234567890abcdf"
+ *                     partnerId: "64f5a7b2c1234567890abcdf"
  *                     userId: "64f5a7b2c1234567890abce0"
  *                     leadsStatus: "new"
  *                     createdAt: "2024-01-20T10:30:00Z"
  *                     updatedAt: "2024-01-20T10:30:00Z"
  *                   - leadId: "64f5a7b2c1234567890abce1"
- *                     partnerProfileId: "64f5a7b2c1234567890abcdf"
+ *                     partnerId: "64f5a7b2c1234567890abcdf"
  *                     userId: "64f5a7b2c1234567890abce2"
  *                     leadsStatus: "converted"
  *                     createdAt: "2024-01-20T11:15:00Z"

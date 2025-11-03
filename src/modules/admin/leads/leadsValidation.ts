@@ -1,7 +1,7 @@
 import Joi, { ObjectSchema } from "joi";
 
 export const leadValidation: ObjectSchema = Joi.object({
-  partnerProfileIds: Joi.array()
+  partnerIds: Joi.array()
     .items(
       Joi.string().uuid({ version: "uuidv4" }).messages({
         "string.guid": "Each partner profile ID must be a valid UUID",

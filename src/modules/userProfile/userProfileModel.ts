@@ -51,6 +51,23 @@ export async function createValidatedUserProfile(
 }
 
 /**
+ * Fetches a user profile record by its ID.
+ *
+ * @param profileId - The unique identifier of the user profile to fetch.
+ * @returns A promise that resolves to the user profile object if found, or `null` if not found.
+ */
+export async function getUserProfileById(
+  profileId: string
+): Promise<IUserProfile | null> {
+  const client = await getDB();
+  const result = await client.query<IUserProfile>(
+    "SELECT * FROM userprofiles WHERE id = $1",
+    [profileId]
+  );
+  return result.rows[0] || null;
+}
+
+/**
  * Updates an existing user profile with validation.
  * @param profileId - UUID of the profile to update
  * @param data - Unvalidated input data

@@ -21,7 +21,7 @@ export interface IFullUserProfile {
 export interface IUserProfile {
   id?: string;
   userId: string;
-  profileImage?: string | null;
+  profile_image?: string | null;
   dateOfBirth?: string | Date | null;
   gender?: "male" | "female" | "other" | "";
   bio?: string | null;
