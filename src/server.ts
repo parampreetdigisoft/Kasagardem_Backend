@@ -9,7 +9,7 @@ import config from "./core/config/env";
 const startServer = async (): Promise<void> => {
   try {
     // Start server
-    app.listen(config.PORT, () => {
+    app.listen(config.PORT, '0.0.0.0', () => {
       console.error(
         `🚀 Server running at: ${config.APPDEV_URL} in ${config.NODE_ENV} mode`
       );
