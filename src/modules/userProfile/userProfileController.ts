@@ -229,12 +229,6 @@ export const getCurrentUserProfile = async (
   }
 
   try {
-    await info("User profile retrieval attempt", {
-      email: userPayload.userEmail,
-      action: "getCurrentUserProfile",
-      req,
-    });
-
     // 1️⃣ Get user basic details
     const user = await findUserByEmail(userPayload.userEmail);
     if (!user) {

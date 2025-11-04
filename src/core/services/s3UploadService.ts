@@ -247,7 +247,12 @@ const multipartUploadWithRetry = async (
  * @param fileKey - The key (path) of the file in the S3 bucket.
  * @returns A Promise that resolves to a signed URL allowing temporary access to the file.
  */
-export const getSignedFileUrl = async (fileKey: string): Promise<string> => {
+export const getSignedFileUrl = async (
+  fileKey: string
+): Promise<string | null> => {
+  if (fileKey === null || fileKey === "") {
+    return null;
+  }
   const command = new GetObjectCommand({
     Bucket: config.AWS_S3_BUCKET!,
     Key: fileKey,
