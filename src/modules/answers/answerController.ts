@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
-import { createSurveyResponse } from "./answerModel";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import {
   errorResponse,
@@ -14,6 +13,7 @@ import { translateObject } from "./answerUtility";
 import { ISurveyAnswer } from "../../interface/answer";
 import { detectLanguage } from "../../core/middleware/translationMiddleware";
 import { getDB } from "../../core/config/db";
+import { createSurveyResponse } from "./answerModel";
 
 /**
  * Handles submission of answers for multiple questions.
@@ -41,7 +41,57 @@ export const submitAnswer = async (
       return;
     }
 
-    // 🔍 Detect language from first string field (fast heuristic)
+    // ✅ FAST: Just insert raw data first (no translation yet)
+    const { responseId } = await createSurveyResponse(answers);
+
+    // ✅ IMMEDIATELY respond to user
+    res
+      .status(HTTP_STATUS.CREATED)
+      .json(successResponse({ responseId }, "Answers submitted successfully"));
+
+    // ✅ Process translation and updates in background (fire-and-forget)
+    setImmediate(() => {
+      processAnswerTranslationAsync(responseId, answers).catch((err) => {
+        console.error("Background translation failed:", {
+          responseId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    });
+  } catch (err: unknown) {
+    if (err instanceof ZodError) {
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("Validation failed", { issues: err.issues }));
+      return;
+    }
+
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse("Something went wrong", {
+        details: (err as Error).message,
+      })
+    );
+    next(err);
+  }
+};
+
+/**
+ * Translates and processes survey answers asynchronously in the background.
+ *
+ * This function handles post-submission tasks such as translating survey answers
+ * to a required format or language and performing any follow-up operations needed
+ * for a given survey response.
+ *
+ * @param {string} responseId - The unique identifier of the submitted survey response.
+ * @param {ISurveyAnswer[]} answers - The list of answers provided by the user.
+ * @returns {Promise<void>} Resolves when all background translation operations are complete.
+ */
+async function processAnswerTranslationAsync(
+  responseId: string,
+  answers: ISurveyAnswer[]
+): Promise<void> {
+  try {
+    // Detect language
     const firstText =
       answers.find((a) => typeof a.selectedOption === "string")
         ?.selectedOption ||
@@ -50,44 +100,56 @@ export const submitAnswer = async (
 
     const detectedLang = firstText ? await detectLanguage(firstText) : null;
 
-    //If request is in Portuguese → translate to English
+    // If Portuguese, translate and update
     if (detectedLang?.startsWith("pt")) {
-      answers = await translateObject<ISurveyAnswer[]>(answers, "en");
+      const translatedAnswers = await translateObject<ISurveyAnswer[]>(
+        answers,
+        "en"
+      );
+      await updateSurveyAnswersTranslation(responseId, translatedAnswers);
     }
-
-    // Insert into survey_responses + survey_answers
-    const { responseId } = await createSurveyResponse({
-      answers,
-    });
-
-    // Just return the responseId (no recommendation logic here)
-    res.status(HTTP_STATUS.CREATED).json(
-      successResponse(
-        {
-          responseId,
-        },
-        "Answers submitted successfully"
-      )
-    );
-  } catch (err: unknown) {
-    // Handle validation errors
-    if (err instanceof ZodError) {
-      res
-        .status(HTTP_STATUS.BAD_REQUEST)
-        .json(errorResponse("Validation failed", { issues: err.issues }));
-      return;
-    }
-
-    // Handle all other errors
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
-      errorResponse("Something went wrong", {
-        details: (err as Error).message,
-      })
-    );
-
-    next(err);
+  } catch (err) {
+    throw err; // Caught by caller
   }
-};
+}
+
+/**
+ * Updates the translated survey answers in the database.
+ *
+ * This function saves the translated answers for a given survey response
+ * by updating the corresponding records in the database.
+ *
+ * @param {string} responseId - The unique identifier of the survey response to update.
+ * @param {ISurveyAnswer[]} translatedAnswers - The array of translated answers to be stored.
+ * @returns {Promise<void>} Resolves when all answers have been successfully updated.
+ */
+async function updateSurveyAnswersTranslation(
+  responseId: string,
+  translatedAnswers: ISurveyAnswer[]
+): Promise<void> {
+  const pool = getDB();
+
+  // Batch update using CASE statement
+  const updateQuery = `
+    UPDATE survey_answers
+    SET selected_option = CASE question_id
+      ${translatedAnswers.map((_, idx) => `WHEN $${idx * 2 + 2} THEN $${idx * 2 + 3}`).join(" ")}
+    END
+    WHERE response_id = $1
+      AND question_id IN (${translatedAnswers.map((_, idx) => `$${idx * 2 + 2}`).join(", ")});
+  `;
+
+  const values = [
+    responseId,
+    ...translatedAnswers.flatMap((ans) => [
+      ans.questionId,
+      ans.selectedOption ??
+        `${ans.selectedAddress?.state} / ${ans.selectedAddress?.city}`,
+    ]),
+  ];
+
+  await pool.query(updateQuery, values);
+}
 
 /**
  * Get recommended plants based on survey answers associated with a response ID.

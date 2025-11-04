@@ -79,6 +79,7 @@ export const createLeadController = async (
       | { userEmail?: string; role?: string; userId?: string }
       | undefined;
 
+    // ✅ Fast validation checks
     if (!userPayload?.userEmail || userPayload?.role !== "User") {
       res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
       return;
@@ -93,7 +94,7 @@ export const createLeadController = async (
       return;
     }
 
-    // ✅ Create lead in DB
+    // ✅ ONLY validate and insert lead - no other DB calls
     const createdLead = await createLead({
       partnerIds,
       userId: userPayload.userId,
@@ -108,61 +109,31 @@ export const createLeadController = async (
       return;
     }
 
-    // ✅ Immediately send success response (non-blocking)
+    // ✅ IMMEDIATELY respond - don't wait for anything else
     res
       .status(HTTP_STATUS.CREATED)
-      .json(successResponse(null, "Lead created successfully"));
+      .json(
+        successResponse({ leadId: createdLead.id }, "Lead created successfully")
+      );
 
-    // ✅ Run background email task (does not block response)
-    (async (): Promise<void> => {
-      try {
-        const userRecord = await findUserByEmail(userPayload.userEmail!);
-        const userData = {
-          email: userPayload.userEmail!,
-          name: userRecord?.name ?? "User",
-        };
-
-        const db = getDB();
-        const query = `
-          SELECT id, email, company_name, project_image_url
-          FROM public.partner_profiles
-          WHERE id = ANY($1::uuid[])
-          ORDER BY id ASC;
-        `;
-
-        const { rows } = await db.query<PartnerProfile>(query, [partnerIds]);
-
-        const partnersData: PartnerData[] = rows.map((row) => ({
-          email: row.email,
-          name: row.company_name,
-          logoUrl: row.projectimageurl || "",
-        }));
-
-        const leadDetails = {
-          phone: userRecord?.phone_number ?? "N/A",
-          message,
-          service,
-          leadId: createdLead.id!,
-          timestamp: new Date().toLocaleString(),
-        };
-
-        await sendLeadEmails(
-          userData,
-          partnersData,
-          config.ADMIN_EMAIL,
-          leadDetails
-        );
-        await info("Lead emails sent successfully", { leadId: createdLead.id });
-      } catch (emailError) {
-        await error("Failed to send lead emails", {
+    // ✅ Process everything else asynchronously (fire-and-forget)
+    setImmediate(() => {
+      processLeadEmailsAsync(
+        userPayload.userEmail!,
+        partnerIds,
+        createdLead.id!,
+        message,
+        service
+      ).catch((emailError) => {
+        error("Background email processing failed", {
           message:
             emailError instanceof Error
               ? emailError.message
               : String(emailError),
           leadId: createdLead.id,
         });
-      }
-    })();
+      });
+    });
   } catch (err: unknown) {
     if (err instanceof ZodError) {
       res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
@@ -171,3 +142,67 @@ export const createLeadController = async (
     next(err);
   }
 };
+
+/**
+ * Processes and sends lead-related emails to partners asynchronously.
+ *
+ * This function handles the background task of notifying multiple partners
+ * when a new lead is created, including user email, message, and service details.
+ *
+ * @param {string} userEmail - The email address of the user who submitted the lead.
+ * @param {string[]} partnerIds - The IDs of the partners to whom the email will be sent.
+ * @param {string} leadId - The unique identifier of the generated lead.
+ * @param {string} message - The message content sent by the user.
+ * @param {string} service - The type of service related to the lead.
+ * @returns {Promise<void>} Resolves when all emails have been processed.
+ */
+async function processLeadEmailsAsync(
+  userEmail: string,
+  partnerIds: string[],
+  leadId: string,
+  message: string,
+  service: string
+): Promise<void> {
+  try {
+    const userRecord = await findUserByEmail(userEmail);
+    const userData = {
+      email: userEmail,
+      name: userRecord?.name ?? "User",
+    };
+
+    const db = getDB();
+    const query = `
+      SELECT id, email, company_name, project_image_url
+      FROM public.partner_profiles
+      WHERE id = ANY($1::uuid[])
+      ORDER BY id ASC;
+    `;
+
+    const { rows } = await db.query<PartnerProfile>(query, [partnerIds]);
+
+    const partnersData: PartnerData[] = rows.map((row) => ({
+      email: row.email,
+      name: row.company_name,
+      logoUrl: row.projectimageurl || "",
+    }));
+
+    const leadDetails = {
+      phone: userRecord?.phone_number ?? "N/A",
+      message,
+      service,
+      leadId,
+      timestamp: new Date().toLocaleString(),
+    };
+
+    await sendLeadEmails(
+      userData,
+      partnersData,
+      config.ADMIN_EMAIL,
+      leadDetails
+    );
+
+    await info("Lead emails sent successfully", { leadId });
+  } catch (err) {
+    throw err; // Caught by caller
+  }
+}

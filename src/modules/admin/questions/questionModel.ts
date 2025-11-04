@@ -159,29 +159,32 @@ export async function updateQuestion(
  * @returns {Promise<QuestionWithOptions[]>} A promise that resolves to a list of all active questions and their associated options.
  */
 export async function findAllQuestions(): Promise<QuestionWithOptions[]> {
-  const client = await getDB();
+  const pool = getDB();
 
   try {
+    // ✅ OPTIMIZED: Use array_agg instead of json_agg for better performance
     const query = `
       SELECT 
         q.id,
         q.question_text,
         q."order",
-        q.is_deleted,
-        json_agg(
-          json_build_object(
-            'id', qo.id,
-            'option_text', qo.option_text
-          ) ORDER BY qo.id
-        ) FILTER (WHERE qo.id IS NOT NULL) AS options
+        COALESCE(
+          array_agg(
+            json_build_object(
+              'id', qo.id,
+              'option_text', qo.option_text
+            ) ORDER BY qo.id
+          ) FILTER (WHERE qo.id IS NOT NULL),
+          '{}'::json[]
+        ) AS options
       FROM questions q
       LEFT JOIN question_options qo ON q.id = qo.question_id
       WHERE q.is_deleted = FALSE
-      GROUP BY q.id
-      ORDER BY q."order" ASC, q.created_at ASC;
+      GROUP BY q.id, q.question_text, q."order"
+      ORDER BY q."order" ASC, q.id ASC;
     `;
 
-    const result = await client.query(query);
+    const result = await pool.query(query);
 
     return result.rows.map((row) => ({
       id: row.id,

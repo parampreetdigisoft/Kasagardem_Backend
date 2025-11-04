@@ -27,31 +27,30 @@ export interface ISurveyResponse {
  * Uses Zod for validation before inserting into PostgreSQL.
  *
  * @param data - The survey response data to validate and insert.
+ * @param answers
  * @returns A promise that resolves with the created response ID.
  */
 export async function createSurveyResponse(
-  data: ISurveyResponse
+  answers: ISurveyAnswerItem[]
 ): Promise<{ responseId: string }> {
-  const client = await getDB();
+  const pool = getDB();
 
   try {
-    // Insert into survey_responses
-    const responseResult = await client.query(
-      `INSERT INTO survey_responses ( is_deleted)
-       VALUES ($1)
-       RETURNING id;`,
+    await pool.query("BEGIN");
+
+    // ✅ Insert survey_responses
+    const responseResult = await pool.query(
+      `INSERT INTO survey_responses (is_deleted) VALUES ($1) RETURNING id;`,
       [false]
     );
 
     const responseId = responseResult.rows[0].id;
 
-    // ✅ Create array schema
-    const surveyAnswersArraySchema = z.array(surveyAnswerDto);
-
-    if (data.answers && data.answers.length > 0) {
-      // ✅ Validate array of answers
+    if (answers && answers.length > 0) {
+      // ✅ Validate all answers at once
+      const surveyAnswersArraySchema = z.array(surveyAnswerDto);
       const parsedAnswers = surveyAnswersArraySchema.parse(
-        data.answers.map((ans: ISurveyAnswerItem) => ({
+        answers.map((ans: ISurveyAnswerItem) => ({
           responseId,
           questionId: ans.questionId,
           answerType: ans.type,
@@ -63,18 +62,22 @@ export async function createSurveyResponse(
         }))
       );
 
-      // ✅ Only proceed if validation passes
-      for (const ans of parsedAnswers) {
-        await client.query(
-          `INSERT INTO survey_answers (response_id, question_id, answer_type, selected_option)
-       VALUES ($1, $2, $3, $4);`,
-          [ans.responseId, ans.questionId, ans.answerType, ans.selectedOption]
-        );
-      }
+      // ✅ FASTEST: Use UNNEST for bulk insert
+      const questionIds = parsedAnswers.map((a) => a.questionId);
+      const answerTypes = parsedAnswers.map((a) => a.answerType);
+      const selectedOptions = parsedAnswers.map((a) => a.selectedOption);
+
+      await pool.query(
+        `INSERT INTO survey_answers (response_id, question_id, answer_type, selected_option)
+         SELECT $1, * FROM UNNEST($2::uuid[], $3::integer[], $4::text[]);`,
+        [responseId, questionIds, answerTypes, selectedOptions]
+      );
     }
 
+    await pool.query("COMMIT");
     return { responseId };
   } catch (err) {
+    await pool.query("ROLLBACK");
     if (err instanceof ZodError) throw err;
     throw err;
   }

@@ -1,16 +1,19 @@
-import { Client } from "pg";
+import { Pool } from "pg";
 import config from "../config/env";
 
-let dbClient: Client | null = null;
+let dbPool: Pool | null = null;
 
 /**
- * Establishes a connection to the PostgreSQL database using the `pg` library.
- * Reads configuration values from environment variables defined in `config`.
- * If the connection fails, logs the error and terminates the process.
+ * Establishes a new connection pool to the PostgreSQL database.
  *
- * @returns {Promise<Client>} A promise that resolves with the connected PostgreSQL client instance.
+ * This function reads PostgreSQL credentials from environment variables,
+ * creates a connection pool with optimized performance settings,
+ * tests the connection, and stores it in a global variable for reuse.
+ *
+ * @returns {Promise<Pool>} A promise that resolves with the PostgreSQL connection pool instance.
+ * @throws {Error} If environment variables are missing or connection fails.
  */
-export const connectDB = async (): Promise<Client> => {
+export const connectDB = async (): Promise<Pool> => {
   if (
     !config.POSTGRE_HOST ||
     !config.POSTGRE_PORT ||
@@ -23,7 +26,7 @@ export const connectDB = async (): Promise<Client> => {
     );
   }
 
-  const client = new Client({
+  const pool = new Pool({
     host: config.POSTGRE_HOST,
     port: Number(config.POSTGRE_PORT),
     database: config.POSTGRE_DATABASE,
@@ -32,13 +35,19 @@ export const connectDB = async (): Promise<Client> => {
     ssl: {
       rejectUnauthorized: false,
     },
+    // ✅ Connection pool settings for better performance
+    max: 20, // Maximum connections in pool
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 6000,
   });
 
   try {
-    await client.connect();
-    console.error("✅ PostgreSQL connected successfully");
-    dbClient = client;
-    return client;
+    // Test the connection
+    const client = await pool.connect();
+    client.release();
+    console.error("✅ PostgreSQL pool connected successfully");
+    dbPool = pool;
+    return pool;
   } catch (error) {
     console.error("❌ PostgreSQL connection failed:", error);
     process.exit(1);
@@ -46,27 +55,34 @@ export const connectDB = async (): Promise<Client> => {
 };
 
 /**
- * Returns the existing database client instance.
- * Throws an error if the database has not been connected yet.
+ * Retrieves the existing PostgreSQL connection pool instance.
  *
- * @returns {Client} The connected PostgreSQL client instance.
+ * This helper function ensures that a database connection exists before use.
+ * It must be called after `connectDB()` has successfully initialized the pool.
+ *
+ * @returns {Pool} The active PostgreSQL pool instance.
+ * @throws {Error} If no connection pool has been initialized.
  */
-export const getDB = (): Client => {
-  if (!dbClient) {
-    throw new Error(
-      "Database not connected. Call connectDB() first in your app initialization."
-    );
+export const getDB = (): Pool => {
+  if (!dbPool) {
+    throw new Error("Database not connected. Call connectDB() first.");
   }
-  return dbClient;
+  return dbPool;
 };
 
 /**
- * Closes the database connection gracefully.
+ * Gracefully closes the PostgreSQL connection pool.
+ *
+ * This function releases all active database connections and
+ * resets the internal `dbPool` reference to `null`.
+ * It should be called during application shutdown to free resources.
+ *
+ * @returns {Promise<void>} A promise that resolves when the pool is disconnected.
  */
 export const disconnectDB = async (): Promise<void> => {
-  if (dbClient) {
-    await dbClient.end();
-    dbClient = null;
-    console.error("✅ PostgreSQL disconnected successfully");
+  if (dbPool) {
+    await dbPool.end();
+    dbPool = null;
+    console.error("✅ PostgreSQL pool disconnected successfully");
   }
 };
