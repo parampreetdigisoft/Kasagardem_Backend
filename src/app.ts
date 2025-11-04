@@ -16,19 +16,6 @@ import stateCityRoutes from "./modules/stateCity/stateCityRoutes";
 import leadsRoutes from "./modules/admin/leads/leadsRoute";
 import translationMiddleware from "./core/middleware/translationMiddleware";
 import { connectDB } from "./core/config/db";
-//import { createLeadsTable } from "./db/createLeadsTable";
-//import { createOptimizedIndexes } from "./db/createPartnerProfilesTable";
-//import { createPartnerProfilesTable } from "./db/createPartnerProfilesTable";
-//import { createPlantsTables } from "./db/createPlantsTables";
-
-//import { createSurveyTables } from "./db/createAnswersTable";
-// import { createRolesTable } from "./db/createRolesTable";
-// import { createQuestionsTable } from "./db/createQuestionsTable";
-// import { createLogsTable } from "./db/createLogsTable";
-// import { createRulesTables } from "./db/createRulesTable";
-// import { createUserProfilesTable } from "./db/createUserProfilesTable";
-// import { createUsersTable } from "./db/createUsersTable";
-
 const app = express();
 setupSwagger(app);
 
@@ -37,18 +24,6 @@ connectDB().catch((error) => {
   console.error("Failed to connect to database:", error);
   process.exit(1);
 });
-
-// createRulesTables();
-// createUserProfilesTable();
-// createUsersTable();
-// createRolesTable();
-// createQuestionsTable();
-//createSurveyTables();
-// createLogsTable();
-//createPlantsTables();
-//createPartnerProfilesTable();
-//createOptimizedIndexes();
-//createLeadsTable();
 
 // Middleware
 const corsOptions = {

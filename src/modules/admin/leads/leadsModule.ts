@@ -36,34 +36,32 @@ function mapField(field: string): string {
  * @returns The created lead record, or null if insertion failed.
  */
 export async function createLead(data: unknown): Promise<ILead | null> {
-  try {
-    const parsedData = createLeadDto.parse(data);
-    const client = await getDB();
+  // ✅ Validate first (this is fast)
+  const parsedData = createLeadDto.parse(data);
 
-    const query = `
-      INSERT INTO leads (
-        partner_profile_ids,
-        user_id,
-        leads_status,
-        is_deleted
-      )
-      VALUES ($1, $2, $3, $4)
-      RETURNING id, partner_profile_ids, user_id, leads_status;
-    `;
+  const pool = getDB();
 
-    const values = [
-      parsedData.partnerIds,
-      parsedData.userId,
-      parsedData.leadsStatus,
-      parsedData.isDeleted,
-    ];
+  const query = `
+    INSERT INTO leads (
+      partner_profile_ids,
+      user_id,
+      leads_status,
+      is_deleted
+    )
+    VALUES ($1, $2, $3, $4)
+    RETURNING id, partner_profile_ids, user_id, leads_status;
+  `;
 
-    const { rows } = await client.query<ILead>(query, values);
-    return rows[0] ?? null;
-  } catch (err) {
-    if (err instanceof ZodError) throw err;
-    throw err;
-  }
+  const values = [
+    parsedData.partnerIds,
+    parsedData.userId,
+    parsedData.leadsStatus,
+    parsedData.isDeleted,
+  ];
+
+  // ✅ Use pool.query directly (no client checkout needed for single query)
+  const { rows } = await pool.query<ILead>(query, values);
+  return rows[0] ?? null;
 }
 
 /**

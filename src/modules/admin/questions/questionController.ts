@@ -14,11 +14,17 @@ import {
   softDeleteQuestion,
   updateQuestion,
 } from "./questionModel";
+import NodeCache from "node-cache";
+import { QuestionWithOptions } from "../../../interface/quetion";
 
 export interface AuthUserPayload {
   userEmail?: string;
   role?: string;
 }
+
+// ✅ Cache questions for 10 minutes (they rarely change)
+const questionsCache = new NodeCache({ stdTTL: 600, checkperiod: 120 });
+const QUESTIONS_CACHE_KEY = "all_questions";
 
 /**
  * Retrieves all questions from the database.
@@ -35,19 +41,45 @@ export const getAllQuestions = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Retrieve all active questions (with options) from PostgreSQL
+    // ✅ Check cache first
+    const cached =
+      questionsCache.get<QuestionWithOptions[]>(QUESTIONS_CACHE_KEY);
+
+    if (cached) {
+      const formattedQuestions = cached.map(({ id, ...rest }) => ({
+        question_id: id,
+        ...rest,
+      }));
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(
+          successResponse(
+            { questions: formattedQuestions },
+            MESSAGES.QUESTIONS_RETRIEVED
+          )
+        );
+      return;
+    }
+
+    // ✅ Retrieve from database (optimized query below)
     const questions = await findAllQuestions();
 
-    // Format data if needed — rename "id" to "question_id" for clarity
+    // ✅ Cache the raw data
+    questionsCache.set(QUESTIONS_CACHE_KEY, questions);
+
+    // Format data
     const formattedQuestions = questions.map(({ id, ...rest }) => ({
       question_id: id,
       ...rest,
     }));
 
-    // Success log
-    await info("Questions retrieved successfully", {
-      count: formattedQuestions.length,
-      req,
+    // Success log (non-blocking)
+    setImmediate(() => {
+      info("Questions retrieved successfully", {
+        count: formattedQuestions.length,
+        req,
+      }).catch(console.error);
     });
 
     res
