@@ -1,6 +1,6 @@
 import { ZodError } from "zod";
 import { createLeadDto } from "../../../dto/leadDto";
-import { connectDB } from "../../../core/config/db";
+import { getDB } from "../../../core/config/db";
 
 // Create a partial schema for updates
 const updateLeadDto = createLeadDto.partial();
@@ -38,7 +38,7 @@ function mapField(field: string): string {
 export async function createLead(data: unknown): Promise<ILead | null> {
   try {
     const parsedData = createLeadDto.parse(data);
-    const client = await connectDB();
+    const client = await getDB();
 
     const query = `
       INSERT INTO leads (
@@ -83,7 +83,7 @@ export async function updateLead(
       throw new Error("No fields provided for update");
     }
 
-    const client = await connectDB();
+    const client = await getDB();
 
     // Dynamically build SET clause
     const setClauses: string[] = [];
@@ -120,7 +120,7 @@ export async function updateLead(
  * @returns A list of all active leads.
  */
 export async function findAllLeads(): Promise<ILead[]> {
-  const client = await connectDB();
+  const client = await getDB();
   const { rows } = await client.query<ILead>(
     `SELECT * FROM leads WHERE is_deleted = FALSE ORDER BY created_at DESC;`
   );
@@ -133,6 +133,6 @@ export async function findAllLeads(): Promise<ILead[]> {
  * @returns void
  */
 export async function softDeleteLead(id: string): Promise<void> {
-  const client = await connectDB();
+  const client = await getDB();
   await client.query(`UPDATE leads SET is_deleted = TRUE WHERE id = $1;`, [id]);
 }

@@ -9,7 +9,7 @@ import jwt, {
 import config from "../config/env";
 import { errorResponse } from "../utils/responseFormatter";
 import { HTTP_STATUS, MESSAGES } from "../utils/constants";
-import { info, warn, error, debug } from "../utils/logger";
+import {  warn, error } from "../utils/logger";
 
 // Extend Express Request to include user
 export interface AuthRequest extends Request {
@@ -47,15 +47,6 @@ const auth = async (
   };
 
   try {
-    await debug(
-      "Authentication middleware started",
-      {
-        ...requestInfo,
-        hasAuthHeader: !!req.header("Authorization"),
-      },
-      { source: "middleware.auth" }
-    );
-
     const token = req.header("Authorization")?.replace("Bearer ", "");
 
     if (!token) {
@@ -86,23 +77,6 @@ const auth = async (
 
     // Add decoded user info to request
     req.user = decodedUser;
-
-    await info(
-      "Authentication successful",
-      {
-        ...requestInfo,
-        email: decoded.userEmail,
-        role: decoded.role,
-        tokenExp: decoded.exp
-          ? new Date(decoded.exp * 1000).toISOString()
-          : null,
-      },
-      {
-        userId: decoded.userId || decoded.id,
-        source: "middleware.auth",
-      }
-    );
-
     next();
   } catch (err: unknown) {
     if (err instanceof TokenExpiredError) {
