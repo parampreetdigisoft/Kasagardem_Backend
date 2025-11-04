@@ -91,7 +91,25 @@ const router: Router = express.Router();
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ValidationError'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Validation failed"
+ *                 errors:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       field:
+ *                         type: string
+ *                         example: "partnerIds"
+ *                       message:
+ *                         type: string
+ *                         example: "partnerIds must not be empty"
  *       401:
  *         description: Unauthorized - Invalid or missing authentication token
  *       409:
