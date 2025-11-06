@@ -20,8 +20,8 @@ const s3Client = new S3Client({
   },
 });
 
-// 1MB chunk size for multipart upload
-const CHUNK_SIZE = 1024 * 1024; // 1MB
+// 5MB chunk size for multipart upload
+const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB
 
 /**
  * Uploads a small file to AWS S3 using a simple upload.
@@ -137,7 +137,7 @@ const multipartUploadWithRetry = async (
       Bucket: config.AWS_S3_BUCKET!,
       Key: fileName,
       ContentType: mimeType,
-      ACL: "public-read",
+      ServerSideEncryption: "AES256",
     });
 
     const createResponse = await s3Client.send(createCommand);
