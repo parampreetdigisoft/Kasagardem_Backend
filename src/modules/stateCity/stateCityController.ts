@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import { info, error as logError } from "../../core/utils/logger";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import {
   errorResponse,
@@ -9,29 +8,49 @@ import { CustomError } from "../../interface/Error";
 import config from "../../core/config/env";
 import { City, Country, State } from "../../interface/stateCity";
 import { makeCSCRequest } from "../../core/services/stateCityService";
+import NodeCache from "node-cache";
+import { info, error as logError, warn } from "../../core/utils/logger";
+
+/**
+ * Node-cache instance for location data with 30-day TTL
+ */
+export const locationCache = new NodeCache({
+  stdTTL: 2592000, // 30 days in seconds
+  checkperiod: 600, // Check for expired keys every 10 minutes
+  useClones: false, // Better performance, don't clone objects
+});
+
+/**
+ * Cache statistics for monitoring
+ * @returns Cache statistics object
+ */
+export const getCacheStats = (): NodeCache.Stats => locationCache.getStats();
 
 /**
  * Retrieves all states for a specific country by ISO2 code.
- * @param req - Express request object containing country ISO2 code in params
- *              and the authenticated user in `req.user`.
- * @param res - Express response object used to send HTTP responses.
- * @param next - Express next middleware function used to handle errors.
+ * @param req
+ * @param res
+ * @param next
  */
 export const getStatesByCountry = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  const startTime = Date.now();
+  const iso2 = "BR";
+  const cacheKey = `states:${iso2}`;
+
   try {
-    const iso2 = "BR"; // use Brazil
-
-    await info(
-      "Get states by country request started",
-      { countryCode: iso2 },
-      { source: "states.getStatesByCountry" }
-    );
-
     if (!config.CSC_API_KEY) {
+      await logError(
+        "CSC API key not configured",
+        {
+          endpoint: "getStatesByCountry",
+        },
+        { req, source: "state-city-controller" }
+      );
+
       res
         .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
         .json(
@@ -40,20 +59,37 @@ export const getStatesByCountry = async (
       return;
     }
 
-    const states = await makeCSCRequest<State[]>(`/countries/${iso2}/states`);
-    // Sort states alphabetically by name (case-insensitive)
-    states.sort((a, b) =>
-      a.name.localeCompare(b.name, "en", { sensitivity: "base" })
-    );
-    await info(
-      "Get states by country successful",
-      {
-        countryCode: iso2,
-        statesCount: states.length,
-        stateNames: states.map((state: State) => state.name).slice(0, 5),
-      },
-      { source: "states.getStatesByCountry" }
-    );
+    // Try to get from cache
+    let states = locationCache.get<State[]>(cacheKey);
+
+    if (!states) {
+      // Cache miss - fetch from API
+      await info(
+        "Cache miss - fetching from CSC API",
+        {
+          iso2,
+          cacheKey,
+        },
+        { req, source: "state-city-controller" }
+      );
+
+      states = await makeCSCRequest<State[]>(`/countries/${iso2}/states`);
+      states.sort((a, b) =>
+        a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+      );
+
+      // Store in cache
+      locationCache.set(cacheKey, states);
+    } else {
+      await info(
+        "Cache hit - returning cached states",
+        {
+          iso2,
+          count: states.length,
+        },
+        { req, source: "state-city-controller" }
+      );
+    }
 
     res.status(HTTP_STATUS.OK).json(
       successResponse({
@@ -66,30 +102,48 @@ export const getStatesByCountry = async (
       })
     );
   } catch (err: unknown) {
+    const duration = Date.now() - startTime;
+
+    await logError(
+      "Failed to fetch states",
+      {
+        iso2,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        duration,
+      },
+      { req, source: "state-city-controller" }
+    );
+
     next(err);
   }
 };
 
 /**
  * Retrieves all countries available in the CSC API.
- * @param req - Express request object with authenticated user in `req.user`.
- * @param res - Express response object used to send HTTP responses.
- * @param next - Express next middleware function used to handle errors.
+ * @param req
+ * @param res
+ * @param next
  */
 export const getCountries = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    await info(
-      "Get all countries request started",
-      {},
-      { source: "states.getCountries" }
-    );
+  const startTime = Date.now();
+  const cacheKey = "countries:all";
 
+  try {
     // Check if API key is available
     if (!config.CSC_API_KEY) {
+      await logError(
+        "CSC API key not configured",
+        {
+          endpoint: "getCountries",
+        },
+        { req, source: "state-city-controller" }
+      );
+
       res
         .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
         .json(
@@ -98,22 +152,37 @@ export const getCountries = async (
       return;
     }
 
-    const countries = await makeCSCRequest<Country[]>(`/countries`);
-    // Sort countries alphabetically by name (case-insensitive)
-    countries.sort((a, b) =>
-      a.name.localeCompare(b.name, "en", { sensitivity: "base" })
-    );
-    await info(
-      "Get all countries successful",
-      {
-        countriesCount: countries.length,
-        sampleCountries: countries.slice(0, 5).map((country: Country) => ({
-          name: country.name,
-          iso2: country.iso2,
-        })),
-      },
-      { source: "states.getCountries" }
-    );
+    // Try to get from cache
+    let countries = locationCache.get<Country[]>(cacheKey);
+
+    if (!countries) {
+      // Cache miss - fetch from API
+      await info(
+        "Cache miss - fetching countries from CSC API",
+        {
+          cacheKey,
+        },
+        { req, source: "state-city-controller" }
+      );
+
+      countries = await makeCSCRequest<Country[]>(`/countries`);
+
+      // Sort countries alphabetically by name (case-insensitive)
+      countries.sort((a, b) =>
+        a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+      );
+
+      // Store in cache
+      locationCache.set(cacheKey, countries);
+    } else {
+      await info(
+        "Cache hit - returning cached countries",
+        {
+          count: countries.length,
+        },
+        { req, source: "state-city-controller" }
+      );
+    }
 
     res.status(HTTP_STATUS.OK).json(
       successResponse({
@@ -122,6 +191,8 @@ export const getCountries = async (
       })
     );
   } catch (err: unknown) {
+    const duration = Date.now() - startTime;
+
     // Type guard to safely convert unknown to CustomError
     const errorObj: CustomError =
       err instanceof Error
@@ -133,9 +204,13 @@ export const getCountries = async (
           } as CustomError);
 
     await logError(
-      "Get all countries failed with unexpected error",
-      { error: errorObj.message, stack: errorObj.stack },
-      { source: "states.getCountries" }
+      "Failed to fetch countries",
+      {
+        error: errorObj.message,
+        stack: errorObj.stack,
+        duration,
+      },
+      { req, source: "state-city-controller" }
     );
 
     next(errorObj);
@@ -144,27 +219,31 @@ export const getCountries = async (
 
 /**
  * Retrieves all cities for a specific state by country ISO2 and state ISO2 codes.
- * @param req - Express request object containing country ISO2 and state ISO2 codes in params
- *              and the authenticated user in `req.user`.
- * @param res - Express response object used to send HTTP responses.
- * @param next - Express next middleware function used to handle errors.
+ * @param req
+ * @param res
+ * @param next
  */
 export const getCitiesByState = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  const startTime = Date.now();
+  const { iso2, stateIso2 } = req.params;
+  const cacheKey = `cities:${iso2}:${stateIso2}`;
+
   try {
-    const { iso2, stateIso2 } = req.params;
-
-    await info(
-      "Get cities by state request started",
-      { countryCode: iso2, stateCode: stateIso2 },
-      { source: "stateCity.getCitiesByState" }
-    );
-
-    // Check if API key is available
     if (!config.CSC_API_KEY) {
+      await logError(
+        "CSC API key not configured",
+        {
+          endpoint: "getCitiesByState",
+          iso2,
+          stateIso2,
+        },
+        { req, source: "state-city-controller" }
+      );
+
       res
         .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
         .json(
@@ -173,23 +252,42 @@ export const getCitiesByState = async (
       return;
     }
 
-    const cities = await makeCSCRequest<City[]>(
-      `/countries/BR/states/${stateIso2}/cities`
-    );
-    // Sort cities alphabetically by name (case-insensitive)
-    cities.sort((a, b) =>
-      a.name.localeCompare(b.name, "en", { sensitivity: "base" })
-    );
-    await info(
-      "Get cities by state successful",
-      {
-        countryCode: iso2,
-        stateCode: stateIso2,
-        citiesCount: cities.length,
-        cityNames: cities.map((city: City) => city.name).slice(0, 10),
-      },
-      { source: "stateCity.getCitiesByState" }
-    );
+    // Try to get from cache
+    let cities = locationCache.get<City[]>(cacheKey);
+
+    if (!cities) {
+      // Cache miss - fetch from API
+      await info(
+        "Cache miss - fetching cities from CSC API",
+        {
+          iso2,
+          stateIso2,
+          cacheKey,
+        },
+        { req, source: "state-city-controller" }
+      );
+
+      cities = await makeCSCRequest<City[]>(
+        `/countries/BR/states/${stateIso2}/cities`
+      );
+
+      cities.sort((a, b) =>
+        a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+      );
+
+      // Store in cache
+      locationCache.set(cacheKey, cities);
+    } else {
+      await info(
+        "Cache hit - returning cached cities",
+        {
+          iso2,
+          stateIso2,
+          count: cities.length,
+        },
+        { req, source: "state-city-controller" }
+      );
+    }
 
     res.status(HTTP_STATUS.OK).json(
       successResponse({
@@ -200,40 +298,43 @@ export const getCitiesByState = async (
       })
     );
   } catch (err: unknown) {
-    // Handle CSC API specific errors
+    const duration = Date.now() - startTime;
+
     if (typeof err === "object" && err !== null && "status" in err) {
       const apiError = err as { status: number; message: string };
 
       if (apiError.status === 404) {
-        await logError(
-          "State not found or has no cities",
+        await warn(
+          "Cities not found",
           {
-            countryCode: req.params.iso2,
-            stateCode: req.params.stateIso2,
-            error: apiError.message,
+            iso2,
+            stateIso2,
+            status: 404,
+            duration,
           },
-          { source: "stateCity.getCitiesByState" }
+          { req, source: "state-city-controller" }
         );
 
         res
           .status(HTTP_STATUS.NOT_FOUND)
           .json(
             errorResponse(
-              `No cities found for state: ${req.params.stateIso2} in country: ${req.params.iso2}`
+              `No cities found for state: ${stateIso2} in country: ${iso2}`
             )
           );
         return;
       }
 
       await logError(
-        "CSC API error occurred while fetching cities",
+        "API error while fetching cities",
         {
-          countryCode: req.params.iso2,
-          stateCode: req.params.stateIso2,
-          error: apiError.message,
+          iso2,
+          stateIso2,
           status: apiError.status,
+          error: apiError.message,
+          duration,
         },
-        { source: "stateCity.getCitiesByState" }
+        { req, source: "state-city-controller" }
       );
 
       res
@@ -242,27 +343,18 @@ export const getCitiesByState = async (
       return;
     }
 
-    // Type guard to safely convert unknown to CustomError
-    const errorObj: CustomError =
-      err instanceof Error
-        ? (err as CustomError)
-        : ({
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          } as CustomError);
-
     await logError(
-      "Get cities by state failed with unexpected error",
+      "Failed to fetch cities",
       {
-        countryCode: req.params.iso2,
-        stateCode: req.params.stateIso2,
-        error: errorObj.message,
-        stack: errorObj.stack,
+        iso2,
+        stateIso2,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        duration,
       },
-      { source: "stateCity.getCitiesByState" }
+      { req, source: "state-city-controller" }
     );
 
-    next(errorObj);
+    next(err);
   }
 };

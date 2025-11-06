@@ -1,4 +1,4 @@
-import { Client } from "pg";
+import { Pool } from "pg";
 import { getDB } from "../config/db";
 import { LogOptions } from "../../interface/logs";
 import type { Request } from "express";
@@ -8,7 +8,7 @@ import type { Request } from "express";
  * Handles connection and log insertion with flattened fields (no JSON).
  */
 class Logger {
-  private client: Client | null = null;
+  private client: Pool | null = null;
   public isConnected = false;
 
   /**
