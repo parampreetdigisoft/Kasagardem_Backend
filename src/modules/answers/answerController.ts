@@ -14,6 +14,7 @@ import { ISurveyAnswer } from "../../interface/answer";
 import { detectLanguage } from "../../core/middleware/translationMiddleware";
 import { getDB } from "../../core/config/db";
 import { createSurveyResponse } from "./answerModel";
+import { getSignedFileUrl } from "../../core/services/s3UploadService";
 
 /**
  * Handles submission of answers for multiple questions.
@@ -195,17 +196,21 @@ export const getRecommendedPlantsController = async (
     // 🌿 Get plant recommendations
     const recommendedPlants = await getRecommendedPlants(answers);
 
+    const plantRecommendations = await Promise.all(
+      recommendedPlants.map(async (p) => ({
+        id: p.id,
+        name: p.common_name,
+        scientific: p.scientific_name,
+        image: (await getSignedFileUrl(p.image_search_url!)) || null,
+        description: p.description,
+        whyRecommended: p.whyRecommended,
+      }))
+    );
+
     res.status(200).json(
       successResponse(
         {
-          plantRecommendations: recommendedPlants.map((p) => ({
-            id: p.id,
-            name: p.common_name,
-            scientific: p.scientific_name,
-            image: p.image_search_url,
-            description: p.description,
-            whyRecommended: p.whyRecommended,
-          })),
+          plantRecommendations,
         },
         "Plant recommendations fetched successfully"
       )
@@ -281,25 +286,30 @@ export const getRecommendedPartnersController = async (
     // 👷 Get partner recommendations
     const recommendedPartners = await getRecommendedPartners(answers);
 
-    res.status(200).json(
-      successResponse(
-        {
-          partnerRecommendations: recommendedPartners.map((partner) => ({
-            partnerId: partner.partnerId,
-            email: partner.email,
-            mobileNumber: partner.mobileNumber,
-            companyName: partner.companyName,
-            speciality: partner.speciality,
-            address: partner.address,
-            website: partner.website,
-            contactPerson: partner.contactPerson,
-            projectImageUrl: partner.projectImageUrl,
-            whyRecommended: partner.whyRecommended,
-          })),
-        },
-        "Partner recommendations fetched successfully"
-      )
+    const partnerRecommendations = await Promise.all(
+      recommendedPartners.map(async (partner) => ({
+        partnerId: partner.partnerId,
+        email: partner.email,
+        mobileNumber: partner.mobileNumber,
+        companyName: partner.companyName,
+        speciality: partner.speciality,
+        address: partner.address,
+        website: partner.website,
+        contactPerson: partner.contactPerson,
+        projectImageUrl:
+          (await getSignedFileUrl(partner.projectImageUrl!)) || null,
+        whyRecommended: partner.whyRecommended,
+      }))
     );
+
+    res
+      .status(200)
+      .json(
+        successResponse(
+          { partnerRecommendations },
+          "Partner recommendations fetched successfully"
+        )
+      );
   } catch (err) {
     res.status(500).json(
       errorResponse("Failed to fetch partner recommendations", {

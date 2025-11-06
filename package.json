@@ -54,6 +54,7 @@
     "@types/express": "^5.0.3",
     "@types/google-translate-api": "^2.3.5",
     "@types/joi": "^17.2.2",
+    "@types/jquery": "^3.5.33",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/lodash": "^4.17.20",
     "@types/migrate-mongo": "^10.0.5",
