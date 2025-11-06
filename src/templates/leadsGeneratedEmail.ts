@@ -322,7 +322,7 @@ export const leadSuccessEmailTemplateForUser = (
 
 
 
-                                                                                    <img src="https://i.ibb.co/8L7y11w7/LOGO-dourado-kasagardem-Copy-removebg-preview-1.png"
+                                                                                    <img src="https://newbucketassets.s3.sa-east-1.amazonaws.com/logo.png"
                                                                                         alt="Group-3" border="0" style="
     width: 60px;
     margin: 0 auto;
@@ -1137,7 +1137,7 @@ export const leadSuccessEmailTemplateForPartner = (
                                                                   valign="top"
                                                                >
                                                                   <img
-                                                                     src="https://i.ibb.co/8L7y11w7/LOGO-dourado-kasagardem-Copy-removebg-preview-1.png"
+                                                                     src="https://newbucketassets.s3.sa-east-1.amazonaws.com/logo.png"
                                                                      alt="Group-3"
                                                                      border="0"
                                                                      style="
@@ -2463,7 +2463,7 @@ export const leadSuccessEmailTemplateForAdmin = (
 
 
 
-                                                                                    <img src="https://i.ibb.co/8L7y11w7/LOGO-dourado-kasagardem-Copy-removebg-preview-1.png"
+                                                                                    <img src="https://newbucketassets.s3.sa-east-1.amazonaws.com/logo.png"
                                                                                         alt="Group-3" border="0" style="
     width: 60px;
     margin: 0 auto;
