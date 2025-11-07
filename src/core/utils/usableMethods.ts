@@ -60,5 +60,3 @@ export const generateToken = (
     options
   );
 };
-
-
