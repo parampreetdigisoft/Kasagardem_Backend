@@ -1,188 +1,292 @@
-import mongoose, { Document, Schema } from "mongoose";
-import { IAddress } from "../../interface/index"; // Assuming you already have IAddress defined
-import { createPartnerProfileDto } from "../../dto/partnerProfileDto";
 import { ZodError } from "zod";
+import { IPartnerProfile } from "../../interface/answer";
+import { getDB } from "../../core/config/db";
+import { createPartnerProfileDto } from "../../dto/partnerProfileDto";
 
-export interface IPartnerProfile extends Document {
-  _id: mongoose.Types.ObjectId;
-  email: string;
-  mobileNumber: string;
+/**
+ * Updates an existing partner profile in the database.
+ * Accepts partial fields to update and optionally updates the project image URL.
+ *
+ * @param id - The unique identifier of the partner profile to update.
+ * @param data - Partial partner profile fields that should be updated.
+ * @param projectImageUrl - The new project image URL to save with the profile.
+ */
+export const updatePartnerProfileDb = async (
+  id: string,
+  data: RawPartnerProfileInput,
+  projectImageUrl: string
+): Promise<void> => {
+  const client = await getDB();
+
+  // 🧩 Map incoming data (flatten + handle arrays)
+  const mappedData = {
+    mobile_number: data.mobileNumber ?? null,
+    company_name: data.companyName ?? null,
+    speciality_1: data.speciality?.[0] ?? null,
+    speciality_2: data.speciality?.[1] ?? null,
+    speciality_3: data.speciality?.[2] ?? null,
+    street: data.address?.street ?? null,
+    city: data.address?.city ?? null,
+    state: data.address?.state ?? null,
+    country: data.address?.country ?? null,
+    zip_code: data.address?.zipCode ?? null,
+    website: data.website ?? null,
+    contact_person: data.contactPerson ?? null,
+    status: data.status ?? null,
+    rating: data.rating ?? null,
+  };
+
+  await client.query(
+    `
+    UPDATE partner_profiles SET
+      mobile_number=$1,
+      company_name=$2,
+      speciality_1=$3,
+      speciality_2=$4,
+      speciality_3=$5,
+      street=$6,
+      city=$7,
+      state=$8,
+      country=$9,
+      zip_code=$10,
+      website=$11,
+      contact_person=$12,
+      project_image_url=$13,
+      status=$14,
+      rating=$15,
+      updated_at = NOW()
+    WHERE id=$16
+    `,
+    [
+      mappedData.mobile_number,
+      mappedData.company_name,
+      mappedData.speciality_1,
+      mappedData.speciality_2,
+      mappedData.speciality_3,
+      mappedData.street,
+      mappedData.city,
+      mappedData.state,
+      mappedData.country,
+      mappedData.zip_code,
+      mappedData.website,
+      mappedData.contact_person,
+      projectImageUrl,
+      mappedData.status,
+      mappedData.rating,
+      id,
+    ]
+  );
+};
+
+/**
+ * Retrieves a partner profile record from the database by its unique ID.
+ *
+ * @param id - The unique identifier of the partner profile to fetch.
+ * @returns The partner profile data if found, otherwise null.
+ */
+export const getPartnerProfileById = async (
+  id: string
+): Promise<IPartnerProfile | null> => {
+  const client = await getDB();
+  const { rows } = await client.query(
+    `SELECT * FROM partner_profiles WHERE id = $1`,
+    [id]
+  );
+
+  return rows.length > 0 ? (rows[0] as IPartnerProfile) : null;
+};
+
+/**
+ * Retrieves all partner profiles from the database.
+ *
+ * @returns A list of all partner profile records.
+ */
+export const getAllPartnerProfilesDb = async (): Promise<IPartnerProfile[]> => {
+  const client = await getDB();
+
+  const result = await client.query(`
+    SELECT 
+      id,
+      email,
+      mobile_number,
+      company_name,
+      speciality_1,
+      speciality_2,
+      speciality_3,
+      street,
+      city,
+      state,
+      country,
+      zip_code,
+      website,
+      contact_person,
+      project_image_url,
+      rating,
+      status
+    FROM partner_profiles
+  `);
+
+  return result.rows as IPartnerProfile[];
+};
+
+/**
+ * Retrieves a partner profile from the database using the provided email address.
+ *
+ * @param email - The email address of the partner profile to look up.
+ * @returns The matching partner profile if found, otherwise null.
+ */
+export const findPartnerProfileByEmail = async (
+  email: string
+): Promise<IPartnerProfile | null> => {
+  const client = await getDB();
+  const result = await client.query(
+    `SELECT * FROM partner_profiles WHERE email = $1 LIMIT 1`,
+    [email]
+  );
+  return (result.rows[0] as IPartnerProfile) ?? null;
+};
+
+interface RawPartnerProfileInput {
+  email?: string;
+  mobileNumber?: string;
   companyName?: string;
   speciality?: string[];
-  address?: IAddress;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    zipCode?: string;
+  };
   website?: string;
   contactPerson?: string;
   projectImageUrl?: string;
-  status?: "active" | "inactive" | "pending" | "suspended";
-  createdAt?: Date;
-  updatedAt?: Date;
+  status?: string;
   rating?: number;
 }
 
-// Schema definition
-const partnerProfileSchema = new Schema<IPartnerProfile>(
-  {
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-      match: [/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/, "Invalid email format"],
-    },
-    mobileNumber: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-      match: [/^\+?[1-9]\d{7,14}$/, "Invalid mobile number format"],
-    },
-    companyName: {
-      type: String,
-      trim: true,
-      maxlength: [150, "Company name cannot exceed 150 characters"],
-    },
-    speciality: {
-      type: [String],
-      default: [],
-    },
-    address: {
-      street: { type: String, trim: true },
-      city: { type: String, trim: true },
-      state: { type: String, trim: true },
-      country: { type: String, trim: true },
-      zipCode: { type: String, trim: true },
-    },
-    website: {
-      type: String,
-      trim: true,
-    },
-    contactPerson: {
-      type: String,
-      trim: true,
-      maxlength: [100, "Contact person name cannot exceed 100 characters"],
-    },
-    projectImageUrl: {
-      type: String,
-      trim: true,
-    },
-    status: {
-      type: String,
-      enum: ["active", "inactive", "pending", "suspended"],
-      default: "pending",
-      lowercase: true,
-    },
-    rating: {
-      type: Number,
-      min: [0, "Rating cannot be less than 0"],
-      max: [5, "Rating cannot be more than 5"],
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
-
-// --------------------
-// Static Methods
-// --------------------
-
 /**
- * Create a PartnerProfile after validating with Zod DTO.
- * @param data - Unvalidated profile data
- * @returns Created PartnerProfile document
+ * Create a new partner profile.
+ *
+ * @param data - Unvalidated input data
+ * @returns The created partner profile record
  * @throws ZodError if validation fails
  */
-partnerProfileSchema.statics.createValidated = async function (
-  data: unknown
-): Promise<IPartnerProfile> {
+export const createPartnerProfile = async (
+  data: RawPartnerProfileInput
+): Promise<IPartnerProfile> => {
+  const client = await getDB();
+
   try {
-    const parsedData = createPartnerProfileDto.parse(data);
+    // ✅ Transform input to match DTO
+    const transformedData = {
+      email: data.email,
+      mobileNumber: data.mobileNumber,
+      companyName: data.companyName,
+      speciality1: data.speciality?.[0],
+      speciality2: data.speciality?.[1],
+      speciality3: data.speciality?.[2],
+      street: data.address?.street,
+      city: data.address?.city,
+      state: data.address?.state,
+      country: data.address?.country,
+      zipCode: data.address?.zipCode,
+      website: data.website,
+      contactPerson: data.contactPerson,
+      projectImageUrl: data.projectImageUrl,
+      status: data.status,
+      rating: data.rating || 0.0,
+    };
 
-    const profile = new this(parsedData) as IPartnerProfile;
-    await profile.save();
-    return profile;
-  } catch (err) {
-    if (err instanceof ZodError) {
-      throw err;
-    }
-    throw err;
-  }
-};
+    // ✅ Validate after mapping
+    const parsed = createPartnerProfileDto.parse(transformedData);
 
-/**
- * Update a PartnerProfile with strict validation.
- * @param profileId - The profile's _id
- * @param data - Unvalidated update data
- * @returns Updated PartnerProfile document or null if not found
- * @throws ZodError if validation fails
- */
-partnerProfileSchema.statics.updateValidated = async function (
-  profileId: string,
-  data: unknown
-): Promise<IPartnerProfile | null> {
-  try {
-    const parsedData = createPartnerProfileDto.parse(data);
-
-    const updatedProfile = await this.findByIdAndUpdate(profileId, parsedData, {
-      new: true,
-      runValidators: true,
-    });
-
-    return updatedProfile;
-  } catch (err) {
-    if (err instanceof ZodError) {
-      throw err;
-    }
-    throw err;
-  }
-};
-
-/**
- * Update only the rating of a PartnerProfile.
- * @param profileId - The profile's _id
- * @param rating - New rating value (0 to 5)
- * @returns Updated PartnerProfile document or null if not found
- * @throws Error if validation fails or profile not found
- */
-partnerProfileSchema.statics.updateRating = async function (
-  profileId: string,
-  rating: number
-): Promise<IPartnerProfile | null> {
-  try {
-    // Basic validation
-    if (typeof rating !== "number" || rating < 0 || rating > 5) {
-      throw new Error("Rating must be a number between 0 and 5");
-    }
-
-    const updatedProfile = await this.findByIdAndUpdate(
-      profileId,
-      { rating },
-      { new: true, runValidators: true }
+    // ✅ Insert into DB
+    const result = await client.query(
+      `
+      INSERT INTO partner_profiles (
+        email, mobile_number, company_name,
+        speciality_1, speciality_2, speciality_3,
+        street, city, state, country, zip_code,
+        website, contact_person, project_image_url,
+        status, rating
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      RETURNING *;
+      `,
+      [
+        parsed.email,
+        parsed.mobileNumber,
+        parsed.companyName ?? null,
+        parsed.speciality1 ?? null,
+        parsed.speciality2 ?? null,
+        parsed.speciality3 ?? null,
+        parsed.street ?? null,
+        parsed.city ?? null,
+        parsed.state ?? null,
+        parsed.country ?? null,
+        parsed.zipCode ?? null,
+        parsed.website ?? null,
+        parsed.contactPerson ?? null,
+        parsed.projectImageUrl ?? null,
+        parsed.status ?? "pending",
+        parsed.rating ?? null,
+      ]
     );
 
-    return updatedProfile;
+    return result.rows[0] as IPartnerProfile;
   } catch (err) {
+    if (err instanceof ZodError) {
+      console.error("Validation error:", err.issues);
+      throw err;
+    }
     throw err;
   }
 };
 
-// Model type with static methods
-interface IPartnerProfileModel extends mongoose.Model<IPartnerProfile> {
-  createValidated(data: unknown): Promise<IPartnerProfile>;
-  updateValidated(
-    profileId: string,
-    data: unknown
-  ): Promise<IPartnerProfile | null>;
-  updateRating(
-    profileId: string,
-    rating: number
-  ): Promise<IPartnerProfile | null>;
-}
+/**
+ * Update the rating of an existing partner profile.
+ *
+ * @param profileId - The profile's UUID
+ * @param rating - Rating value (0–5)
+ * @returns The updated partner profile or null if not found
+ * @throws Error if rating is out of range
+ */
+export const updateRating = async (
+  profileId: string,
+  rating: number
+): Promise<IPartnerProfile | null> => {
+  const client = await getDB();
 
-const PartnerProfile = mongoose.model<IPartnerProfile, IPartnerProfileModel>(
-  "PartnerProfile",
-  partnerProfileSchema
-);
+  if (rating < 0 || rating > 5) {
+    throw new Error("Rating must be between 0 and 5");
+  }
 
-export default PartnerProfile;
+  const result = await client.query(
+    `
+    UPDATE partner_profiles
+    SET rating = $2, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+    RETURNING *;
+    `,
+    [profileId, rating]
+  );
+
+  return (result.rows[0] as IPartnerProfile) ?? null;
+};
+
+/**
+ * Deletes a partner profile record from the database by its unique ID.
+ *
+ * @param id - The unique identifier of the partner profile to delete.
+ * @returns The number of records deleted (0 means no record was found).
+ */
+export const deletePartnerProfileDb = async (id: string): Promise<number> => {
+  const client = await getDB();
+  const { rowCount } = await client.query(
+    `DELETE FROM partner_profiles WHERE id=$1`,
+    [id]
+  );
+
+  return rowCount!; // always a number
+};

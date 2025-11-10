@@ -63,16 +63,14 @@ const simpleUpload = async (
  * Uses a simple upload for small files and multipart upload with retry logic for larger files.
  *
  * @param base64Image - The base64 string representing the image, including MIME type prefix.
- * @param plantName - The name of the plant, used as part of the file name.
- * @param userId - The user ID, used to create a user-specific folder path.
+ * @param name - The name of the file to be saved in S3.
  * @param folder - The folder name inside the S3 bucket where the file will be stored.
  * @param maxRetries - The maximum number of retry attempts for multipart uploads. Defaults to 3.
  * @returns {Promise<string>} A promise that resolves to the public URL of the uploaded file.
  */
 export const uploadBase64ToS3 = async (
   base64Image: string,
-  plantName: string,
-  userId: string,
+  name: string,
   folder: string,
   maxRetries = 3
 ): Promise<string> => {
@@ -88,7 +86,7 @@ export const uploadBase64ToS3 = async (
     }
 
     const buffer = Buffer.from(base64Data, "base64");
-    const fileName = `${folder}/${userId}/${plantName}`;
+    const fileName = `${folder}/${name}`;
 
     // Use simple upload for small files
     if (buffer.length < CHUNK_SIZE) {

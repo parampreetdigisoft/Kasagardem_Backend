@@ -1,11 +1,11 @@
 // src/modules/partnerProfile/partnerProfileRoutes.ts
 import { Router } from "express";
 import {
-  createPartnerProfile,
   updatePartnerProfile,
   deletePartnerProfile,
   getAllPartnerProfiles,
   updatePartnerRating,
+  createPartnerProfileController,
 } from "./partnerProfileController";
 import {
   createPartnerProfileValidation,
@@ -98,7 +98,7 @@ router.post(
   "/",
   auth,
   validateRequest(createPartnerProfileValidation),
-  createPartnerProfile
+  createPartnerProfileController
 );
 
 /**
@@ -181,7 +181,12 @@ router.get("/", auth, getAllPartnerProfiles);
  *                 example: "John Smith"
  *               projectImageUrl:
  *                 type: string
- *                 description: URL
+ *                 description: URL of the project image (can be base64 or image URL)
+ *               rating:
+ *                 type: number
+ *                 format: float
+ *                 description: Average partner rating (0.0 - 5.0)
+ *                 example: 4.5
  *               status:
  *                 type: string
  *                 enum: [active, inactive, pending, suspended]

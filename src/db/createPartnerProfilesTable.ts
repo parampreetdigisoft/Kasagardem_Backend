@@ -10,27 +10,27 @@ export async function createPartnerProfilesTable(): Promise<void> {
 
     const query = `
       CREATE TABLE IF NOT EXISTS partner_profiles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) NOT NULL,
-  mobile_number VARCHAR(20) NOT NULL,
-  company_name VARCHAR(255) DEFAULT NULL,
-  speciality_1 VARCHAR(100) DEFAULT NULL,
-  speciality_2 VARCHAR(100) DEFAULT NULL,
-  speciality_3 VARCHAR(100) DEFAULT NULL,
-  street VARCHAR(255) DEFAULT NULL,
-  city VARCHAR(100) DEFAULT NULL,
-  state VARCHAR(100) DEFAULT NULL,
-  country VARCHAR(100) DEFAULT NULL,
-  zip_code VARCHAR(20) DEFAULT NULL,
-  website VARCHAR(255) DEFAULT NULL,
-  contact_person VARCHAR(150) DEFAULT NULL,
-  project_image_url TEXT DEFAULT NULL,
-  rating NUMERIC(2,1) DEFAULT NULL,
-  status VARCHAR(20) DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  version INT DEFAULT 0
-);
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email VARCHAR(255) NOT NULL,
+        mobile_number VARCHAR(20) NOT NULL,
+        company_name VARCHAR(255) DEFAULT NULL,
+        speciality_1 VARCHAR(100) DEFAULT NULL,
+        speciality_2 VARCHAR(100) DEFAULT NULL,
+        speciality_3 VARCHAR(100) DEFAULT NULL,
+        street VARCHAR(255) DEFAULT NULL,
+        city VARCHAR(100) DEFAULT NULL,
+        state VARCHAR(100) DEFAULT NULL,
+        country VARCHAR(100) DEFAULT NULL,
+        zip_code VARCHAR(20) DEFAULT NULL,
+        website VARCHAR(255) DEFAULT NULL,
+        contact_person VARCHAR(150) DEFAULT NULL,
+        project_image_url TEXT DEFAULT NULL,
+        rating NUMERIC(2,1) DEFAULT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        is_disabled BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `;
 
     await client.query(query);

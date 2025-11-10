@@ -16,11 +16,9 @@ import {
 } from "./questionModel";
 import NodeCache from "node-cache";
 import { QuestionWithOptions } from "../../../interface/quetion";
+import { AuthUserPayload } from "../../../interface/user";
 
-export interface AuthUserPayload {
-  userEmail?: string;
-  role?: string;
-}
+
 
 // ✅ Cache questions for 10 minutes (they rarely change)
 const questionsCache = new NodeCache({ stdTTL: 600, checkperiod: 120 });
