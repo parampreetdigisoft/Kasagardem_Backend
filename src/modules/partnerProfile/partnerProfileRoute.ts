@@ -105,15 +105,26 @@ router.post(
  * @swagger
  * /api/v1/partnerProfile:
  *   get:
- *     summary: Get all partner profiles
+ *     summary: Get all partner profiles (paginated)
  *     tags: [PartnerProfile]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number (1-based)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *         description: Number of items per page
  *     responses:
  *       200:
- *         description: All profiles retrieved successfully
- *       404:
- *         description: No profiles found
+ *         description: Paginated profiles retrieved successfully
  *       401:
  *         description: Unauthorized
  */

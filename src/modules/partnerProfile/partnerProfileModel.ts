@@ -2,6 +2,8 @@ import { ZodError } from "zod";
 import { IPartnerProfile } from "../../interface/answer";
 import { getDB } from "../../core/config/db";
 import { createPartnerProfileDto } from "../../dto/partnerProfileDto";
+import { RawPartnerProfileInput } from "../../interface/partnerProfile";
+import { getSignedFileUrl } from "../../core/services/s3UploadService";
 
 /**
  * Updates an existing partner profile in the database.
@@ -99,12 +101,19 @@ export const getPartnerProfileById = async (
 /**
  * Retrieves all partner profiles from the database.
  *
+ * @param limit
+ * @param offset
  * @returns A list of all partner profile records.
  */
-export const getAllPartnerProfilesDb = async (): Promise<IPartnerProfile[]> => {
+export const getAllPartnerProfilesDb = async (
+  limit: number,
+  offset: number
+): Promise<{ profiles: RawPartnerProfileInput[]; totalCount: number }> => {
   const client = await getDB();
 
-  const result = await client.query(`
+  // Get paginated profiles
+  const result = await client.query(
+    `
     SELECT 
       id,
       email,
@@ -124,9 +133,44 @@ export const getAllPartnerProfilesDb = async (): Promise<IPartnerProfile[]> => {
       rating,
       status
     FROM partner_profiles
-  `);
+   ORDER BY created_at ASC
+    LIMIT $1 OFFSET $2
+  `,
+    [limit, offset]
+  );
 
-  return result.rows as IPartnerProfile[];
+  // Get total record count for pagination
+  const countResult = await client.query(
+    `SELECT COUNT(*) FROM partner_profiles`
+  );
+  const totalCount = parseInt(countResult.rows[0].count, 10);
+
+  // Format results
+  const formatted = await Promise.all(
+    result.rows.map(async (row) => ({
+      id: row.id,
+      email: row.email,
+      mobileNumber: row.mobile_number,
+      companyName: row.company_name,
+      speciality: [row.speciality_1, row.speciality_2, row.speciality_3].filter(
+        Boolean
+      ),
+      address: {
+        street: row.street,
+        city: row.city,
+        state: row.state,
+        country: row.country,
+        zipCode: row.zip_code,
+      },
+      website: row.website,
+      contactPerson: row.contact_person,
+      projectImageUrl: (await getSignedFileUrl(row.project_image_url)) || "",
+      status: row.status,
+      rating: row.rating,
+    }))
+  );
+
+  return { profiles: formatted, totalCount };
 };
 
 /**
@@ -145,25 +189,6 @@ export const findPartnerProfileByEmail = async (
   );
   return (result.rows[0] as IPartnerProfile) ?? null;
 };
-
-interface RawPartnerProfileInput {
-  email?: string;
-  mobileNumber?: string;
-  companyName?: string;
-  speciality?: string[];
-  address?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    country?: string;
-    zipCode?: string;
-  };
-  website?: string;
-  contactPerson?: string;
-  projectImageUrl?: string;
-  status?: string;
-  rating?: number;
-}
 
 /**
  * Create a new partner profile.

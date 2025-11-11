@@ -144,8 +144,28 @@ export const getAllPartnerProfiles = async (
   }
 
   try {
-    const profiles = await getAllPartnerProfilesDb();
-    res.status(HTTP_STATUS.OK).json(successResponse(profiles));
+    // Extract pagination params from query
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 5;
+    const offset = (page - 1) * limit;
+
+    // Fetch paginated data + total count
+    const { profiles, totalCount } = await getAllPartnerProfilesDb(
+      limit,
+      offset
+    );
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    res.status(HTTP_STATUS.OK).json(
+      successResponse({
+        currentPage: page,
+        totalPages,
+        totalCount,
+        limit,
+        profiles,
+      })
+    );
   } catch (err) {
     next(err);
   }

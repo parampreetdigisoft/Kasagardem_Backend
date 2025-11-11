@@ -26,3 +26,22 @@ export interface IPartnerProfile {
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+export interface RawPartnerProfileInput {
+  email?: string;
+  mobileNumber?: string;
+  companyName?: string;
+  speciality?: string[];
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    zipCode?: string;
+  };
+  website?: string;
+  contactPerson?: string;
+  projectImageUrl?: string;
+  status?: string;
+  rating?: number;
+}
