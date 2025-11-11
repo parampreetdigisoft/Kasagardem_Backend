@@ -1,11 +1,11 @@
 // src/modules/partnerProfile/partnerProfileRoutes.ts
 import { Router } from "express";
 import {
-  createPartnerProfile,
   updatePartnerProfile,
   deletePartnerProfile,
   getAllPartnerProfiles,
   updatePartnerRating,
+  createPartnerProfileController,
 } from "./partnerProfileController";
 import {
   createPartnerProfileValidation,
@@ -98,22 +98,33 @@ router.post(
   "/",
   auth,
   validateRequest(createPartnerProfileValidation),
-  createPartnerProfile
+  createPartnerProfileController
 );
 
 /**
  * @swagger
  * /api/v1/partnerProfile:
  *   get:
- *     summary: Get all partner profiles
+ *     summary: Get all partner profiles (paginated)
  *     tags: [PartnerProfile]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number (1-based)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *         description: Number of items per page
  *     responses:
  *       200:
- *         description: All profiles retrieved successfully
- *       404:
- *         description: No profiles found
+ *         description: Paginated profiles retrieved successfully
  *       401:
  *         description: Unauthorized
  */
@@ -181,7 +192,12 @@ router.get("/", auth, getAllPartnerProfiles);
  *                 example: "John Smith"
  *               projectImageUrl:
  *                 type: string
- *                 description: URL
+ *                 description: URL of the project image (can be base64 or image URL)
+ *               rating:
+ *                 type: number
+ *                 format: float
+ *                 description: Average partner rating (0.0 - 5.0)
+ *                 example: 4.5
  *               status:
  *                 type: string
  *                 enum: [active, inactive, pending, suspended]

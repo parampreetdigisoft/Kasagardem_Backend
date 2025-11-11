@@ -24,3 +24,8 @@ export interface IRole {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface AuthUserPayload {
+  userEmail?: string;
+  role?: string;
+}
