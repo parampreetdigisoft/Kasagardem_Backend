@@ -72,3 +72,19 @@ export const updatePartnerRatingValidation: ObjectSchema = Joi.object({
     "any.required": "Rating is required",
   }),
 });
+
+export const updatePartnerStatusValidation: ObjectSchema = Joi.object({
+  partnerId: Joi.string().uuid({ version: "uuidv4" }).required().messages({
+    "string.guid": "Invalid partnerId format. Must be a valid UUID.",
+    "any.required": "partnerId is required",
+  }),
+
+  status: Joi.string()
+    .valid("pending", "approved", "rejected", "inactive")
+    .required()
+    .messages({
+      "any.only":
+        "Invalid status value. Allowed values are: pending, approved, rejected, inactive.",
+      "any.required": "Status is required",
+    }),
+});

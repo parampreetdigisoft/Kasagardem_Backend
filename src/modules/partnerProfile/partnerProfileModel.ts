@@ -301,6 +301,40 @@ export const updateRating = async (
 };
 
 /**
+ * Updates the status of a partner profile by its ID.
+ *
+ * @param {string} profileId - The unique ID of the partner profile to update.
+ * @param {string} status - The new status to assign (e.g., "pending", "approved", "rejected", "inactive").
+ * @returns {Promise<IPartnerProfile | null>} The updated partner profile record, or null if not found.
+ */
+export const updatePartnerStatus = async (
+  profileId: string,
+  status: string
+): Promise<IPartnerProfile | null> => {
+  const client = await getDB();
+
+  const validStatuses = ["pending", "approved", "rejected", "inactive"];
+
+  if (!validStatuses.includes(status.toLowerCase())) {
+    throw new Error(
+      `Invalid status. Allowed values are: ${validStatuses.join(", ")}`
+    );
+  }
+
+  const result = await client.query(
+    `
+    UPDATE partner_profiles
+    SET status = $2, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+    RETURNING *;
+    `,
+    [profileId, status]
+  );
+
+  return (result.rows[0] as IPartnerProfile) ?? null;
+};
+
+/**
  * Deletes a partner profile record from the database by its unique ID.
  *
  * @param id - The unique identifier of the partner profile to delete.

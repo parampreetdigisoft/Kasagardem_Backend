@@ -13,11 +13,15 @@ import {
   getAllPartnerProfilesDb,
   getPartnerProfileById,
   updatePartnerProfileDb,
+  updatePartnerStatus,
   updateRating,
 } from "./partnerProfileModel";
 import { findUserByEmail } from "../auth/authRepository";
 import { AuthUserPayload } from "../../interface/user";
-import { uploadBase64ToS3 } from "../../core/services/s3UploadService";
+import {
+  getSignedFileUrl,
+  uploadBase64ToS3,
+} from "../../core/services/s3UploadService";
 
 /**
  * Handles the creation of a new partner profile.
@@ -232,15 +236,13 @@ export const updatePartnerProfile = async (
             .json(errorResponse("Image upload failed"));
           return;
         }
+      } else {
+        projectImageUrl = profile.project_image_url;
       }
     }
 
-    // 🧠 Call DB update (with mapping logic inside)
-    await updatePartnerProfileDb(
-      id!,
-      req.body,
-      projectImageUrl ?? profile.project_image_url
-    );
+    // Call DB update
+    await updatePartnerProfileDb(id!, req.body, projectImageUrl);
 
     res
       .status(HTTP_STATUS.OK)
@@ -316,6 +318,84 @@ export const updatePartnerRating = async (
 };
 
 /**
+ * Updates the status of a specific partner profile by their partnerId.
+ * Accepts partnerId and status in the request body.
+ *
+ * @param req Express request object
+ * @param res Express response object
+ * @param next Express next middleware function
+ */
+export const updatePartnerStatusController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const userPayload = req.user as AuthUserPayload | undefined;
+
+  // 1️⃣ Check for authentication
+  if (!userPayload?.userEmail) {
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+    return;
+  }
+
+  // 2️⃣ Check if user exists
+  const user = await findUserByEmail(userPayload.userEmail);
+  if (!user) {
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+    return;
+  }
+
+  // 3️⃣ Only Admins can update partner status
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
+    return;
+  }
+
+  const { partnerId, status } = req.body;
+
+  // 4️⃣ Validate input
+  if (!partnerId || !status) {
+    res
+      .status(HTTP_STATUS.BAD_REQUEST)
+      .json(errorResponse("partnerId and status are required"));
+    return;
+  }
+
+  try {
+    // 5️⃣ Update partner status in DB
+    const updatedProfile = await updatePartnerStatus(partnerId, status);
+
+    if (!updatedProfile) {
+      await error("Partner status update failed - Profile not found", {
+        partnerId,
+      });
+      res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .json(errorResponse("Partner profile not found"));
+      return;
+    }
+
+    // 6️⃣ Success response
+    res
+      .status(HTTP_STATUS.OK)
+      .json(successResponse(null, "Status updated successfully"));
+  } catch (err: unknown) {
+    const errorObj = err instanceof Error ? err : new Error("Unknown error");
+
+    // 7️⃣ Log internal error
+    await error("Partner status update error", {
+      partnerId,
+      error: errorObj.message,
+      stack: errorObj.stack,
+    });
+
+    next(errorObj);
+  }
+};
+
+/**
  * Deletes a partner profile based on the provided ID in the request parameters.
  *
  * @param req - The request object containing the partner profile ID to delete.
@@ -376,5 +456,87 @@ export const deletePartnerProfile = async (
     });
 
     next(errorObj);
+  }
+};
+
+/**
+ * Retrieves a specific partner profile by ID and returns it in the response.
+ *
+ * @param req - The incoming request object containing the partner profile ID in the params.
+ * @param res - The response object used to send back the partner profile data.
+ * @param next - The next middleware function for error handling.
+ */
+export const getPartnerProfileByIdController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const userPayload = req.user as AuthUserPayload | undefined;
+
+  if (!userPayload?.userEmail) {
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+    return;
+  }
+
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
+    return;
+  }
+
+  const user = await findUserByEmail(userPayload.userEmail);
+  if (!user) {
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+    return;
+  }
+
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("Partner profile ID is required"));
+      return;
+    }
+
+    const profile = await getPartnerProfileById(id);
+
+    const formatted = {
+      id: profile?.id,
+      email: profile?.email,
+      mobileNumber: profile?.mobile_number,
+      companyName: profile?.company_name,
+      speciality: [
+        profile?.speciality_1,
+        profile?.speciality_2,
+        profile?.speciality_3,
+      ].filter(Boolean),
+      address: {
+        street: profile?.street,
+        city: profile?.city,
+        state: profile?.state,
+        country: profile?.country,
+        zipCode: profile?.zip_code,
+      },
+      website: profile?.website,
+      contactPerson: profile?.contact_person,
+      projectImageUrl:
+        (await getSignedFileUrl(profile?.project_image_url!)) || "",
+      status: profile?.status,
+      rating: profile?.rating,
+    };
+
+    if (!profile) {
+      res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .json(errorResponse("Partner profile not found"));
+      return;
+    }
+
+    res.status(HTTP_STATUS.OK).json(successResponse(formatted));
+  } catch (err) {
+    next(err);
   }
 };

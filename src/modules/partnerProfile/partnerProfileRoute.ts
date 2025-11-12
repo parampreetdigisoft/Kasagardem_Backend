@@ -6,11 +6,14 @@ import {
   getAllPartnerProfiles,
   updatePartnerRating,
   createPartnerProfileController,
+  updatePartnerStatusController,
+  getPartnerProfileByIdController,
 } from "./partnerProfileController";
 import {
   createPartnerProfileValidation,
   updatePartnerProfileValidation,
   updatePartnerRatingValidation,
+  updatePartnerStatusValidation,
 } from "./partnerProfileValidation";
 import validateRequest from "../../core/middleware/validateRequest";
 import auth from "../../core/middleware/authMiddleware";
@@ -100,6 +103,43 @@ router.post(
   validateRequest(createPartnerProfileValidation),
   createPartnerProfileController
 );
+
+/**
+ * @swagger
+ * /api/v1/partnerProfile/{id}:
+ *   get:
+ *     summary: Get a specific partner profile by ID
+ *     tags: [PartnerProfile]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Unique ID of the partner profile
+ *     responses:
+ *       200:
+ *         description: Partner profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/PartnerProfile'
+ *       400:
+ *         description: Partner profile ID is required
+ *       401:
+ *         description: Unauthorized or invalid token
+ *       404:
+ *         description: Partner profile not found
+ */
+router.get("/:id", auth, getPartnerProfileByIdController);
 
 /**
  * @swagger
@@ -249,7 +289,7 @@ router.put(
  *       200:
  *         description: Rating updated successfully
  *       400:
- *         description: Invalid rating value or bad request
+ *         description: Validation Error
  *       404:
  *         description: Partner profile not found
  *       401:
@@ -260,6 +300,50 @@ router.patch(
   auth,
   validateRequest(updatePartnerRatingValidation),
   updatePartnerRating
+);
+
+/**
+ * @swagger
+ * /api/v1/partnerProfile/status:
+ *   patch:
+ *     summary: Update the status of a partner profile
+ *     description: Updates only the status field of a specific partner profile using the partnerId provided in the request body.
+ *     tags: [PartnerProfile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - partnerId
+ *               - status
+ *             properties:
+ *               partnerId:
+ *                 type: string
+ *                 description: The unique ID of the partner profile
+ *                 example: "652f8e9b4a5c9e5b4a3d9c22"
+ *               status:
+ *                 type: string
+ *                 description: The new status to set (e.g., pending, approved, rejected, inactive)
+ *                 example: "approved"
+ *     responses:
+ *       200:
+ *         description: Status updated successfully
+ *       400:
+ *         description: Validation Error
+ *       404:
+ *         description: Partner profile not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.patch(
+  "/status",
+  auth,
+  validateRequest(updatePartnerStatusValidation),
+  updatePartnerStatusController
 );
 
 /**
