@@ -36,3 +36,35 @@ export const questionValidation: ObjectSchema = Joi.object({
       "any.required": "Options field is required",
     }),
 });
+
+export const questionCreateValidation: ObjectSchema = Joi.object({
+  question_text: Joi.string().min(5).max(255).required(),
+
+  order: Joi.number().integer().min(1).required(),
+
+  options: Joi.array()
+    .items(
+      Joi.object({
+        id: Joi.string().uuid().allow("", null).optional(),
+        option_text: Joi.string().min(1).max(255).required(),
+      })
+    )
+    .min(2)
+    .required(),
+});
+
+export const questionUpdateValidation: ObjectSchema = Joi.object({
+  question_text: Joi.string().min(5).max(255).required(),
+
+  order: Joi.number().integer().min(1).required(),
+
+  options: Joi.array()
+    .items(
+      Joi.object({
+        id: Joi.string().uuid().allow("", null).optional(),
+        option_text: Joi.string().min(1).max(255).required(),
+      })
+    )
+    .min(2)
+    .required(),
+});

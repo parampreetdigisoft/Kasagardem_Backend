@@ -1,13 +1,16 @@
 import express, { RequestHandler, Router } from "express";
 import auth from "../../../core/middleware/authMiddleware";
 import validateRequest from "../../../core/middleware/validateRequest";
-import { questionValidation } from "./questionValidation";
 import {
   createQuestionController,
   deleteQuestionController,
   getAllQuestions,
   updateQuestionController,
 } from "./questionController";
+import {
+  questionCreateValidation,
+  questionUpdateValidation,
+} from "./questionValidation";
 
 const router: Router = express.Router();
 
@@ -16,74 +19,80 @@ const router: Router = express.Router();
  * tags:
  *   name: Questions
  *   description: APIs for managing diagnostic questions
- */
-
-/**
- * @swagger
+ *
  * components:
  *   schemas:
- *     Question:
+ *     Option:
  *       type: object
- *       required:
- *         - question_text
- *         - options
- *         - order
  *       properties:
  *         id:
  *           type: string
  *           format: uuid
- *           description: Unique identifier for the question
- *           example: "782c7b1f-b200-49b1-b001-c613a44b41fe"
+ *           nullable: true
+ *           description: >
+ *             Option ID:
+ *             - empty string ("") for new options
+ *             - UUID for existing options
+ *         option_text:
+ *           type: string
+ *           description: Text of the option
+ *           example: "Example option"
+ *
+ *     Question:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
  *         question_text:
  *           type: string
- *           minLength: 5
- *           maxLength: 255
- *           description: The question text
- *           example: "How often do you feel anxious?"
+ *         order:
+ *           type: integer
+ *         is_deleted:
+ *           type: boolean
  *         options:
  *           type: array
  *           items:
- *             type: string
- *           minItems: 2
- *           description: Array of answer options
- *           example: ["Never", "Sometimes", "Often", "Always"]
- *         order:
- *           type: integer
- *           description: Display order of the question
- *           example: 1
- *         is_deleted:
- *           type: boolean
- *           description: Indicates whether the question is soft-deleted
- *           example: false
+ *             $ref: '#/components/schemas/Option'
  *
- *     QuestionInput:
+ *     QuestionCreateInput:
  *       type: object
  *       required:
  *         - question_text
- *         - options
  *         - order
+ *         - options
  *       properties:
  *         question_text:
  *           type: string
- *           example: "How often do you feel anxious?"
- *         options:
- *           type: array
- *           items:
- *             type: string
- *           example: ["Never", "Sometimes", "Often", "Always"]
  *         order:
  *           type: integer
- *           example: 1
+ *         options:
+ *           type: array
+ *           description: >
+ *             Array of option objects for creating a question.
+ *             - id will always be empty string ("") on create.
+ *           items:
+ *             $ref: '#/components/schemas/Option'
  *
- *     ApiResponse:
+ *     QuestionUpdateInput:
  *       type: object
+ *       required:
+ *         - question_text
+ *         - order
+ *         - options
  *       properties:
- *         success:
- *           type: boolean
- *         message:
+ *         question_text:
  *           type: string
- *         data:
- *           type: object
+ *         order:
+ *           type: integer
+ *         options:
+ *           type: array
+ *           description: >
+ *             Full list of option objects for updating a question.
+ *             - Provide id for existing options
+ *             - Use empty id ("") for new options
+ *           items:
+ *             $ref: '#/components/schemas/Option'
  */
 
 /**
@@ -91,7 +100,6 @@ const router: Router = express.Router();
  * /api/v1/admin/question:
  *   post:
  *     summary: Create a new question
- *     description: Adds a new diagnostic question to the database
  *     tags: [Questions]
  *     security:
  *       - bearerAuth: []
@@ -100,28 +108,19 @@ const router: Router = express.Router();
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/QuestionInput'
+ *             $ref: '#/components/schemas/QuestionCreateInput'
  *     responses:
  *       201:
  *         description: Question created successfully
  *         content:
  *           application/json:
  *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       $ref: '#/components/schemas/Question'
- *       400:
- *         description: Validation error
- *       401:
- *         description: Unauthorized
+ *               $ref: '#/components/schemas/Question'
  */
 router.post(
   "/question",
   auth,
-  validateRequest(questionValidation),
+  validateRequest(questionCreateValidation),
   createQuestionController
 );
 
@@ -130,40 +129,36 @@ router.post(
  * /api/v1/admin/question:
  *   get:
  *     summary: Get all questions
- *     description: Retrieve all diagnostic questions (excluding deleted)
  *     tags: [Questions]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Questions retrieved successfully
+ *         description: Questions retrieved
  *         content:
  *           application/json:
  *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiResponse'
- *                 - type: object
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
  *                   properties:
- *                     data:
- *                       type: object
- *                       properties:
- *                         questions:
- *                           type: array
- *                           items:
- *                             $ref: '#/components/schemas/Question'
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Internal server error
+ *                     questions:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Question'
  */
-router.get("/question", getAllQuestions as unknown as RequestHandler);
+router.get("/question", auth, getAllQuestions as unknown as RequestHandler);
 
 /**
  * @swagger
  * /api/v1/admin/question/{id}:
  *   put:
- *     summary: Update an existing question
- *     description: Modify an existing diagnostic question by its ID
+ *     summary: Update an existing question (must include full options list)
  *     tags: [Questions]
  *     security:
  *       - bearerAuth: []
@@ -174,36 +169,28 @@ router.get("/question", getAllQuestions as unknown as RequestHandler);
  *         schema:
  *           type: string
  *           format: uuid
- *         description: The UUID of the question to update
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/QuestionInput'
+ *             $ref: '#/components/schemas/QuestionUpdateInput'
  *     responses:
  *       200:
  *         description: Question updated successfully
  *         content:
  *           application/json:
  *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       $ref: '#/components/schemas/Question'
+ *               $ref: '#/components/schemas/Question'
  *       400:
- *         description: Validation error
- *       401:
- *         description: Unauthorized
+ *         description: Validation error or missing options
  *       404:
  *         description: Question not found
  */
 router.put(
   "/question/:id",
   auth,
-  validateRequest(questionValidation),
+  validateRequest(questionUpdateValidation),
   updateQuestionController
 );
 
@@ -212,7 +199,6 @@ router.put(
  * /api/v1/admin/question/{id}:
  *   delete:
  *     summary: Soft delete a question
- *     description: Marks a question as deleted (does not permanently remove it)
  *     tags: [Questions]
  *     security:
  *       - bearerAuth: []
@@ -223,23 +209,9 @@ router.put(
  *         schema:
  *           type: string
  *           format: uuid
- *         description: The UUID of the question to delete
  *     responses:
  *       200:
- *         description: Question deleted successfully
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       type: 'null'
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Question not found
+ *         description: Question deleted
  */
 router.delete("/question/:id", auth, deleteQuestionController);
 

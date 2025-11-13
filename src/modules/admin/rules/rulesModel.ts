@@ -1,6 +1,12 @@
 import { ZodError } from "zod";
 import { createRuleDto, CreateRuleDto } from "../../../dto/ruleDto";
 import { getDB } from "../../../core/config/db"; // your existing DB helper
+import NodeCache from "node-cache";
+
+export const appCache = new NodeCache({
+  stdTTL: 300, // cache for 5 minutes (adjust as needed)
+  checkperiod: 120,
+});
 
 // ---------- Interfaces ----------
 export interface ICondition {
@@ -125,8 +131,16 @@ export async function updateValidatedRule(
  * @returns An array of all active rules.
  */
 export async function getAllRules(): Promise<IRule[]> {
-  const client = await getDB();
+  const CACHE_KEY = "all_rules";
 
+  // 1. Check Cache
+  const cachedRules = appCache.get<IRule[]>(CACHE_KEY);
+  if (cachedRules) {
+    return cachedRules;
+  }
+
+  // 2. Fetch from DB
+  const client = await getDB();
   const rulesResult = await client.query(`
     SELECT * FROM rules WHERE is_deleted = false ORDER BY created_at DESC;
   `);
@@ -135,7 +149,8 @@ export async function getAllRules(): Promise<IRule[]> {
 
   for (const rule of rulesResult.rows) {
     const conditionsResult = await client.query<ICondition>(
-      `SELECT question_id AS "questionId", operator, values FROM rule_conditions WHERE rule_id = $1;`,
+      `SELECT question_id AS "questionId", operator, values 
+       FROM rule_conditions WHERE rule_id = $1;`,
       [rule.id]
     );
 
@@ -144,6 +159,9 @@ export async function getAllRules(): Promise<IRule[]> {
       conditions: conditionsResult.rows,
     });
   }
+
+  // 3. Store in Cache
+  appCache.set(CACHE_KEY, rules);
 
   return rules;
 }
