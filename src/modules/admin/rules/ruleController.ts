@@ -14,6 +14,7 @@ import {
   deleteRule as deleteRuleFromDB,
 } from "./rulesModel";
 import { findUserByEmail } from "../../auth/authRepository";
+import { AuthUserPayload } from "../../../interface/user";
 
 /**
  * Get all rules
@@ -27,7 +28,7 @@ export const getAllRules = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const userPayload = req.user as { userEmail?: string } | undefined;
+  const userPayload = req.user as AuthUserPayload | undefined;
 
   if (!userPayload?.userEmail) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
@@ -40,9 +41,14 @@ export const getAllRules = async (
     return;
   }
 
-  try {
-    await info("Get all rules request started", {}, { userId: user.id! });
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
+    return;
+  }
 
+  try {
     const rules = await getAllRulesFromDB();
 
     await info(
@@ -71,10 +77,17 @@ export const createRule = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const userPayload = req.user as { userEmail?: string } | undefined;
+  const userPayload = req.user as AuthUserPayload | undefined;
 
   if (!userPayload?.userEmail) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+    return;
+  }
+
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
     return;
   }
 
@@ -85,8 +98,6 @@ export const createRule = async (
   }
 
   try {
-    await info("Rule creation started", req.body, { userId: user.id! });
-
     const payload = {
       ...req.body,
       isDeleted: false,
@@ -126,10 +137,17 @@ export const updateRule = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const userPayload = req.user as { userEmail?: string } | undefined;
+  const userPayload = req.user as AuthUserPayload | undefined;
 
   if (!userPayload?.userEmail) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+    return;
+  }
+
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
     return;
   }
 
@@ -182,6 +200,26 @@ export const deleteRule = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  const userPayload = req.user as AuthUserPayload | undefined;
+
+  if (!userPayload?.userEmail) {
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+    return;
+  }
+
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
+    return;
+  }
+
+  const user = await findUserByEmail(userPayload.userEmail);
+  if (!user) {
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+    return;
+  }
+
   try {
     const deleted = await deleteRuleFromDB(req.params.id!);
 

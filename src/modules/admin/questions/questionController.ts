@@ -18,8 +18,6 @@ import NodeCache from "node-cache";
 import { QuestionWithOptions } from "../../../interface/quetion";
 import { AuthUserPayload } from "../../../interface/user";
 
-
-
 // ✅ Cache questions for 10 minutes (they rarely change)
 const questionsCache = new NodeCache({ stdTTL: 600, checkperiod: 120 });
 const QUESTIONS_CACHE_KEY = "all_questions";
@@ -142,19 +140,22 @@ export const createQuestionController = async (
       { userId: user.id!, req }
     );
 
-    // ✅ Call PostgreSQL service layer
-    const newQuestion = await createQuestion({
-      question_text: question_text,
-      options: options?.map((opt: string) => ({ option_text: opt })),
+    // Note: create expects options as array of strings (create endpoint)
+    const created = await createQuestion({
+      question_text,
       order,
+      options, // array of strings
       is_deleted: false,
     });
 
     await info(
       "Question created successfully",
-      { questionId: newQuestion.id },
+      { questionId: created.id },
       { userId: user.id!, req }
     );
+
+    // ❗ Invalidate cache
+    questionsCache.del(QUESTIONS_CACHE_KEY);
 
     res
       .status(HTTP_STATUS.CREATED)
@@ -184,7 +185,7 @@ export const updateQuestionController = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const userPayload = req.user as { userEmail?: string } | undefined;
+  const userPayload = req.user as AuthUserPayload | undefined;
 
   if (!userPayload?.userEmail) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
@@ -201,23 +202,16 @@ export const updateQuestionController = async (
     const questionId = req.params.id;
     const { question_text, options, order, is_deleted } = req.body;
 
-    await info(
-      "Question update attempt started",
-      { questionId, question_text, options, order },
-      { userId: user.id!, req }
-    );
-
-    // ✅ Map body to PostgreSQL schema
-    const updateData = {
-      question_text: question_text,
-      options: options?.map((opt: string) => ({ option_text: opt })),
+    // validate: options must be an array of objects { id?: string, option_text: string }
+    // We enforce Option C: payload must include ALL existing option ids (if they exist).
+    const updated = await updateQuestion(questionId!, {
+      question_text,
       order,
       is_deleted: is_deleted ?? false,
-    };
+      options,
+    });
 
-    const updatedQuestion = await updateQuestion(questionId!, updateData);
-
-    if (!updatedQuestion) {
+    if (!updated) {
       res
         .status(HTTP_STATUS.NOT_FOUND)
         .json(errorResponse("Question not found"));
@@ -230,16 +224,30 @@ export const updateQuestionController = async (
       { userId: user.id!, req }
     );
 
+    // ❗ Invalidate cache
+    questionsCache.del(QUESTIONS_CACHE_KEY);
+
     res
       .status(HTTP_STATUS.OK)
-      .json(successResponse(null, MESSAGES.QUESTION_UPDATED));
+      .json(successResponse(updated, MESSAGES.QUESTION_UPDATED));
   } catch (err: unknown) {
-    if (err instanceof ZodError) {
-      res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
+    const error = err instanceof Error ? err : new Error(String(err));
+
+    if (
+      error.name === "InvalidOptionError" ||
+      error.name === "MissingOptionsError"
+    ) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse(error.message));
       return;
     }
-    console.error("❌ Failed to update question:", err);
-    next(err);
+
+    if (error instanceof ZodError) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: error.issues });
+      return;
+    }
+
+    console.error("❌ Failed to update question:", error);
+    next(error);
   }
 };
 
@@ -274,12 +282,6 @@ export const deleteQuestionController = async (
 
     const questionId = req.params.id;
 
-    await info(
-      "Question delete attempt started",
-      { questionId },
-      { userId: user.id!, req }
-    );
-
     const deleted = await softDeleteQuestion(questionId!);
 
     if (!deleted) {
@@ -294,6 +296,9 @@ export const deleteQuestionController = async (
       { questionId },
       { userId: user.id!, req }
     );
+
+    // ❗ Invalidate cache
+    questionsCache.del(QUESTIONS_CACHE_KEY);
 
     res
       .status(HTTP_STATUS.OK)

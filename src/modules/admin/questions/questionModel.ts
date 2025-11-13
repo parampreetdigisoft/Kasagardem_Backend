@@ -1,6 +1,4 @@
-import { ZodError } from "zod";
 import { getDB } from "../../../core/config/db";
-import { createQuestionWithOptionsDto } from "../../../dto/questionDto";
 import {
   QuestionOption,
   QuestionWithOptions,
@@ -9,46 +7,41 @@ import {
 /**
  * Create a new question with options
  * @param data - The input data to create the question and its options.
+ * @param data.question_text
+ * @param data.order
+ * @param data.options
+ * @param data.is_deleted
  * @returns {Promise<QuestionWithOptions>} A promise that resolves to the created question with its options.
  */
-export async function createQuestion(
-  data: unknown
-): Promise<QuestionWithOptions> {
+export async function createQuestion(data: {
+  question_text: string;
+  order: number;
+  options: { id?: string; option_text: string }[];
+  is_deleted?: boolean;
+}): Promise<QuestionWithOptions> {
   const client = await getDB();
 
   try {
-    const parsed = createQuestionWithOptionsDto.parse(data);
-
-    // Start transaction
     await client.query("BEGIN");
 
-    // Insert question
-    const questionQuery = `
-      INSERT INTO questions (question_text, "order", is_deleted)
-      VALUES ($1, $2, $3)
-      RETURNING *;
-    `;
+    const qRes = await client.query(
+      `INSERT INTO questions (question_text, "order", is_deleted)
+       VALUES ($1, $2, $3) RETURNING *;`,
+      [data.question_text, data.order ?? null, data.is_deleted ?? false]
+    );
 
-    const questionValues = [
-      parsed.question_text,
-      parsed.order ?? null,
-      parsed.is_deleted ?? false,
-    ];
+    const question = qRes.rows[0];
 
-    const questionResult = await client.query(questionQuery, questionValues);
-    const question = questionResult.rows[0];
-
-    // Insert options if provided
     const options: QuestionOption[] = [];
-    if (parsed.options && parsed.options.length > 0) {
-      for (const option of parsed.options) {
-        const optionResult = await client.query(
+
+    if (data.options && data.options.length > 0) {
+      for (const opt of data.options) {
+        const oRes = await client.query(
           `INSERT INTO question_options (question_id, option_text)
-     VALUES ($1, $2)
-     RETURNING *;`,
-          [question.id, option.option_text] // ✅ option_text inside object
+           VALUES ($1, $2) RETURNING *;`,
+          [question.id, opt.option_text] // <-- FIXED
         );
-        options.push(optionResult.rows[0]);
+        options.push(oRes.rows[0]);
       }
     }
 
@@ -60,7 +53,6 @@ export async function createQuestion(
     };
   } catch (err) {
     await client.query("ROLLBACK");
-    if (err instanceof ZodError) throw err;
     throw new Error(`❌ Failed to create question: ${(err as Error).message}`);
   }
 }
@@ -69,89 +61,132 @@ export async function createQuestion(
  * Update an existing question and its options by ID
  * @param {string} questionId - The ID of the question to update.
  * @param {unknown} data - The updated question data including options.
+ * @param data.question_text
+ * @param data.order
+ * @param data.is_deleted
+ * @param data.options
  * @returns {Promise<QuestionWithOptions | null>} A promise that resolves to the updated question with its options, or null if not found.
  */
 export async function updateQuestion(
   questionId: string,
-  data: unknown
+  data: {
+    question_text?: string;
+    order?: number;
+    is_deleted?: boolean;
+    options?: Array<{ id?: string; option_text: string }>;
+  }
 ): Promise<QuestionWithOptions | null> {
   const client = await getDB();
 
   try {
-    const parsed = createQuestionWithOptionsDto.partial().parse(data);
-
     await client.query("BEGIN");
 
-    // Update question
-    const questionQuery = `
-      UPDATE questions
-      SET
-        question_text = COALESCE($1, question_text),
-        "order" = COALESCE($2, "order"),
-        is_deleted = COALESCE($3, is_deleted),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $4
-      RETURNING *;
-    `;
-
-    const questionValues = [
-      parsed.question_text ?? null,
-      parsed.order ?? null,
-      parsed.is_deleted ?? null,
+    // #region Check if question exists
+    const qRes = await client.query(`SELECT * FROM questions WHERE id=$1`, [
       questionId,
-    ];
+    ]);
 
-    const questionResult = await client.query(questionQuery, questionValues);
-
-    if (questionResult.rows.length === 0) {
+    if (qRes.rows.length === 0) {
       await client.query("ROLLBACK");
       return null;
     }
+    // #endregion
 
-    const question = questionResult.rows[0];
+    // #region Update question fields
+    await client.query(
+      `UPDATE questions
+       SET question_text = COALESCE($1, question_text),
+           "order" = COALESCE($2, "order"),
+           is_deleted = COALESCE($3, is_deleted),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
+      [
+        data.question_text ?? null,
+        data.order ?? null,
+        data.is_deleted ?? null,
+        questionId,
+      ]
+    );
+    // #endregion
 
-    // Handle options update if provided
-    let options: QuestionOption[] = [];
-
-    if (parsed.options !== undefined) {
-      // Delete existing options
-      await client.query(
-        "DELETE FROM question_options WHERE question_id = $1",
+    // #region Handle options update logic
+    if (data.options) {
+      // fetch existing option ids
+      const existingRes = await client.query(
+        `SELECT id FROM question_options WHERE question_id=$1`,
         [questionId]
       );
+      const existingIds = existingRes.rows.map((r) => r.id);
 
-      // Insert new options (array of strings)
-      if (parsed.options.length > 0) {
-        for (const option of parsed.options) {
-          const optionResult = await client.query(
+      const incomingIds = data.options.filter((o) => o.id).map((o) => o.id);
+
+      // 1) DELETE OPTIONS NOT SENT IN PAYLOAD
+      const idsToDelete = existingIds.filter((id) => !incomingIds.includes(id));
+
+      if (idsToDelete.length > 0) {
+        await client.query(
+          `DELETE FROM question_options
+           WHERE question_id=$1 AND id = ANY($2)`,
+          [questionId, idsToDelete]
+        );
+      }
+
+      // 2) PROCESS INCOMING OPTIONS
+      for (const opt of data.options) {
+        if (!opt.id) {
+          // INSERT NEW OPTION
+          await client.query(
             `INSERT INTO question_options (question_id, option_text)
-     VALUES ($1, $2)
-     RETURNING *;`,
-            [questionId, option.option_text] // ✅ option is string
+             VALUES ($1, $2)`,
+            [questionId, opt.option_text]
           );
-          options.push(optionResult.rows[0]);
+        } else {
+          // UPDATE EXISTING OPTION
+          await client.query(
+            `UPDATE question_options
+             SET option_text=$1
+             WHERE id=$2 AND question_id=$3`,
+            [opt.option_text, opt.id, questionId]
+          );
         }
       }
-    } else {
-      // Fetch existing options if not updating
-      const existingOptions = await client.query(
-        "SELECT * FROM question_options WHERE question_id = $1",
-        [questionId]
-      );
-      options = existingOptions.rows;
     }
+    // #endregion
 
     await client.query("COMMIT");
 
+    // return updated question with options
+    const updatedQuestion = await client.query(
+      `SELECT * FROM questions WHERE id=$1`,
+      [questionId]
+    );
+    const options = await getOptionsByQuestionId(questionId);
+
     return {
-      ...question,
+      ...updatedQuestion.rows[0],
       options,
     };
   } catch (err) {
     await client.query("ROLLBACK");
-    if (err instanceof ZodError) throw err;
     throw new Error(`❌ Failed to update question: ${(err as Error).message}`);
   }
+}
+
+/**
+ * Retrieves all options belonging to a specific question.
+ *
+ * @param questionId - The ID of the question whose options should be fetched.
+ * @returns A list of option objects associated with the given question.
+ */
+export async function getOptionsByQuestionId(
+  questionId: string
+): Promise<QuestionOption[]> {
+  const client = await getDB();
+  const res = await client.query(
+    `SELECT id, option_text FROM question_options WHERE question_id = $1 ORDER BY id;`,
+    [questionId]
+  );
+  return res.rows;
 }
 
 /**
