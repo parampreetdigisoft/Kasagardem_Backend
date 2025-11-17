@@ -1,8 +1,12 @@
 import express, { Router } from "express";
 import auth from "../../../core/middleware/authMiddleware";
 import validateRequest from "../../../core/middleware/validateRequest";
-import { createLeadController, getAllLeads } from "./leadsController";
-import { leadValidation } from "./leadsValidation";
+import {
+  createLeadController,
+  getAllLeads,
+  updateLeadStatusController,
+} from "./leadsController";
+import { leadValidation, updateLeadStatus } from "./leadsValidation";
 
 const router: Router = express.Router();
 
@@ -57,63 +61,28 @@ const router: Router = express.Router();
 /**
  * @swagger
  * /api/v1/admin/leads:
- *   post:
- *     summary: Create new leads
- *     description: Create multiple leads using an array of partnerIds
+ *   get:
+ *     summary: Get paginated leads
+ *     description: Retrieve leads with pagination (default 5 per page)
  *     tags: [Leads]
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LeadInput'
- *           example:
- *             partnerIds: ["64f5a7b2c1234567890abcdf", "64f5a7b2c1234567890abce1"]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *         description: Number of records per page
  *     responses:
- *       201:
- *         description: Leads created successfully
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiResponse'
- *             example:
- *               success: true
- *               message: "Leads created successfully"
- *               data:
- *                 createdLeads:
- *                   - partnerId: "64f5a7b2c1234567890abcdf"
- *                   - partnerId: "64f5a7b2c1234567890abce1"
- *       400:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Validation failed"
- *                 errors:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       field:
- *                         type: string
- *                         example: "partnerIds"
- *                       message:
- *                         type: string
- *                         example: "partnerIds must not be empty"
- *       401:
- *         description: Unauthorized - Invalid or missing authentication token
- *       409:
- *         description: Conflict - One or more leads already exist for the given partnerIds and user
+ *       200:
+ *         description: Leads retrieved successfully
  */
 
 router.post(
@@ -172,5 +141,74 @@ router.post(
  *         description: Internal server error
  */
 router.get("/leads", auth, getAllLeads);
+
+/**
+ * @swagger
+ * /api/v1/admin/leads/{id}/status:
+ *   put:
+ *     summary: Update lead status
+ *     description: Update only the leads_status field of a lead entry
+ *     tags: [Leads]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Lead ID
+ *
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - leads_status
+ *             properties:
+ *               leads_status:
+ *                 type: string
+ *                 enum: [new, pending, contacted, converted, rejected]
+ *                 example: "converted"
+ *
+ *     responses:
+ *       200:
+ *         description: Lead status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lead status updated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     leads_status:
+ *                       type: string
+ *                     updated_at:
+ *                       type: string
+ *
+ *       400:
+ *         description: Validation error
+ *       404:
+ *         description: Lead not found
+ *       500:
+ *         description: Internal server error
+ */
+router.put(
+  "/leads/:id/status",
+  auth,
+  validateRequest(updateLeadStatus),
+  updateLeadStatusController
+);
 
 export default router;

@@ -28,7 +28,7 @@ export const questionValidation: ObjectSchema = Joi.object({
         "any.required": "Option text is required",
       })
     )
-    .min(2)
+    .min(1)
     .required()
     .messages({
       "array.base": "Options must be an array of strings",
@@ -49,7 +49,7 @@ export const questionCreateValidation: ObjectSchema = Joi.object({
         option_text: Joi.string().min(1).max(255).required(),
       })
     )
-    .min(2)
+    .min(1)
     .required(),
 });
 
@@ -65,6 +65,6 @@ export const questionUpdateValidation: ObjectSchema = Joi.object({
         option_text: Joi.string().min(1).max(255).required(),
       })
     )
-    .min(2)
+    .min(1)
     .required(),
 });

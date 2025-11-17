@@ -7,11 +7,12 @@ import {
   successResponse,
 } from "../../../core/utils/responseFormatter";
 import { error, info } from "../../../core/utils/logger";
-import { createLead, findAllLeads } from "./leadsModule"; // ✅ functional PostgreSQL module
+import { createLead, findAllLeads, updateLeadStatus } from "./leadsModule"; // ✅ functional PostgreSQL module
 import { sendLeadEmails } from "../../../core/services/emailService";
 import config from "../../../core/config/env";
 import { getDB } from "../../../core/config/db";
 import { findUserByEmail } from "../../auth/authRepository";
+import { AuthUserPayload } from "../../roles/roleController";
 
 interface PartnerProfile {
   id: string;
@@ -28,38 +29,57 @@ interface PartnerData {
 
 /**
  * Get all leads (PostgreSQL version)
- * @param req
- * @param res
- * @param next
+ *
+ * @param {AuthRequest} req - The authenticated request object.
+ * @param {Response} res - The response object.
+ * @param {NextFunction} next - Express next function.
+ * @returns {Promise<Response>} The API response containing leads or an error.
  */
 export const getAllLeads = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
-): Promise<void> => {
+): Promise<Response | void> => {
+  const userPayload = req.user as AuthUserPayload | undefined;
+
+  if (!userPayload?.userEmail) {
+    return res.status(401).json(errorResponse("Unauthorized"));
+  }
+
+  const user = await findUserByEmail(userPayload.userEmail);
+  if (!user) {
+    return res.status(401).json(errorResponse("User not found"));
+  }
+
+  if (userPayload.role !== "Admin") {
+    return res.status(401).json(errorResponse("Unauthorized Role"));
+  }
+
   try {
-    const userPayload = req.user as
-      | { userEmail?: string; role?: string }
-      | undefined;
+    // ⬅️ Pagination parameters
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 5;
 
-    if (!userPayload?.userEmail || userPayload?.role === "User") {
-      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
-      return;
-    }
+    const { leads, total } = await findAllLeads(page, limit);
 
-    await info("Fetching all leads from PostgreSQL");
-
-    const leads = await findAllLeads(); // ✅ uses PostgreSQL
-
-    res
-      .status(HTTP_STATUS.OK)
-      .json(successResponse(leads, "All leads fetched successfully"));
+    return res.status(HTTP_STATUS.OK).json(
+      successResponse(
+        {
+          currentPage: page,
+          totalPages: Math.ceil(total / limit),
+          totalCount: total,
+          limit,
+          leads,
+        },
+        "All leads fetched successfully"
+      )
+    );
   } catch (err: unknown) {
     if (err instanceof ZodError) {
-      res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
-      return;
+      return res.status(400).json({ errors: err.issues });
     }
-    next(err);
+
+    return next(err);
   }
 };
 
@@ -206,3 +226,64 @@ async function processLeadEmailsAsync(
     throw err; // Caught by caller
   }
 }
+
+/**
+ * Controller to update the status of a lead.
+ *
+ * @param {AuthRequest} req - The authenticated request object.
+ * @param {Response} res - The response object.
+ * @returns {Promise<Response>} Returns the API response containing success/failure status.
+ */
+export const updateLeadStatusController = async (
+  req: AuthRequest,
+  res: Response
+): Promise<Response> => {
+  const userPayload = req.user as AuthUserPayload | undefined;
+
+  // Authentication checks
+  if (!userPayload?.userEmail) {
+    return res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized"));
+  }
+
+  const user = await findUserByEmail(userPayload.userEmail);
+  if (!user) {
+    return res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("User not found"));
+  }
+
+  if (userPayload.role !== "Admin") {
+    return res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
+  }
+
+  try {
+    const { id } = req.params;
+    const { leads_status } = req.body;
+
+    const updated = await updateLeadStatus(id!, leads_status);
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: "Lead not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Lead status updated successfully",
+      data: null,
+    });
+  } catch (error) {
+    const err = error as Error;
+
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Something went wrong",
+    });
+  }
+};
