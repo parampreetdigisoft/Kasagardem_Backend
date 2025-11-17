@@ -142,20 +142,28 @@ export async function getAllRules(): Promise<IRule[]> {
   // 2. Fetch from DB
   const client = await getDB();
   const rulesResult = await client.query(`
-    SELECT * FROM rules WHERE is_deleted = false ORDER BY created_at DESC;
+    SELECT id, name  -- Only fetch what you want
+    FROM rules
+    WHERE is_deleted = false
+    ORDER BY created_at DESC;
   `);
 
   const rules: IRule[] = [];
 
   for (const rule of rulesResult.rows) {
     const conditionsResult = await client.query<ICondition>(
-      `SELECT question_id AS "questionId", operator, values 
-       FROM rule_conditions WHERE rule_id = $1;`,
+      `SELECT 
+          question_id AS "questionId", 
+          operator, 
+          values 
+        FROM rule_conditions 
+        WHERE rule_id = $1;`,
       [rule.id]
     );
 
     rules.push({
-      ...rule,
+      id: rule.id,
+      name: rule.name,
       conditions: conditionsResult.rows,
     });
   }

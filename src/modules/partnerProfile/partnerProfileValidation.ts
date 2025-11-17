@@ -80,11 +80,11 @@ export const updatePartnerStatusValidation: ObjectSchema = Joi.object({
   }),
 
   status: Joi.string()
-    .valid("pending", "approved", "rejected", "inactive")
+    .valid("pending", "active", "suspended", "inactive")
     .required()
     .messages({
       "any.only":
-        "Invalid status value. Allowed values are: pending, approved, rejected, inactive.",
+        "Invalid status value. Allowed values are: pending, active, suspended, inactive.",
       "any.required": "Status is required",
     }),
 });

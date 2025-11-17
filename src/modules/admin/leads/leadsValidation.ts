@@ -18,3 +18,7 @@ export const leadValidation: ObjectSchema = Joi.object({
     "boolean.base": "isDeleted must be a boolean",
   }),
 });
+
+export const updateLeadStatus = Joi.object({
+  leads_status: Joi.string().valid("new", "closed", "contacted").required(),
+});

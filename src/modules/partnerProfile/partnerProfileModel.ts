@@ -35,7 +35,7 @@ export const updatePartnerProfileDb = async (
     website: data.website ?? null,
     contact_person: data.contactPerson ?? null,
     status: data.status ?? null,
-    rating: data.rating ?? null,
+    email: data.email ?? null,
   };
 
   await client.query(
@@ -55,7 +55,7 @@ export const updatePartnerProfileDb = async (
       contact_person=$12,
       project_image_url=$13,
       status=$14,
-      rating=$15,
+      email=$15,
       updated_at = NOW()
     WHERE id=$16
     `,
@@ -74,7 +74,7 @@ export const updatePartnerProfileDb = async (
       mappedData.contact_person,
       projectImageUrl,
       mappedData.status,
-      mappedData.rating,
+      mappedData.email,
       id,
     ]
   );
@@ -313,7 +313,7 @@ export const updatePartnerStatus = async (
 ): Promise<IPartnerProfile | null> => {
   const client = await getDB();
 
-  const validStatuses = ["pending", "approved", "rejected", "inactive"];
+  const validStatuses = ["pending", "active", "suspended", "inactive"];
 
   if (!validStatuses.includes(status.toLowerCase())) {
     throw new Error(

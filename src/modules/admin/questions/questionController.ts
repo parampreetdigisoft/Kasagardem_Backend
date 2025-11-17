@@ -229,7 +229,7 @@ export const updateQuestionController = async (
 
     res
       .status(HTTP_STATUS.OK)
-      .json(successResponse(updated, MESSAGES.QUESTION_UPDATED));
+      .json(successResponse(null, MESSAGES.QUESTION_UPDATED));
   } catch (err: unknown) {
     const error = err instanceof Error ? err : new Error(String(err));
 

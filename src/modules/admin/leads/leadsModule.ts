@@ -2,6 +2,21 @@ import { ZodError } from "zod";
 import { createLeadDto } from "../../../dto/leadDto";
 import { getDB } from "../../../core/config/db";
 
+export interface ILeadGrouped {
+  lead_id: string;
+  leads_status: string;
+  user: {
+    user_id: string;
+    user_name: string;
+    user_email: string;
+  } | null; // allow null
+
+  partners: {
+    partner_id: string;
+    company_name: string | null; // partner name may be null
+  }[];
+}
+
 // Create a partial schema for updates
 const updateLeadDto = createLeadDto.partial();
 
@@ -114,15 +129,94 @@ export async function updateLead(
 }
 
 /**
- * Fetches all non-deleted leads.
- * @returns A list of all active leads.
+ * Fetch paginated leads.
+ *
+ * @param {number} page - Current page number.
+ * @param {number} limit - Number of items per page.
+ * @returns {Promise<{ leads: ILeadGrouped[]; total: number }>}
+ * Returns an object containing the paginated leads and the total count.
  */
-export async function findAllLeads(): Promise<ILead[]> {
+export async function findAllLeads(
+  page: number,
+  limit: number
+): Promise<{ leads: ILeadGrouped[]; total: number }> {
   const client = await getDB();
-  const { rows } = await client.query<ILead>(
-    `SELECT * FROM leads WHERE is_deleted = FALSE ORDER BY created_at DESC;`
+
+  const offset = (page - 1) * limit;
+
+  // 1️⃣ Count unique leads
+  const totalResult = await client.query(
+    `SELECT COUNT(*) FROM leads WHERE is_deleted = FALSE`
   );
-  return rows;
+  const total = Number(totalResult.rows[0].count);
+
+  // 2️⃣ Get ONLY the lead IDs for the given page
+  const leadIdResult = await client.query(
+    `
+    SELECT id
+    FROM leads
+    WHERE is_deleted = FALSE
+    ORDER BY created_at DESC
+    LIMIT $1 OFFSET $2;
+    `,
+    [limit, offset]
+  );
+
+  const leadIds: string[] = leadIdResult.rows.map((row) => row.id);
+
+  if (leadIds.length === 0) {
+    return { leads: [], total };
+  }
+
+  // 3️⃣ Fetch partner & user details ONLY for those leads
+  const { rows } = await client.query(
+    `
+    SELECT 
+      l.id AS lead_id,
+      partner_id,
+      p.company_name,
+      u.id AS user_id,
+      u.name AS user_name,
+      u.email AS user_email,
+      l.leads_status
+    FROM leads l
+    LEFT JOIN LATERAL UNNEST(l.partner_profile_ids) AS partner_id ON TRUE
+    LEFT JOIN partner_profiles p ON p.id = partner_id
+    LEFT JOIN users u ON u.id = l.user_id
+    WHERE l.id = ANY($1)
+    ORDER BY l.created_at DESC;
+    `,
+    [leadIds]
+  );
+
+  // 4️⃣ Group into unique leads
+  const groups: Record<string, ILeadGrouped> = {};
+
+  for (const row of rows) {
+    if (!groups[row.lead_id]) {
+      groups[row.lead_id] = {
+        lead_id: row.lead_id,
+        leads_status: row.leads_status,
+        user: row.user_id
+          ? {
+              user_id: row.user_id,
+              user_email: row.user_email,
+              user_name: row.user_name,
+            }
+          : null,
+        partners: [],
+      };
+    }
+
+    if (row.partner_id) {
+      groups[row.lead_id]!.partners.push({
+        partner_id: row.partner_id,
+        company_name: row.company_name,
+      });
+    }
+  }
+
+  return { leads: Object.values(groups), total };
 }
 
 /**
@@ -133,4 +227,29 @@ export async function findAllLeads(): Promise<ILead[]> {
 export async function softDeleteLead(id: string): Promise<void> {
   const client = await getDB();
   await client.query(`UPDATE leads SET is_deleted = TRUE WHERE id = $1;`, [id]);
+}
+
+/**
+ * Updates the status of a lead by its ID.
+ *
+ * @param {string} id - The unique ID of the lead.
+ * @param {string} status - The new lead status to be updated.
+ * @returns {Promise<ILead | null>} Returns the updated lead object or null if not found.
+ */
+export async function updateLeadStatus(
+  id: string,
+  status: string
+): Promise<ILead | null> {
+  const client = await getDB();
+
+  const query = `
+      UPDATE leads
+      SET leads_status = $1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING id, partner_profile_ids, user_id, leads_status, is_deleted, created_at, updated_at;
+    `;
+
+  const { rows } = await client.query<ILead>(query, [status, id]);
+  return rows[0] ?? null;
 }
