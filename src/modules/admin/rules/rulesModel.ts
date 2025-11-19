@@ -8,10 +8,13 @@ export const appCache = new NodeCache({
   checkperiod: 120,
 });
 
+const CACHE_KEY = "all_rules";
+
 // ---------- Interfaces ----------
 export interface ICondition {
   questionId: string; // ✅ UUID
-  operator: "equals" | "and" | "or";
+  questionText?: string;
+  operator: "equal" | "and" | "or";
   value: string; // ✅ single string (not array)
 }
 
@@ -52,12 +55,13 @@ export async function createValidatedRule(data: unknown): Promise<IRule> {
     for (const c of parsedData.conditions) {
       await client.query(
         `
-        INSERT INTO rule_conditions (rule_id, question_id, operator, value)
+        INSERT INTO rule_conditions (rule_id, question_id, operator, values)
         VALUES ($1, $2, $3, $4);
         `,
         [rule?.id, c.questionId, c.operator, c.value]
       );
     }
+    appCache.del(CACHE_KEY);
 
     // ✅ Return combined object
     return {
@@ -90,17 +94,17 @@ export async function updateValidatedRule(
       `
       UPDATE rules
       SET name = $1,
-          affiliate_for = $2
+          updated_at = $2
       WHERE id = $3
       RETURNING *;
       `,
-      [parsedData.name, parsedData.isDeleted, parsedData.updatedAt, ruleId]
+      [parsedData.name, parsedData.updatedAt, ruleId]
     );
 
     if (updateRule.rowCount === 0) return null;
     const rule = updateRule.rows[0];
 
-    // 2️⃣ Delete old conditions (simple approach)
+    // 2️⃣ Delete old conditions
     await client.query(`DELETE FROM rule_conditions WHERE rule_id = $1;`, [
       ruleId,
     ]);
@@ -109,12 +113,13 @@ export async function updateValidatedRule(
     for (const c of parsedData.conditions) {
       await client.query(
         `
-        INSERT INTO rule_conditions (rule_id, question_id, operator, value)
+        INSERT INTO rule_conditions (rule_id, question_id, operator, values)
         VALUES ($1, $2, $3, $4);
         `,
         [rule?.id, c.questionId, c.operator, c.value]
       );
     }
+    appCache.del(CACHE_KEY);
 
     return {
       ...rule,
@@ -131,44 +136,54 @@ export async function updateValidatedRule(
  * @returns An array of all active rules.
  */
 export async function getAllRules(): Promise<IRule[]> {
-  const CACHE_KEY = "all_rules";
-
   // 1. Check Cache
   const cachedRules = appCache.get<IRule[]>(CACHE_KEY);
   if (cachedRules) {
     return cachedRules;
   }
 
-  // 2. Fetch from DB
   const client = await getDB();
-  const rulesResult = await client.query(`
-    SELECT id, name  -- Only fetch what you want
-    FROM rules
-    WHERE is_deleted = false
-    ORDER BY created_at DESC;
+
+  // Fetch rules + conditions + question text in ONE QUERY
+  const result = await client.query(`
+    SELECT 
+      r.id AS rule_id,
+      r.name AS rule_name,
+      rc.question_id AS question_id,
+      q.question_text AS question_text,
+      rc.operator,
+      rc.values
+    FROM rules r
+    LEFT JOIN rule_conditions rc ON rc.rule_id = r.id
+    LEFT JOIN questions q ON q.id = rc.question_id
+    WHERE r.is_deleted = false
+    ORDER BY r.created_at DESC;
   `);
 
-  const rules: IRule[] = [];
+  const ruleMap: Record<string, IRule> = {};
 
-  for (const rule of rulesResult.rows) {
-    const conditionsResult = await client.query<ICondition>(
-      `SELECT 
-          question_id AS "questionId", 
-          operator, 
-          values 
-        FROM rule_conditions 
-        WHERE rule_id = $1;`,
-      [rule.id]
-    );
+  for (const row of result.rows) {
+    if (!ruleMap[row.rule_id]) {
+      ruleMap[row.rule_id] = {
+        id: row.rule_id,
+        name: row.rule_name,
+        conditions: [],
+      };
+    }
 
-    rules.push({
-      id: rule.id,
-      name: rule.name,
-      conditions: conditionsResult.rows,
-    });
+    if (row.question_id) {
+      ruleMap[row.rule_id]?.conditions.push({
+        questionId: row.question_id,
+        questionText: row.question_text, // added text
+        operator: row.operator,
+        value: row.values,
+      });
+    }
   }
 
-  // 3. Store in Cache
+  const rules = Object.values(ruleMap);
+
+  // 3. Cache
   appCache.set(CACHE_KEY, rules);
 
   return rules;
@@ -186,6 +201,8 @@ export async function deleteRule(ruleId: string): Promise<boolean> {
     `UPDATE rules SET is_deleted = true WHERE id = $1;`,
     [ruleId]
   );
+
+  appCache.del(CACHE_KEY);
 
   return result.rowCount! > 0;
 }

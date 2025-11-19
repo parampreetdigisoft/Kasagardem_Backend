@@ -3,7 +3,7 @@ import { z } from "zod";
 // 🧩 Condition DTO (for rule_conditions table)
 const conditionDto = z.object({
   questionId: z.string().uuid("Valid UUID is required for questionId"), // ✅ PostgreSQL UUID
-  operator: z.enum(["equals", "and", "or"]), // ✅ removed "in" since not in table constraint
+  operator: z.enum(["equal", "and", "or"]), // ✅ removed "in" since not in table constraint
   value: z.string().min(1, "Value must be a non-empty string"), // ✅ now TEXT (not array)
 });
 

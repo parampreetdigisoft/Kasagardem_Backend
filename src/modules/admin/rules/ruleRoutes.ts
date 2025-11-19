@@ -60,11 +60,11 @@ const router: Router = express.Router();
  *     RuleWithQuestionText:
  *       type: object
  *       required:
- *         - _id
+ *         - id
  *         - name
  *         - conditions
  *       properties:
- *         _id:
+ *         id:
  *           type: string
  *         name:
  *           type: string
