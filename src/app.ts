@@ -14,6 +14,7 @@ import answerRoutes from "./modules/answers/answerRoutes";
 import plantRoutes from "./modules/plant/plantRoutes";
 import stateCityRoutes from "./modules/stateCity/stateCityRoutes";
 import leadsRoutes from "./modules/admin/leads/leadsRoute";
+import dashboardRoutes from "./modules/admin/dashboard/dashboardRoutes";
 import translationMiddleware from "./core/middleware/translationMiddleware";
 import { connectDB } from "./core/config/db";
 const app = express();
@@ -57,6 +58,8 @@ app.use("/api/v1", plantRoutes);
 app.use("/api/v1/stateCityData", stateCityRoutes);
 // Leads Routes
 app.use("/api/v1/admin", leadsRoutes);
+// Dashboard Routes
+app.use("/api/v1/admin", dashboardRoutes);
 
 // Error handler (must be last middleware)
 app.use(errorHandler);

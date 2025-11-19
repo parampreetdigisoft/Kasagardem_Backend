@@ -68,7 +68,7 @@ const router = Router();
  *       201:
  *         description: User registered successfully
  *       409:
- *         description: Email already exists
+ *         description: Email or Phone Number already exists
  */
 router.post("/register", validateRequest(registerValidation), register);
 
