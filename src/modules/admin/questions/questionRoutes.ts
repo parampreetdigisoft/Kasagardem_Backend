@@ -152,7 +152,7 @@ router.post(
  *                       items:
  *                         $ref: '#/components/schemas/Question'
  */
-router.get("/question", auth, getAllQuestions as unknown as RequestHandler);
+router.get("/question", getAllQuestions as unknown as RequestHandler);
 
 /**
  * @swagger
