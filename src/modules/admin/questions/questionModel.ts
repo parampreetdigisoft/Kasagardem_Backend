@@ -5,6 +5,49 @@ import {
 } from "../../../interface/quetion";
 
 /**
+ * Get all active (non-deleted) questions with their options
+ * @returns {Promise<QuestionWithOptions[]>} A promise that resolves to a list of all active questions and their associated options.
+ */
+export async function findAllQuestions(): Promise<QuestionWithOptions[]> {
+  const pool = getDB();
+
+  try {
+    // ✅ OPTIMIZED: Use array_agg instead of json_agg for better performance
+    const query = `
+      SELECT 
+        q.id,
+        q.question_text,
+        q."order",
+        COALESCE(
+          array_agg(
+            json_build_object(
+              'id', qo.id,
+              'option_text', qo.option_text
+            ) ORDER BY qo.id
+          ) FILTER (WHERE qo.id IS NOT NULL),
+          '{}'::json[]
+        ) AS options
+      FROM questions q
+      LEFT JOIN question_options qo ON q.id = qo.question_id
+      WHERE q.is_deleted = FALSE
+      GROUP BY q.id, q.question_text, q."order"
+      ORDER BY q."order" ASC, q.id ASC;
+    `;
+
+    const result = await pool.query(query);
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      question_text: row.question_text,
+      order: row.order,
+      options: row.options || [],
+    }));
+  } catch (err) {
+    throw new Error(`❌ Failed to fetch questions: ${(err as Error).message}`);
+  }
+}
+
+/**
  * Create a new question with options
  * @param data - The input data to create the question and its options.
  * @param data.question_text
@@ -187,49 +230,6 @@ export async function getOptionsByQuestionId(
     [questionId]
   );
   return res.rows;
-}
-
-/**
- * Get all active (non-deleted) questions with their options
- * @returns {Promise<QuestionWithOptions[]>} A promise that resolves to a list of all active questions and their associated options.
- */
-export async function findAllQuestions(): Promise<QuestionWithOptions[]> {
-  const pool = getDB();
-
-  try {
-    // ✅ OPTIMIZED: Use array_agg instead of json_agg for better performance
-    const query = `
-      SELECT 
-        q.id,
-        q.question_text,
-        q."order",
-        COALESCE(
-          array_agg(
-            json_build_object(
-              'id', qo.id,
-              'option_text', qo.option_text
-            ) ORDER BY qo.id
-          ) FILTER (WHERE qo.id IS NOT NULL),
-          '{}'::json[]
-        ) AS options
-      FROM questions q
-      LEFT JOIN question_options qo ON q.id = qo.question_id
-      WHERE q.is_deleted = FALSE
-      GROUP BY q.id, q.question_text, q."order"
-      ORDER BY q."order" ASC, q.id ASC;
-    `;
-
-    const result = await pool.query(query);
-
-    return result.rows.map((row) => ({
-      id: row.id,
-      question_text: row.question_text,
-      order: row.order,
-      options: row.options || [],
-    }));
-  } catch (err) {
-    throw new Error(`❌ Failed to fetch questions: ${(err as Error).message}`);
-  }
 }
 
 /**

@@ -58,7 +58,7 @@ const options = {
     "./src/modules/answers/*.ts",
     "./src/modules/plant/*.ts",
     "./src/modules/stateCity/*.ts",
-    "./src/modules/health/*.ts",
+    "./src/modules/admin/dashboard/*.ts",
   ],
 };
 

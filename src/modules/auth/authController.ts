@@ -19,6 +19,7 @@ import {
   createValidatedUser,
   findRoleByName,
   findUserByEmail,
+  findUserByEmailOrPhone,
   findUserById,
   getRoleById,
   getRoleByName,
@@ -48,12 +49,6 @@ export const register = async (
 ): Promise<void> => {
   try {
     const { name, email, password, roleCode, phoneNumber } = req.body;
-
-    await info(
-      "User registration attempt started",
-      { email, roleCode, hasPhoneNumber: !!phoneNumber },
-      { source: "auth.register", req }
-    );
 
     // ✅ Validate role code
     const roleName = RoleCodeMap[roleCode];
@@ -85,17 +80,32 @@ export const register = async (
     }
 
     // ✅ Check if email already exists
-    const existingUser = await findUserByEmail(email.toLowerCase());
-    if (existingUser) {
+    // ✅ Check if email OR phone already exists
+    const existingUserResult = await findUserByEmailOrPhone(
+      email.toLowerCase(),
+      phoneNumber
+    );
+
+    if (existingUserResult.user) {
       await warn(
         "User already exists",
-        { email },
+        { email, phoneNumber, conflict: existingUserResult.conflictField },
         { source: "auth.register", req }
       );
-      res
-        .status(HTTP_STATUS.CONFLICT)
-        .json(errorResponse(MESSAGES.USER_EXISTS));
-      return;
+
+      if (existingUserResult.conflictField === "email") {
+        res
+          .status(HTTP_STATUS.CONFLICT)
+          .json(errorResponse(MESSAGES.USER_EXISTS));
+        return;
+      }
+
+      if (existingUserResult.conflictField === "phone") {
+        res
+          .status(HTTP_STATUS.CONFLICT)
+          .json(errorResponse(MESSAGES.USER_PHONE_EXISTS));
+        return;
+      }
     }
 
     // ✅ Create user with validation

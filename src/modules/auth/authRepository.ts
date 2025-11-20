@@ -220,6 +220,45 @@ export async function findUserByEmail(email: string): Promise<IUser | null> {
 }
 
 /**
+ * Find a user using email or phone number.
+ * Returns the user and identifies which field matched (email or phone).
+ *
+ * @param {string} email - Email to check for existing user.
+ * @param {string} phoneNumber - Phone number to check for existing user.
+ * @returns {Promise<{ user: IUser | null; conflictField?: "email" | "phone" }>}
+ * An object containing the found user (if any) and the matched conflict field.
+ */
+export async function findUserByEmailOrPhone(
+  email: string,
+  phoneNumber: string
+): Promise<{ user: IUser | null; conflictField?: "email" | "phone" }> {
+  const client = await getDB();
+
+  const query = `
+    SELECT *
+    FROM users
+    WHERE email = $1 OR phone_number = $2
+    LIMIT 1;
+  `;
+
+  const result = await client.query(query, [email, phoneNumber]);
+  const user = result.rows[0];
+
+  if (!user) return { user: null };
+
+  // Determine what field caused conflict
+  if (user.email === email) {
+    return { user, conflictField: "email" };
+  }
+
+  if (user.phone_number === phoneNumber) {
+    return { user, conflictField: "phone" };
+  }
+
+  return { user: null };
+}
+
+/**
  * Finds a user by either email or Firebase UID.
  * @param email - The user's email address
  * @param firebaseUid - The Firebase UID from Google sign-in
