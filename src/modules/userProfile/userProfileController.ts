@@ -4,7 +4,7 @@ import {
   errorResponse,
 } from "../../core/utils/responseFormatter";
 import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
-import { info, error, warn } from "../../core/utils/logger";
+import { error, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
 import { findUserByEmail } from "../auth/authRepository";
@@ -51,13 +51,7 @@ export const createUserProfile = async (
   const client = await getDB();
 
   try {
-    await info("User profile creation attempt", {
-      email: userPayload.userEmail,
-      action: "createUserProfile",
-      req,
-    });
-
-    // 1️⃣ Check if user exists
+    // Check if user exists
     const userExists = await findUserByEmail(userPayload.userEmail);
     if (!userExists) {
       await error("Profile creation failed - User not found", {
@@ -71,7 +65,7 @@ export const createUserProfile = async (
       return;
     }
 
-    // 2️⃣ Check if profile already exists
+    // Check if profile already exists
     const existingProfile = await client.query<IUserProfile>(
       "SELECT * FROM userprofiles WHERE user_id = $1",
       [userExists.id]
@@ -90,7 +84,7 @@ export const createUserProfile = async (
       return;
     }
 
-    // 3️⃣ Handle base64 image upload (if provided)
+    // Handle base64 image upload (if provided)
     let uploadedImageUrl: string | null = null;
 
     if (
@@ -103,14 +97,6 @@ export const createUserProfile = async (
           req.body.profileImage,
           fileName
         );
-
-        await info("Profile image uploaded to BunnyCDN", {
-          email: userPayload.userEmail,
-          userId: userExists.id,
-          imageUrl: uploadedImageUrl,
-          action: "createUserProfile",
-          req,
-        });
       } catch (uploadErr: unknown) {
         const uploadError =
           uploadErr instanceof Error
@@ -131,7 +117,7 @@ export const createUserProfile = async (
       }
     }
 
-    // 4️⃣ Build profile data for insert
+    //  Build profile data for insert
     const profileData = {
       ...req.body,
       userId: userExists.id,
@@ -165,17 +151,7 @@ export const createUserProfile = async (
       profileData.company || null,
     ];
 
-    const result = await client.query<IUserProfile>(insertQuery, values);
-    const createdProfile = result.rows[0];
-
-    await info("User profile created successfully", {
-      email: userPayload.userEmail,
-      userId: userExists.id,
-      profileId: createdProfile?.id,
-      action: "createUserProfile",
-      profileFields: Object.keys(req.body),
-      req,
-    });
+    await client.query<IUserProfile>(insertQuery, values);
 
     res
       .status(HTTP_STATUS.CREATED)
@@ -229,7 +205,7 @@ export const getCurrentUserProfile = async (
   }
 
   try {
-    // 1️⃣ Get user basic details
+    //  Get user basic details
     const user = await findUserByEmail(userPayload.userEmail);
     if (!user) {
       await error("Profile retrieval failed - User not found", {
@@ -245,7 +221,7 @@ export const getCurrentUserProfile = async (
 
     const client = getDB();
 
-    // 2️⃣ Fetch user profile from PostgreSQL
+    //  Fetch user profile from PostgreSQL
     const { rows: profileRows } = await client.query(
       `
       SELECT 
@@ -268,7 +244,7 @@ export const getCurrentUserProfile = async (
 
     const userProfile = profileRows[0] || null;
 
-    // 3️⃣ Build full response (typed)
+    //  Build full response
     const fullProfile: IFullUserProfile = {
       name: user.name || null,
       email: user.email || null,
@@ -291,13 +267,6 @@ export const getCurrentUserProfile = async (
       occupation: userProfile?.occupation || null,
       company: userProfile?.company || null,
     };
-
-    await info("User profile retrieved successfully", {
-      email: userPayload.userEmail,
-      userId: user.id,
-      action: "getCurrentUserProfile",
-      req,
-    });
 
     res.status(HTTP_STATUS.OK).json(successResponse(fullProfile));
   } catch (err: unknown) {
@@ -350,14 +319,7 @@ export const updateUserProfile = async (
   }
 
   try {
-    await info("User profile update attempt", {
-      email: userPayload.userEmail,
-      action: "updateUserProfile",
-      updateFields: Object.keys(req.body),
-      req,
-    });
-
-    // 1️⃣ Find user
+    //  Find user
     const user = await findUserByEmail(userPayload.userEmail);
     if (!user) {
       await error("Profile update failed - User not found", {
@@ -373,7 +335,7 @@ export const updateUserProfile = async (
 
     const client = getDB();
 
-    // 2️⃣ Find existing profile
+    //  Find existing profile
     const { rows: existingProfileRows } = await client.query(
       `SELECT id FROM userprofiles WHERE user_id = $1`,
       [user.id]
@@ -394,7 +356,7 @@ export const updateUserProfile = async (
 
     const profileId = existingProfileRows[0].id;
 
-    // 3️⃣ Handle base64 image upload
+    // Handle base64 image upload
     if (req.body.profileImage && typeof req.body.profileImage === "string") {
       const isBase64 = /^data:image\/[a-zA-Z]+;base64,/.test(
         req.body.profileImage
@@ -402,7 +364,6 @@ export const updateUserProfile = async (
       if (isBase64) {
         try {
           const plantName = `${Date.now()}.jpg`; // or `${user.id}_${Date.now()}.jpg`
-          const userId = user.id!.toString(); // ensure string type
           const folder = "Users/ProfileImages"; // or any folder name you prefer
           // Fetch old profile image from DB
           const oldProfile = await getUserProfileById(profileId);
@@ -412,27 +373,16 @@ export const updateUserProfile = async (
           const uploadedFileKey = await uploadBase64ToS3(
             req.body.profileImage,
             plantName,
-            userId,
             folder
           );
 
           // Delete old image (if exists)
           if (oldFileKey) {
             await deleteFileFromS3(oldFileKey);
-            await info("Deleted old profile image from S3", {
-              userId: user.id,
-              oldFileKey,
-            });
           }
 
           // Assign new file key to request body
           req.body.profileImage = uploadedFileKey;
-          await info("Profile image uploaded to Bunny CDN", {
-            email: userPayload.userEmail,
-            userId: user.id,
-            uploadedFileKey,
-            req,
-          });
         } catch (uploadErr: unknown) {
           await error("Image upload to Bunny failed", {
             email: userPayload.userEmail,
@@ -448,7 +398,7 @@ export const updateUserProfile = async (
       }
     }
 
-    // 4️⃣ Validate and update using your service method
+    // Validate and update using your service method
     const updatedProfile = await updateValidatedUserProfile(
       profileId,
       req.body
@@ -465,14 +415,6 @@ export const updateUserProfile = async (
         .json(errorResponse("User profile not found"));
       return;
     }
-
-    await info("User profile updated successfully", {
-      email: userPayload.userEmail,
-      userId: user.id,
-      updatedFields: Object.keys(req.body),
-      req,
-    });
-
     res
       .status(HTTP_STATUS.OK)
       .json(successResponse(null, MESSAGES.PROFILE_UPDATED));

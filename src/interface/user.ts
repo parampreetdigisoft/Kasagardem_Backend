@@ -6,7 +6,7 @@ export interface IUser {
   name: string;
   email: string;
   password?: string;
-  firebase_uid?: string;
+  google_uid?: string;
   role_id: string;
   phone_number?: string;
   is_email_verified?: boolean;
@@ -28,4 +28,12 @@ export interface IRole {
 export interface AuthUserPayload {
   userEmail?: string;
   role?: string;
+}
+
+export interface IUserOAuth {
+  id: string;
+  name: string;
+  email: string;
+  role_id: string;
+  is_email_verified: boolean;
 }

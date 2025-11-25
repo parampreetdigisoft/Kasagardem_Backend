@@ -9,7 +9,7 @@ import config from "../../core/config/env";
 import { City, Country, State } from "../../interface/stateCity";
 import { makeCSCRequest } from "../../core/services/stateCityService";
 import NodeCache from "node-cache";
-import { info, error as logError, warn } from "../../core/utils/logger";
+import { error as logError, warn } from "../../core/utils/logger";
 
 /**
  * Node-cache instance for location data with 30-day TTL
@@ -63,16 +63,6 @@ export const getStatesByCountry = async (
     let states = locationCache.get<State[]>(cacheKey);
 
     if (!states) {
-      // Cache miss - fetch from API
-      await info(
-        "Cache miss - fetching from CSC API",
-        {
-          iso2,
-          cacheKey,
-        },
-        { req, source: "state-city-controller" }
-      );
-
       states = await makeCSCRequest<State[]>(`/countries/${iso2}/states`);
       states.sort((a, b) =>
         a.name.localeCompare(b.name, "en", { sensitivity: "base" })
@@ -80,15 +70,6 @@ export const getStatesByCountry = async (
 
       // Store in cache
       locationCache.set(cacheKey, states);
-    } else {
-      await info(
-        "Cache hit - returning cached states",
-        {
-          iso2,
-          count: states.length,
-        },
-        { req, source: "state-city-controller" }
-      );
     }
 
     res.status(HTTP_STATUS.OK).json(
@@ -156,15 +137,6 @@ export const getCountries = async (
     let countries = locationCache.get<Country[]>(cacheKey);
 
     if (!countries) {
-      // Cache miss - fetch from API
-      await info(
-        "Cache miss - fetching countries from CSC API",
-        {
-          cacheKey,
-        },
-        { req, source: "state-city-controller" }
-      );
-
       countries = await makeCSCRequest<Country[]>(`/countries`);
 
       // Sort countries alphabetically by name (case-insensitive)
@@ -174,14 +146,6 @@ export const getCountries = async (
 
       // Store in cache
       locationCache.set(cacheKey, countries);
-    } else {
-      await info(
-        "Cache hit - returning cached countries",
-        {
-          count: countries.length,
-        },
-        { req, source: "state-city-controller" }
-      );
     }
 
     res.status(HTTP_STATUS.OK).json(
@@ -256,17 +220,6 @@ export const getCitiesByState = async (
     let cities = locationCache.get<City[]>(cacheKey);
 
     if (!cities) {
-      // Cache miss - fetch from API
-      await info(
-        "Cache miss - fetching cities from CSC API",
-        {
-          iso2,
-          stateIso2,
-          cacheKey,
-        },
-        { req, source: "state-city-controller" }
-      );
-
       cities = await makeCSCRequest<City[]>(
         `/countries/BR/states/${stateIso2}/cities`
       );
@@ -277,16 +230,6 @@ export const getCitiesByState = async (
 
       // Store in cache
       locationCache.set(cacheKey, cities);
-    } else {
-      await info(
-        "Cache hit - returning cached cities",
-        {
-          iso2,
-          stateIso2,
-          count: cities.length,
-        },
-        { req, source: "state-city-controller" }
-      );
     }
 
     res.status(HTTP_STATUS.OK).json(

@@ -4,18 +4,23 @@ import {
   errorResponse,
 } from "../../core/utils/responseFormatter";
 import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
-import { generateToken } from "../../core/utils/usableMethods";
-import { info, error, warn } from "../../core/utils/logger";
+import {
+  downloadImageAsBuffer,
+  generateToken,
+} from "../../core/utils/usableMethods";
+import { error, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
 import { ZodError, ZodIssue } from "zod";
 import { sendPasswordResetEmail } from "../../core/services/emailService";
 import crypto from "crypto";
 import { RoleCodeMap } from "../../interface/role";
 import { AuthRequest } from "../../core/middleware/authMiddleware";
-import { verifyFirebaseToken } from "../../core/services/firebaseAdmin";
+import { decodeGoogleIdToken } from "../../core/services/firebaseAdmin";
 import {
   comparePassword,
+  createUserFromOAuth,
   createUserProfile,
+  createUserProfileWithImage,
   createValidatedUser,
   findRoleByName,
   findUserByEmail,
@@ -25,11 +30,12 @@ import {
   getRoleByName,
   resetPasswordResetFields,
   updatePasswordResetToken,
+  updateUserFromOAuth,
   updateUserPassword,
 } from "./authRepository";
-import { IUser } from "../../interface/user";
 import bcrypt from "bcryptjs";
-import { getDB } from "../../core/config/db";
+import { uploadBufferToS3 } from "../../core/services/s3UploadService";
+
 interface AppError extends Error {
   code?: string;
 }
@@ -50,7 +56,7 @@ export const register = async (
   try {
     const { name, email, password, roleCode, phoneNumber } = req.body;
 
-    // ✅ Validate role code
+    // Validate role code
     const roleName = RoleCodeMap[roleCode];
     if (!roleName) {
       await warn(
@@ -64,7 +70,7 @@ export const register = async (
       return;
     }
 
-    // ✅ Fetch role by name (PostgreSQL)
+    // Fetch role by name (PostgreSQL)
     const role = await getRoleByName(roleName);
 
     if (!role) {
@@ -79,8 +85,7 @@ export const register = async (
       return;
     }
 
-    // ✅ Check if email already exists
-    // ✅ Check if email OR phone already exists
+    // Check if email OR phone already exists
     const existingUserResult = await findUserByEmailOrPhone(
       email.toLowerCase(),
       phoneNumber
@@ -108,7 +113,7 @@ export const register = async (
       }
     }
 
-    // ✅ Create user with validation
+    //  Create user with validation
     const newUser = await createValidatedUser({
       name,
       email: email.toLowerCase(),
@@ -117,21 +122,8 @@ export const register = async (
       phoneNumber,
     });
 
-    await info("User registration successful", {
-      userId: newUser.id,
-      email,
-      roleCode,
-      req,
-    });
-
-    // ✅ Create empty user profile (if you have a `user_profiles` table)
+    //  Create empty user profile (if you have a `user_profiles` table)
     await createUserProfile(newUser.id!);
-
-    await info(
-      "User profile created successfully",
-      { userId: newUser.id },
-      { source: "auth.register", req }
-    );
 
     res
       .status(HTTP_STATUS.CREATED)
@@ -158,7 +150,7 @@ export const register = async (
       return;
     }
 
-    // ✅ Use type narrowing for `Error`
+    // Use type narrowing for `Error`
     let errorMessage = "An unknown error occurred";
     let errorStack: string | undefined;
 
@@ -167,7 +159,7 @@ export const register = async (
       errorStack = err.stack;
     }
 
-    // 🔹 Handle PostgreSQL unique constraint violation (email already taken)
+    // Handle PostgreSQL unique constraint violation (email already taken)
     if (
       errorMessage.includes("duplicate key") &&
       errorMessage.includes("email")
@@ -183,7 +175,7 @@ export const register = async (
       return;
     }
 
-    // 🔹 Log unexpected error
+    // Log unexpected error
     await error(
       "Unexpected error during user registration",
       { error: errorMessage, stack: errorStack },
@@ -210,9 +202,7 @@ export const login = async (
   try {
     const { email, password } = req.body;
 
-    await info("User login attempt", { email }, { source: "auth.login", req });
-
-    // ✅ 1. Find user by email
+    //  Find user by email
     const user = await findUserByEmail(email.toLowerCase());
 
     if (!user || !user.password) {
@@ -225,7 +215,7 @@ export const login = async (
       return;
     }
 
-    // ✅ 2. Validate password
+    // Validate password
     const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
       await warn(
@@ -239,7 +229,7 @@ export const login = async (
       return;
     }
 
-    // ✅ 3. Fetch role from roles table
+    // Fetch role from roles table
     const role = await getRoleById(user.role_id);
 
     if (!role) {
@@ -252,16 +242,10 @@ export const login = async (
       return;
     }
 
-    // ✅ 4. Generate JWT
+    //  Generate JWT
     const token = generateToken(user.email.toLowerCase(), role.name, user.id!);
 
-    await info(
-      "User login successful",
-      { email, userId: user.id, roleName: role.name },
-      { userId: user.id!, source: "auth.login", req }
-    );
-
-    // ✅ 5. Send success response
+    // Send success response
     res
       .status(HTTP_STATUS.OK)
       .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
@@ -321,13 +305,7 @@ export const refreshTokenLogin = async (
   }
 
   try {
-    await info(
-      "Refresh User login attempt started",
-      { userId: userPayload.userId },
-      { source: "auth.refresh", req }
-    );
-
-    // ✅ 1. Fetch user by ID
+    //  Fetch user by ID
     const user = await findUserById(userPayload.userId);
 
     if (!user) {
@@ -342,7 +320,7 @@ export const refreshTokenLogin = async (
       return;
     }
 
-    // ✅ 2. Fetch user role
+    //  Fetch user role
     const role = await getRoleById(user.role_id);
 
     if (!role) {
@@ -355,16 +333,10 @@ export const refreshTokenLogin = async (
       return;
     }
 
-    // ✅ 3. Generate new JWT
+    //  Generate new JWT
     const token = generateToken(user.email, role.name, user.id!);
 
-    await info(
-      "User refresh login successful",
-      { userId: user.id, roleName: role.name },
-      { userId: user.id!, source: "auth.refresh", req }
-    );
-
-    // ✅ 4. Return refreshed token
+    //  Return refreshed token
     res
       .status(HTTP_STATUS.OK)
       .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
@@ -404,13 +376,7 @@ export const handlePasswordResetToken = async (
   const { email, isResend = false } = req.body;
 
   try {
-    await info(
-      `${isResend ? "Resend" : "Send"} password reset token request started`,
-      { email },
-      { source: "auth.handlePasswordResetToken", req }
-    );
-
-    // Step 1️⃣: Find user by email
+    //Find user by email
     const user = await findUserByEmail(email);
 
     if (!user) {
@@ -425,7 +391,7 @@ export const handlePasswordResetToken = async (
       return;
     }
 
-    // Step 2️⃣: If resend and token still valid -> block
+    // If resend and token still valid -> block
     if (
       isResend &&
       user.password_reset_expires &&
@@ -445,7 +411,7 @@ export const handlePasswordResetToken = async (
       return;
     }
 
-    // Step 3️⃣: Generate secure reset token
+    // Generate secure reset token
     const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Hash before saving
@@ -457,18 +423,12 @@ export const handlePasswordResetToken = async (
     // Expiry (5 minutes)
     const resetTokenExpiry = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Step 4️⃣: Update DB
+    // Update DB
     await updatePasswordResetToken(user.id!, hashedToken, resetTokenExpiry);
 
-    // Step 5️⃣: Send email
+    //  Send email
     try {
       await sendPasswordResetEmail(user.email!, resetToken, user.name);
-
-      await info(
-        `${isResend ? "Resend" : "Send"} password reset token success`,
-        { email, userId: user.id },
-        { userId: user.id!, source: "auth.handlePasswordResetToken", req }
-      );
 
       res.status(HTTP_STATUS.OK).json(
         successResponse(
@@ -527,13 +487,7 @@ export const verifyPasswordResetToken = async (
   const { email, token } = req.body;
 
   try {
-    await info(
-      "Password reset token verification attempt started",
-      { email },
-      { source: "auth.verifyPasswordResetToken", req }
-    );
-
-    // Step 1️⃣: Find user by email
+    //  Find user by email
     const user = await findUserByEmail(email);
 
     if (!user) {
@@ -548,10 +502,10 @@ export const verifyPasswordResetToken = async (
       return;
     }
 
-    // Step 2️⃣: Hash the provided token for comparison
+    // Hash the provided token for comparison
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
-    // Step 3️⃣: Compare hashed token and expiry
+    // Compare hashed token and expiry
     if (
       user.password_reset_token !== hashedToken ||
       !user.password_reset_expires ||
@@ -567,12 +521,6 @@ export const verifyPasswordResetToken = async (
         .json(errorResponse("Invalid or expired password reset token"));
       return;
     }
-
-    await info(
-      "Password reset token verification successful",
-      { email, userId: user.id },
-      { userId: user.id!, source: "auth.verifyPasswordResetToken", req }
-    );
 
     res.status(HTTP_STATUS.OK).json(
       successResponse(
@@ -619,11 +567,9 @@ export const resetPassword = async (
   const { email, password, token } = req.body;
 
   try {
-    await info("Password reset attempt started", { email }, { source, req });
-
     let user = null;
 
-    // ✅ CASE 1: OTP-based reset (via email + token)
+    //OTP-based reset (via email + token)
     if (token) {
       const hashedToken = crypto
         .createHash("sha256")
@@ -649,7 +595,7 @@ export const resetPassword = async (
         return;
       }
     }
-    // ✅ CASE 2: JWT-based reset (req.user decoded by middleware)
+    //  JWT-based reset (req.user decoded by middleware)
     else if (req.user && typeof req.user === "object" && "userId" in req.user) {
       const { userId } = req.user as { userId: string };
       user = await findUserById(userId);
@@ -664,7 +610,7 @@ export const resetPassword = async (
         return;
       }
     } else {
-      // ❌ Missing OTP or JWT
+      // Missing OTP or JWT
       await warn(
         "Password reset failed - missing OTP or JWT",
         { email },
@@ -676,17 +622,11 @@ export const resetPassword = async (
       return;
     }
 
-    // ✅ Hash new password
+    // Hash new password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ✅ Update password and clear reset fields
+    // Update password and clear reset fields
     await updateUserPassword(user.id!, hashedPassword);
-
-    await info(
-      "Password reset successful",
-      { email: user.email, userId: user.id },
-      { userId: user.id!, source, req }
-    );
 
     res.status(HTTP_STATUS.OK).json(
       successResponse(
@@ -741,47 +681,29 @@ export const googleAuth = async (
       return;
     }
 
-    await info(
-      "Google authentication attempt started",
-      { hasRoleCode: !!roleCode },
-      { source, req }
-    );
+    // Verify Firebase token
+    const decoded = await decodeGoogleIdToken(idToken);
 
-    // ✅ Verify Firebase token
-    let decodedToken;
-    try {
-      decodedToken = await verifyFirebaseToken(idToken);
-    } catch (err) {
-      await warn(
-        "Google auth failed - invalid Firebase token",
-        { error: err instanceof Error ? err.message : "Unknown error" },
-        { source, req }
-      );
+    if (!decoded) {
       res
         .status(HTTP_STATUS.UNAUTHORIZED)
-        .json(errorResponse("Invalid or expired Firebase token"));
+        .json(errorResponse("Invalid Google token"));
       return;
     }
 
-    const { uid, email, name, picture } = decodedToken;
+    const { sub: uid, email, name, picture, email_verified } = decoded;
 
     if (!email) {
-      await warn(
-        "Google auth failed - no email in token",
-        { uid },
-        { source, req }
-      );
       res
         .status(HTTP_STATUS.BAD_REQUEST)
         .json(errorResponse("Email not found in Google account"));
       return;
     }
 
-    const db = await getDB();
     let user = await findUserByEmail(email);
     let isNewUser = false;
 
-    // ✅ Case: New User Registration
+    // New User Registration
     if (!user) {
       isNewUser = true;
 
@@ -816,106 +738,40 @@ export const googleAuth = async (
         return;
       }
 
-      // Insert new user
-      const insertUserQuery = `
-        INSERT INTO users (name, email, firebase_uid, role_id, is_email_verified, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, true, NOW(), NOW())
-        RETURNING id, name, email, role_id;
-      `;
-      const result = await db.query(insertUserQuery, [
-        name || email.split("@")[0],
+      // Create new user
+      const userData = await createUserFromOAuth(
+        name!,
         email,
         uid,
-        role.id,
-      ]);
-      user = result.rows[0] as IUser;
-
-      await info(
-        "New user created via Google Sign-In",
-        { userId: user.id, email, roleCode },
-        { userId: user.id!, source, req }
+        role.id!,
+        email_verified === true
+      );
+      //  Download image using fetch
+      const buffer = await downloadImageAsBuffer(picture!);
+      const uploadedFileKey = await uploadBufferToS3(
+        buffer,
+        `${Date.now()}.jpg`,
+        "Users/ProfileImages"
       );
 
-      // Create user profile entry
-      await db.query(
-        `INSERT INTO user_profiles (user_id, created_at, updated_at) VALUES ($1, NOW(), NOW());`,
-        [user.id]
-      );
-
-      await info(
-        "User profile created for Google user",
-        { userId: user.id },
-        { userId: user.id!, source, req }
-      );
+      // Save S3 key to DB
+      await createUserProfileWithImage(userData?.id!, uploadedFileKey);
+      user = userData;
     } else {
-      // ✅ Case: Existing user
-      const updates: string[] = [];
-      const values: unknown[] = [];
-      let index = 1;
-
-      if (!user.firebase_uid) {
-        updates.push(`firebase_uid = $${index++}`);
-        values.push(uid);
-      }
-      if (picture && user.profile_picture !== picture) {
-        updates.push(`profile_picture = $${index++}`);
-        values.push(picture);
-      }
-
-      if (updates.length > 0) {
-        const updateQuery = `
-          UPDATE users SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${index}
-        `;
-        values.push(user.id);
-        await db.query(updateQuery, values);
-      }
-
-      await info(
-        "Existing user logged in via Google",
-        { userId: user.id, email },
-        { userId: user.id!, source, req }
+      await updateUserFromOAuth(
+        user.id!,
+        user.google_uid ? undefined : uid,
+        picture && user.profile_picture !== picture ? picture : undefined
       );
     }
 
-    // ✅ Fetch role name for JWT
-    const roleResult = await db.query(
-      `SELECT name FROM roles WHERE id = $1 LIMIT 1;`,
-      [user.role_id]
-    );
-    const roleName = roleResult.rows[0]?.name;
-
-    if (!roleName) {
-      await error(
-        "Google auth failed - role not found for user",
-        { email, userId: user.id, roleId: user.role_id },
-        { userId: user.id!, source, req }
-      );
-      res
-        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
-        .json(errorResponse("User role configuration error"));
-      return;
-    }
-
-    // ✅ Generate JWT token
-    const token = generateToken(user.email, roleName, user.id!);
-
-    await info(
-      "Google authentication successful",
-      { userId: user.id, email, isNewUser, roleName },
-      { userId: user.id!, source, req }
-    );
+    // Generate JWT token
+    const token = generateToken(user?.email!, "User", user?.id!);
 
     res.status(HTTP_STATUS.OK).json(
       successResponse(
         {
           token,
-          isNewUser,
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            profilePicture: user.profile_picture,
-          },
         },
         isNewUser ? MESSAGES.USER_CREATED : MESSAGES.LOGIN_SUCCESS
       )

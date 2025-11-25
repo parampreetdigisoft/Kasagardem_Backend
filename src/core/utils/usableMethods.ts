@@ -60,3 +60,20 @@ export const generateToken = (
     options
   );
 };
+
+/**
+ * Downloads a remote image and converts it into a Buffer.
+ *
+ * @param {string} imageUrl - Public URL of the image to download.
+ * @returns {Promise<Buffer>} - A buffer containing the downloaded image data.
+ */
+export async function downloadImageAsBuffer(imageUrl: string): Promise<Buffer> {
+  const response = await fetch(imageUrl);
+
+  if (!response.ok) {
+    throw new Error(`Failed to download image: ${response.statusText}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
