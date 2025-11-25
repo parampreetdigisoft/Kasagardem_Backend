@@ -657,9 +657,9 @@ export const resetPassword = async (
 
 /**
  * Google Sign-In/Sign-Up handler
- * Verifies Firebase token and creates or logs in user
+ * Verifies Google token and creates or logs in user
  *
- * @param {Request} req - Express request object containing Firebase idToken
+ * @param {Request} req - Express request object containing Google id Token
  * @param {Response} res - Express response object
  * @param {NextFunction} next - Express next middleware function
  * @returns {Promise<void>}
@@ -746,28 +746,26 @@ export const googleAuth = async (
         role.id!,
         email_verified === true
       );
-      //  Download image using fetch
+
+      //  Download image
       const buffer = await downloadImageAsBuffer(picture!);
+      // Upload image
       const uploadedFileKey = await uploadBufferToS3(
         buffer,
         `${Date.now()}.jpg`,
         "Users/ProfileImages"
       );
-
       // Save S3 key to DB
       await createUserProfileWithImage(userData?.id!, uploadedFileKey);
+      // Bind updated user data to user
       user = userData;
     } else {
-      await updateUserFromOAuth(
-        user.id!,
-        user.google_uid ? undefined : uid,
-        picture && user.profile_picture !== picture ? picture : undefined
-      );
+      // Update Google uid if any register user google uid changes..
+      await updateUserFromOAuth(user.id!, user.google_uid ? undefined : uid);
     }
-
     // Generate JWT token
     const token = generateToken(user?.email!, "User", user?.id!);
-
+    // Send Final Response
     res.status(HTTP_STATUS.OK).json(
       successResponse(
         {

@@ -297,7 +297,7 @@ router.post(
  * @swagger
  * /api/v1/auth/google:
  *   post:
- *     summary: Sign in or sign up with Google (Firebase Authentication)
+ *     summary: Sign in or sign up with Google
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -310,11 +310,11 @@ router.post(
  *             properties:
  *               idToken:
  *                 type: string
- *                 description: Firebase ID token obtained from Google Sign-In
+ *                 description: Google ID token obtained from Google Sign-In
  *                 example: eyJhbGciOiJSUzI1NiIsImtpZCI6IjFkYzBmM...
  *               roleCode:
  *                 type: string
- *                 description: Optional role code for new users (defaults to 'user').
+ *                 description: Optional role code for new users.
  *                 example: U
  *     responses:
  *       200:
@@ -336,28 +336,9 @@ router.post(
  *                     token:
  *                       type: string
  *                       description: Your backend JWT token for API authentication
- *                       example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                     isNewUser:
- *                       type: boolean
- *                       description: True if this is a new user registration, false if existing user
- *                       example: false
- *                     user:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                           example: 507f1f77bcf86cd799439011
- *                         name:
- *                           type: string
- *                           example: John Doe
- *                         email:
- *                           type: string
- *                           example: john@gmail.com
- *                         profilePicture:
- *                           type: string
- *                           example: https://lh3.googleusercontent.com/a/...
+ *                       example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... *
  *       400:
- *         description: Validation error or invalid Firebase token
+ *         description: Validation error or invalid Google token
  *         content:
  *           application/json:
  *             schema:
@@ -368,9 +349,9 @@ router.post(
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: Firebase ID token is required
+ *                   example: Google ID token is required
  *       401:
- *         description: Invalid or expired Firebase token
+ *         description: Invalid or expired Google token
  *         content:
  *           application/json:
  *             schema:
@@ -381,7 +362,7 @@ router.post(
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: Invalid or expired Firebase token
+ *                   example: Invalid or expired Google token
  */
 router.post("/google", validateRequest(googleAuthValidation), googleAuth);
 
