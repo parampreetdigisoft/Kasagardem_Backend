@@ -6,7 +6,6 @@ import {
   errorResponse,
   successResponse,
 } from "../../../core/utils/responseFormatter";
-import { info } from "../../../core/utils/logger";
 import { findUserByEmail } from "../../auth/authRepository";
 import {
   createQuestion,
@@ -18,7 +17,7 @@ import NodeCache from "node-cache";
 import { QuestionWithOptions } from "../../../interface/quetion";
 import { AuthUserPayload } from "../../../interface/user";
 
-// ✅ Cache questions for 10 minutes (they rarely change)
+// Cache questions for 10 minutes (they rarely change)
 const questionsCache = new NodeCache({ stdTTL: 600, checkperiod: 120 });
 const QUESTIONS_CACHE_KEY = "all_questions";
 
@@ -37,7 +36,7 @@ export const getAllQuestions = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // ✅ Check cache first
+    // Check cache first
     const cached =
       questionsCache.get<QuestionWithOptions[]>(QUESTIONS_CACHE_KEY);
 
@@ -58,10 +57,10 @@ export const getAllQuestions = async (
       return;
     }
 
-    // ✅ Retrieve from database (optimized query below)
+    // Retrieve from database (optimized query below)
     const questions = await findAllQuestions();
 
-    // ✅ Cache the raw data
+    // Cache the raw data
     questionsCache.set(QUESTIONS_CACHE_KEY, questions);
 
     // Format data
@@ -69,14 +68,6 @@ export const getAllQuestions = async (
       question_id: id,
       ...rest,
     }));
-
-    // Success log (non-blocking)
-    setImmediate(() => {
-      info("Questions retrieved successfully", {
-        count: formattedQuestions.length,
-        req,
-      }).catch(console.error);
-    });
 
     res
       .status(HTTP_STATUS.OK)
@@ -134,27 +125,15 @@ export const createQuestionController = async (
   try {
     const { question_text, options, order } = req.body;
 
-    await info(
-      "Question creation attempt started",
-      { question_text, options },
-      { userId: user.id!, req }
-    );
-
-    // Note: create expects options as array of strings (create endpoint)
-    const created = await createQuestion({
+    // create expects options as array of strings
+    await createQuestion({
       question_text,
       order,
       options, // array of strings
       is_deleted: false,
     });
 
-    await info(
-      "Question created successfully",
-      { questionId: created.id },
-      { userId: user.id!, req }
-    );
-
-    // ❗ Invalidate cache
+    //  Invalidate cache
     questionsCache.del(QUESTIONS_CACHE_KEY);
 
     res
@@ -165,7 +144,7 @@ export const createQuestionController = async (
       res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
       return;
     }
-    console.error("❌ Failed to create question:", err);
+    console.error(" Failed to create question:", err);
     next(err);
   }
 };
@@ -218,13 +197,7 @@ export const updateQuestionController = async (
       return;
     }
 
-    await info(
-      "Question updated successfully",
-      { questionId },
-      { userId: user.id!, req }
-    );
-
-    // ❗ Invalidate cache
+    // Invalidate cache
     questionsCache.del(QUESTIONS_CACHE_KEY);
 
     res
@@ -291,13 +264,7 @@ export const deleteQuestionController = async (
       return;
     }
 
-    await info(
-      "Question soft deleted successfully",
-      { questionId },
-      { userId: user.id!, req }
-    );
-
-    // ❗ Invalidate cache
+    //  Invalidate cache
     questionsCache.del(QUESTIONS_CACHE_KEY);
 
     res

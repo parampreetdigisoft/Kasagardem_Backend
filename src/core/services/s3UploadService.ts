@@ -54,7 +54,7 @@ const simpleUpload = async (
 
   await s3Client.send(command);
 
-  // ✅ Return only the S3 file key instead of the public URL
+  //Return only the S3 file key instead of the public URL
   return fileName;
 };
 
@@ -273,6 +273,34 @@ export const deleteFileFromS3 = async (fileKey: string): Promise<void> => {
     });
     await s3Client.send(command);
   } catch (err) {
-    console.error("❌ Failed to delete file from S3:", err);
+    console.error("Failed to delete file from S3:", err);
   }
 };
+
+/**
+ * Uploads an image buffer to an S3 bucket and returns the stored file key.
+ *
+ * @param {Buffer} buffer - The image buffer to upload.
+ * @param {string} fileName - The name of the file to store in S3.
+ * @param {string} folder - The target S3 folder path.
+ * @returns {Promise<string>} - The generated S3 object key.
+ */
+export async function uploadBufferToS3(
+  buffer: Buffer,
+  fileName: string,
+  folder: string
+): Promise<string> {
+  const key = `${folder}/${fileName}`;
+
+  await s3Client.send(
+    new PutObjectCommand({
+      Bucket: config.AWS_S3_BUCKET!,
+      Key: key,
+      Body: buffer,
+      ContentType: "image/jpeg",
+      ServerSideEncryption: "AES256",
+    })
+  );
+
+  return key;
+}

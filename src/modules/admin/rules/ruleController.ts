@@ -6,7 +6,6 @@ import {
   errorResponse,
   successResponse,
 } from "../../../core/utils/responseFormatter";
-import { info } from "../../../core/utils/logger";
 import {
   createValidatedRule,
   updateValidatedRule,
@@ -50,12 +49,6 @@ export const getAllRules = async (
 
   try {
     const rules = await getAllRulesFromDB();
-
-    await info(
-      "Rules retrieved successfully",
-      { rulesCount: rules.length },
-      { userId: user.id! }
-    );
 
     res
       .status(HTTP_STATUS.OK)
@@ -106,13 +99,6 @@ export const createRule = async (
     };
 
     const newRule = await createValidatedRule(payload);
-
-    await info(
-      "Rule created successfully",
-      { ruleId: newRule.id },
-      { userId: user.id! }
-    );
-
     res
       .status(HTTP_STATUS.CREATED)
       .json(successResponse(newRule, MESSAGES.RULE_CREATED));
@@ -158,12 +144,6 @@ export const updateRule = async (
   }
 
   try {
-    await info(
-      "Rule update started",
-      { ruleId: req.params.id, body: req.body },
-      { userId: user.id! }
-    );
-
     const payload = {
       ...req.body,
       updatedAt: new Date(),

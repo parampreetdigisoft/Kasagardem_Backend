@@ -6,8 +6,8 @@ import {
   errorResponse,
   successResponse,
 } from "../../../core/utils/responseFormatter";
-import { error, info } from "../../../core/utils/logger";
-import { createLead, findAllLeads, updateLeadStatus } from "./leadsModule"; // ✅ functional PostgreSQL module
+import { error } from "../../../core/utils/logger";
+import { createLead, findAllLeads, updateLeadStatus } from "./leadsModule";
 import { sendLeadEmails } from "../../../core/services/emailService";
 import config from "../../../core/config/env";
 import { getDB } from "../../../core/config/db";
@@ -56,7 +56,7 @@ export const getAllLeads = async (
   }
 
   try {
-    // ⬅️ Pagination parameters
+    // Pagination parameters
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 5;
 
@@ -220,8 +220,6 @@ async function processLeadEmailsAsync(
       config.ADMIN_EMAIL,
       leadDetails
     );
-
-    await info("Lead emails sent successfully", { leadId });
   } catch (err) {
     throw err; // Caught by caller
   }
