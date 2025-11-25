@@ -758,11 +758,7 @@ export const googleAuth = async (
       await createUserProfileWithImage(userData?.id!, uploadedFileKey);
       user = userData;
     } else {
-      await updateUserFromOAuth(
-        user.id!,
-        user.google_uid ? undefined : uid,
-        picture && user.profile_picture !== picture ? picture : undefined
-      );
+      await updateUserFromOAuth(user.id!, user.google_uid ? undefined : uid);
     }
 
     // Generate JWT token

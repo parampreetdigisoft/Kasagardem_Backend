@@ -3,11 +3,6 @@ import { ZodError } from "zod";
 import { createUserDto } from "../../dto/userDto";
 import { IRole, IUser, IUserOAuth } from "../../interface/user";
 import { getDB } from "../../core/config/db";
-import { downloadImageAsBuffer } from "../../core/utils/usableMethods";
-import {
-  deleteFileFromS3,
-  uploadBufferToS3,
-} from "../../core/services/s3UploadService";
 
 /**
  * Hash password helper
@@ -425,13 +420,10 @@ export async function createUserProfileWithImage(
  * Update existing user OAuth info (google_uid, profile picture)
  * @param userId
  * @param googleUid
- * @param picture
- * @param pictureLink
  */
 export async function updateUserFromOAuth(
   userId: string,
-  googleUid?: string,
-  pictureLink?: string
+  googleUid?: string
 ): Promise<void> {
   const db = await getDB();
 
@@ -445,57 +437,5 @@ export async function updateUserFromOAuth(
       `,
       [googleUid, userId]
     );
-  }
-
-  //  Update userprofiles table (only profile_image)
-  if (pictureLink) {
-    // Fetch existing profile image key
-    const profile = await db.query(
-      `SELECT id, profile_image FROM userprofiles WHERE user_id = $1`,
-      [userId]
-    );
-
-    const oldImageKey = profile.rows[0]?.profile_image || null;
-
-    // Download Google picture
-    const buffer = await downloadImageAsBuffer(pictureLink);
-
-    // Generate a new S3 key
-    const fileName = `${Date.now()}_${userId}.jpg`;
-    const folder = "Users/ProfileImages";
-
-    // Upload new image to S3
-    const newImageKey = await uploadBufferToS3(buffer, fileName, folder);
-
-    // Delete old image from S3 (if exists)
-    if (oldImageKey) {
-      try {
-        await deleteFileFromS3(oldImageKey);
-      } catch (err) {
-        console.error("Failed to delete old S3 image:", err);
-      }
-    }
-
-    // Update or Insert user profile record
-    if (profile.rows.length === 0) {
-      // Create new profile (edge case)
-      await db.query(
-        `
-        INSERT INTO userprofiles (user_id, profile_image, created_at, updated_at)
-        VALUES ($1, $2, NOW(), NOW())
-        `,
-        [userId, newImageKey]
-      );
-    } else {
-      // Update existing profile
-      await db.query(
-        `
-        UPDATE userprofiles
-        SET profile_image = $1, updated_at = NOW()
-        WHERE user_id = $2
-        `,
-        [newImageKey, userId]
-      );
-    }
   }
 }
