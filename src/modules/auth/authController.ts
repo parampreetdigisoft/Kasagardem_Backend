@@ -758,6 +758,7 @@ export const googleAuth = async (
       await createUserProfileWithImage(userData?.id!, uploadedFileKey);
       user = userData;
     } else {
+      // Update Google uid if any register user google uid changes..
       await updateUserFromOAuth(user.id!, user.google_uid ? undefined : uid);
     }
 
