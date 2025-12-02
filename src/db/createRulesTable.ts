@@ -7,7 +7,7 @@ export async function createRulesTables(): Promise<void> {
   try {
     const client = await getDB();
 
-    // 1️⃣ Create main "rules" table
+    // Create main "rules" table
     const rulesTableQuery = `
       CREATE TABLE IF NOT EXISTS rules (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -19,7 +19,7 @@ export async function createRulesTables(): Promise<void> {
       );
     `;
 
-    // 2️⃣ Create "rule_conditions" table (one-to-many relationship)
+    // Create "rule_conditions" table (one-to-many relationship)
     const ruleConditionsTableQuery = `
       CREATE TABLE IF NOT EXISTS rule_conditions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -35,12 +35,12 @@ export async function createRulesTables(): Promise<void> {
     await client.query(rulesTableQuery);
     await client.query(ruleConditionsTableQuery);
 
-    console.error("✅ Rules and RuleConditions tables created successfully!");
+    console.error("Rules and RuleConditions tables created successfully!");
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error("❌ Error creating rules tables:", error.message);
+      console.error("Error creating rules tables:", error.message);
     } else {
-      console.error("❌ Unknown error:", error);
+      console.error("Unknown error:", error);
     }
   }
 }

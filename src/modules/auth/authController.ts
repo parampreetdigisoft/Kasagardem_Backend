@@ -677,11 +677,11 @@ export const googleAuth = async (
     if (!idToken) {
       res
         .status(HTTP_STATUS.BAD_REQUEST)
-        .json(errorResponse("Firebase ID token is required"));
+        .json(errorResponse("Google ID token is required"));
       return;
     }
 
-    // Verify Firebase token
+    // Decode Google token
     const decoded = await decodeGoogleIdToken(idToken);
 
     if (!decoded) {

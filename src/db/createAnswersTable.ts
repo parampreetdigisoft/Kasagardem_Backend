@@ -18,12 +18,12 @@ export async function createSurveyResponsesTable(): Promise<void> {
     `;
 
     await client.query(query);
-    console.error("✅ Survey responses table created successfully!");
+    console.error("Survey responses table created successfully!");
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error("❌ Error creating survey_responses table:", error.message);
+      console.error("Error creating survey_responses table:", error.message);
     } else {
-      console.error("❌ Unknown error:", error);
+      console.error("Unknown error:", error);
     }
   }
 }
@@ -61,12 +61,12 @@ export async function createSurveyAnswersTable(): Promise<void> {
     `;
 
     await client.query(query);
-    console.error("✅ Survey answers table created successfully!");
+    console.error("Survey answers table created successfully!");
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error("❌ Error creating survey_answers table:", error.message);
+      console.error("Error creating survey_answers table:", error.message);
     } else {
-      console.error("❌ Unknown error:", error);
+      console.error("Unknown error:", error);
     }
   }
 }

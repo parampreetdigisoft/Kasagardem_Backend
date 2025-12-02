@@ -45,11 +45,11 @@ export const connectDB = async (): Promise<Pool> => {
     // Test the connection
     const client = await pool.connect();
     client.release();
-    console.error("✅ PostgreSQL pool connected successfully");
+    console.error("PostgreSQL pool connected successfully");
     dbPool = pool;
     return pool;
   } catch (error) {
-    console.error("❌ PostgreSQL connection failed:", error);
+    console.error("PostgreSQL connection failed:", error);
     process.exit(1);
   }
 };
@@ -83,6 +83,6 @@ export const disconnectDB = async (): Promise<void> => {
   if (dbPool) {
     await dbPool.end();
     dbPool = null;
-    console.error("✅ PostgreSQL pool disconnected successfully");
+    console.error("PostgreSQL pool disconnected successfully");
   }
 };

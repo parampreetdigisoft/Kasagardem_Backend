@@ -5,6 +5,7 @@ import {
   createQuestionController,
   deleteQuestionController,
   getAllQuestions,
+  getQuestionOptionsGrouped,
   updateQuestionController,
 } from "./questionController";
 import {
@@ -153,6 +154,52 @@ router.post(
  *                         $ref: '#/components/schemas/Question'
  */
 router.get("/question", getAllQuestions as unknown as RequestHandler);
+
+/**
+ * @swagger
+ * /api/v1/admin/question/options-grouped:
+ *   get:
+ *     summary: Get grouped question options
+ *     description: Returns options of the first 4 questions grouped into categories like space_types, area_sizes, challenges, and tech_preferences.
+ *     tags: [Questions]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Grouped options retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     space_types:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     area_sizes:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     challenges:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     tech_preferences:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ */
+router.get(
+  "/question/options-grouped",
+  getQuestionOptionsGrouped as unknown as RequestHandler
+);
 
 /**
  * @swagger

@@ -51,12 +51,12 @@ export async function createLogsTable(): Promise<void> {
     `;
 
     await client.query(query);
-    console.error("✅ Logs table created successfully!");
+    console.error("Logs table created successfully!");
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error("❌ Error creating logs table:", error.message);
+      console.error("Error creating logs table:", error.message);
     } else {
-      console.error("❌ Unknown error:", error);
+      console.error("Unknown error:", error);
     }
   }
 }

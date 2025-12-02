@@ -18,12 +18,12 @@ export async function createRolesTable(): Promise<void> {
     `;
 
     await client.query(query);
-    console.error("✅ Roles table created successfully!");
+    console.error("Roles table created successfully!");
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error("❌ Error creating roles table:", error.message);
+      console.error("Error creating roles table:", error.message);
     } else {
-      console.error("❌ Unknown error:", error);
+      console.error("Unknown error:", error);
     }
   }
 }

@@ -53,7 +53,7 @@ app.use("/api/v1/partnerProfile", partnerProfileRoutes);
 // Add Question Answer user selected data Routes
 app.use("/api/v1/answers", answerRoutes);
 // Add Plants user selected data Routes
-app.use("/api/v1", plantRoutes);
+app.use("/api/v1/admin", plantRoutes);
 // State City Country Routes
 app.use("/api/v1/stateCityData", stateCityRoutes);
 // Leads Routes
