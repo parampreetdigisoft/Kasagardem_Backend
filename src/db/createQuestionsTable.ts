@@ -7,7 +7,7 @@ export async function createQuestionsTable(): Promise<void> {
   try {
     const client = await connectDB();
 
-    // 1️⃣ Create "questions" table
+    // Create "questions" table
     const createQuestionsQuery = `
       CREATE TABLE IF NOT EXISTS questions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -19,7 +19,7 @@ export async function createQuestionsTable(): Promise<void> {
       );
     `;
 
-    // 2️⃣ Create "question_options" table
+    // Create "question_options" table
     const createOptionsQuery = `
       CREATE TABLE IF NOT EXISTS question_options (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -30,25 +30,25 @@ export async function createQuestionsTable(): Promise<void> {
       );
     `;
 
-    // 3️⃣ Create index for better query performance
+    // Create index for better query performance
     const createIndexQuery = `
       CREATE INDEX IF NOT EXISTS idx_question_options_question_id 
       ON question_options(question_id);
     `;
 
-    // 4️⃣ Execute queries
+    // Execute queries
     await client.query(createQuestionsQuery);
     await client.query(createOptionsQuery);
     await client.query(createIndexQuery);
 
     console.error(
-      "✅ Questions and Question_Options tables created successfully!"
+      "Questions and Question_Options tables created successfully!"
     );
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error("❌ Error creating questions tables:", error.message);
+      console.error("Error creating questions tables:", error.message);
     } else {
-      console.error("❌ Unknown error:", error);
+      console.error("Unknown error:", error);
     }
   }
 }

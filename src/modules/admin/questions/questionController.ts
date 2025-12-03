@@ -82,7 +82,71 @@ export const getAllQuestions = async (
       res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
       return;
     }
-    console.error("❌ Error fetching questions:", err);
+    console.error("Error fetching questions:", err);
+    next(err);
+  }
+};
+
+/**
+ * Detects a category based on keywords inside a question's text.
+ *
+ * @param {string} questionText - The text of the question.
+ * @returns {string | null} - The matched category key or null if no match.
+ */
+function detectCategory(questionText: string): string | null {
+  const text = questionText.toLowerCase();
+
+  if (
+    text.includes("space") &&
+    !text.includes("area") &&
+    !text.includes("challenge")
+  )
+    return "space_types";
+  if (text.includes("area") && text.includes("space")) return "area_sizes";
+  if (text.includes("challenge") || text.includes("desire"))
+    return "challenges";
+  if (text.includes("technology") || text.includes("tech"))
+    return "tech_preferences";
+
+  return null;
+}
+
+/**
+ * Retrieves grouped options for the first 4 questions
+ * based on keyword-category mapping.
+ *
+ * @param {Request} req - Express request object.
+ * @param {Response} res - Express response object.
+ * @param {NextFunction} next - Express next middleware handler.
+ * @returns {Promise<void>} - Returns no value, sends JSON response.
+ */
+export const getQuestionOptionsGrouped = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const questions = await findAllQuestions();
+
+    const grouped: Record<string, string[]> = {
+      space_types: [],
+      area_sizes: [],
+      challenges: [],
+      tech_preferences: [],
+    };
+
+    questions.forEach((q) => {
+      const category = detectCategory(q.question_text);
+      if (!category) return;
+
+      grouped[category] = q.options.map((o) => o.option_text);
+    });
+
+    res
+      .status(200)
+      .json(successResponse(grouped, "Options retrieved successfully"));
+  } catch (err) {
+    console.error(err);
     next(err);
   }
 };

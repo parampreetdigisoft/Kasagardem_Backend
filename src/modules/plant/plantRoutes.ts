@@ -1,8 +1,16 @@
 import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import validateRequest from "../../core/middleware/validateRequest";
-import { plantValidation } from "./plantValidation";
-import { createPlant } from "./plantController";
+import { plantIdentifyValidation, plantValidation } from "./plantValidation";
+
+import {
+  createPlantController,
+  getAllPlantsController,
+  getPlantByIdController,
+  updatePlantController,
+  deletePlantController,
+  diagnosePlantController,
+} from "./plantController";
 
 const router: Router = express.Router();
 
@@ -10,7 +18,7 @@ const router: Router = express.Router();
  * @swagger
  * tags:
  *   name: Plants
- *   description: API for managing plants
+ *   description: API for managing luxury garden plants
  */
 
 /**
@@ -19,96 +27,100 @@ const router: Router = express.Router();
  *   schemas:
  *     Location:
  *       type: object
- *       required: [type, value]
  *       properties:
- *         type:
+ *         location_type:
  *           type: string
- *           description: Location type (climate_zone, country, region, etc.)
  *           example: "climate_zone"
- *         value:
+ *         location_value:
  *           type: string
- *           description: Location value
  *           example: "Tropical"
- *     PlantInput:
+ *
+ *     Plant:
  *       type: object
- *       required:
- *         - scientific_name
- *         - common_name
  *       properties:
  *         scientific_name:
  *           type: string
  *           example: "Ficus lyrata"
+ *
  *         common_name:
  *           type: string
  *           example: "Fiddle Leaf Fig"
+ *
  *         image_search_url:
  *           type: string
- *           example: "https://example.com/ficus.jpg"
+ *           example: "https://mybucket.s3.amazonaws.com/plants/ficus.jpg"
+ *
+ *         description:
+ *           type: string
+ *           example: "A beautiful indoor plant with large violin-shaped leaves."
+ *
+ *         native:
+ *           type: boolean
+ *           example: false
+ *
+ *         light:
+ *           type: string
+ *           example: "Bright indirect light"
+ *
+ *         water_needs:
+ *           type: string
+ *           example: "Moderate"
+ *
+ *         maintenance_level:
+ *           type: string
+ *           example: "Medium"
+ *
+ *         growth_form:
+ *           type: string
+ *           example: "Tree"
+ *
  *         space_types:
  *           type: array
  *           items:
  *             type: string
  *           example: ["indoor", "balcony"]
+ *
  *         area_sizes:
  *           type: array
  *           items:
  *             type: string
  *           example: ["small", "medium"]
+ *
  *         challenges:
  *           type: array
  *           items:
  *             type: string
- *           example: ["low humidity", "root rot"]
+ *           example: ["root rot", "low humidity"]
+ *
  *         tech_preferences:
  *           type: array
  *           items:
  *             type: string
- *           example: ["hydroponics", "smart sensors"]
- *         locations:
- *           type: array
- *           items:
- *             $ref: '#/components/schemas/Location'
- *         description:
- *           type: string
- *           example: "A popular indoor plant with large violin-shaped leaves."
+ *           example: ["smart sensors", "hydroponics"]
+ *
  *         care_notes:
  *           type: array
  *           items:
  *             type: string
- *           example: ["Water weekly", "Bright indirect light"]
- *         native:
- *           type: boolean
- *           example: false
- *         light:
- *           type: string
- *           example: "Bright indirect light"
- *         water_needs:
- *           type: string
- *           example: "Moderate"
- *         maintenance_level:
- *           type: string
- *           example: "Medium"
- *         growth_form:
- *           type: string
- *           example: "Tree"
- *         isDeleted:
- *           type: boolean
- *           default: false
+ *           example: ["Water weekly", "Use humidifier"]
  *
- *     ApiResponse:
- *       type: object
- *       properties:
- *         success:
- *           type: boolean
- *         message:
- *           type: string
- *         data:
- *           type: object
+ *         locations:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/Location'
+ *
+ *
+ *     PlantInput:
+ *       allOf:
+ *         - $ref: '#/components/schemas/Plant'
+ *       required:
+ *         - scientific_name
+ *         - common_name
  */
 
 /**
  * @swagger
- * /api/v1/plants:
+ * /api/v1/admin/plants:
  *   post:
  *     summary: Create a new plant
  *     tags: [Plants]
@@ -120,44 +132,187 @@ const router: Router = express.Router();
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/PlantInput'
- *           example:
- *             scientific_name: "Ficus lyrata"
- *             common_name: "Fiddle Leaf Fig"
- *             image_search_url: "https://example.com/ficus.jpg"
- *             space_types: ["indoor", "balcony"]
- *             area_sizes: ["small", "medium"]
- *             challenges: ["low humidity", "root rot"]
- *             tech_preferences: ["hydroponics"]
- *             locations:
- *               - type: "climate_zone"
- *                 value: "Tropical"
- *             description: "A popular indoor plant with large violin-shaped leaves."
- *             care_notes: ["Water weekly", "Bright indirect light"]
- *             native: false
- *             light: "Bright indirect light"
- *             water_needs: "Moderate"
- *             maintenance_level: "Medium"
- *             growth_form: "Tree"
  *     responses:
  *       201:
  *         description: Plant created successfully
+ */
+router.post(
+  "/plants",
+  auth,
+  validateRequest(plantValidation),
+  createPlantController
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/plants:
+ *   get:
+ *     summary: Get all plants with pagination and search
+ *     tags: [Plants]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *         description: Number of plants per page
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by scientific name, common name, or description
+ *     responses:
+ *       200:
+ *         description: Paginated list of plants
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiResponse'
- *             example:
- *               success: true
- *               message: "Plant created successfully"
- *               data:
- *                 _id: "6501a1b9f0e7c3d5e89abc99"
- *                 scientific_name: "Ficus lyrata"
- *                 common_name: "Fiddle Leaf Fig"
- *                 isDeleted: false
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Plant'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     currentPage:
+ *                       type: integer
+ *                       example: 1
+ *                     totalPages:
+ *                       type: integer
+ *                       example: 10
+ *                     totalItems:
+ *                       type: integer
+ *                       example: 50
+ *                     itemsPerPage:
+ *                       type: integer
+ *                       example: 5
+ */
+router.get("/plants", auth, getAllPlantsController);
+
+/**
+ * @swagger
+ * /api/v1/admin/plants/{id}:
+ *   get:
+ *     summary: Get plant details by ID
+ *     tags: [Plants]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Plant details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Plant'
+ *       404:
+ *         description: Plant not found
+ */
+router.get("/plants/:id", auth, getPlantByIdController);
+
+/**
+ * @swagger
+ * /api/v1/admin/plants/{id}:
+ *   put:
+ *     summary: Update plant
+ *     tags: [Plants]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/PlantInput'
+ *     responses:
+ *       200:
+ *         description: Updated successfully
+ */
+router.put(
+  "/plants/:id",
+  auth,
+  validateRequest(plantValidation),
+  updatePlantController
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/plants/{id}:
+ *   delete:
+ *     summary: Soft delete a plant
+ *     tags: [Plants]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Plant deleted successfully
+ */
+router.delete("/plants/:id", auth, deletePlantController);
+
+/**
+ * @swagger
+ * /api/v1/admin/plants/identify:
+ *   post:
+ *     summary: Identify plant species and health in one unified request
+ *     tags: [Plant Identification]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   example: "data:image/jpeg;base64,/9j/4AAQ..."
+ *               latitude:
+ *                 type: number
+ *               longitude:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Identification successful
  *       400:
- *         description: Validation error
+ *         description: Validation failed
  *       401:
  *         description: Unauthorized
  */
-router.post("/plants", auth, validateRequest(plantValidation), createPlant);
+router.post(
+  "/plants/identify",
+  auth,
+  validateRequest(plantIdentifyValidation),
+  diagnosePlantController
+);
 
 export default router;

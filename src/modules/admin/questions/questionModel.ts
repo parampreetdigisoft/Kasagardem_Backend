@@ -12,7 +12,7 @@ export async function findAllQuestions(): Promise<QuestionWithOptions[]> {
   const pool = getDB();
 
   try {
-    // ✅ OPTIMIZED: Use array_agg instead of json_agg for better performance
+    // OPTIMIZED: Use array_agg instead of json_agg for better performance
     const query = `
       SELECT 
         q.id,
@@ -43,7 +43,7 @@ export async function findAllQuestions(): Promise<QuestionWithOptions[]> {
       options: row.options || [],
     }));
   } catch (err) {
-    throw new Error(`❌ Failed to fetch questions: ${(err as Error).message}`);
+    throw new Error(`Failed to fetch questions: ${(err as Error).message}`);
   }
 }
 

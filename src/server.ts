@@ -11,10 +11,10 @@ const startServer = async (): Promise<void> => {
     // Start server
     app.listen(config.PORT, '0.0.0.0', () => {
       console.error(
-        `🚀 Server running at: ${config.APPDEV_URL} in ${config.NODE_ENV} mode`
+        `Server running at: ${config.APPDEV_URL} in ${config.NODE_ENV} mode`
       );
       console.error(
-        `📑 Swagger Docs available at: ${config.APPDEV_URL}/swagger/`
+        `Swagger Docs available at: ${config.APPDEV_URL}/swagger/`
       );
     });
   } catch {

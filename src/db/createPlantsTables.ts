@@ -44,7 +44,7 @@ export async function createPlantsTables(): Promise<void> {
         area_size VARCHAR(100) NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS plant_challenges (
+      CREATE TABLE IF NOT EXISTS plant_  (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         plant_id UUID NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
         challenge VARCHAR(255) NOT NULL
@@ -71,12 +71,12 @@ export async function createPlantsTables(): Promise<void> {
     `;
 
     await client.query(query);
-    console.error("✅ Plants and related tables created successfully!");
+    console.error("Plants and related tables created successfully!");
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error("❌ Error creating plants tables:", error.message);
+      console.error("Error creating plants tables:", error.message);
     } else {
-      console.error("❌ Unknown error:", error);
+      console.error("Unknown error:", error);
     }
   }
 }

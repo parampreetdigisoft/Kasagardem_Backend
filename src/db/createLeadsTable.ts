@@ -20,12 +20,12 @@ export async function createLeadsTable(): Promise<void> {
     `;
 
     await client.query(query);
-    console.error("✅ Leads table created successfully!");
+    console.error("Leads table created successfully!");
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error("❌ Error creating leads table:", error.message);
+      console.error("Error creating leads table:", error.message);
     } else {
-      console.error("❌ Unknown error:", error);
+      console.error("Unknown error:", error);
     }
   }
 }

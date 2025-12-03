@@ -34,12 +34,12 @@ export async function createPartnerProfilesTable(): Promise<void> {
     `;
 
     await client.query(query);
-    console.error("✅ partner_profiles table created successfully!");
+    console.error("partner_profiles table created successfully!");
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error("❌ Error creating partner_profiles table:", error.message);
+      console.error("Error creating partner_profiles table:", error.message);
     } else {
-      console.error("❌ Unknown error:", error);
+      console.error("Unknown error:", error);
     }
   }
 }
@@ -147,15 +147,15 @@ export async function createOptimizedIndexes(): Promise<void> {
     `;
 
     await client.query(queries);
-    console.error("✅ All optimized indexes created successfully!");
+    console.error("All optimized indexes created successfully!");
     console.error(
-      "📊 Database is now optimized for fast recommendations retrieval"
+      "Database is now optimized for fast recommendations retrieval"
     );
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error("❌ Error creating indexes:", error.message);
+      console.error("Error creating indexes:", error.message);
     } else {
-      console.error("❌ Unknown error:", error);
+      console.error("Unknown error:", error);
     }
   }
 }
