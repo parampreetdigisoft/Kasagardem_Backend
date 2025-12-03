@@ -143,7 +143,7 @@ export async function getLeadTrendData(): Promise<{
 
   const result = await pool.query(`
     SELECT 
-      to_char(created_at, 'YYYY-MM-DD') AS date,
+      to_char(updated_at, 'YYYY-MM-DD') AS date,
       leads_status,
       COUNT(*) AS count
     FROM leads
