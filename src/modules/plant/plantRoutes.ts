@@ -1,7 +1,7 @@
 import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import validateRequest from "../../core/middleware/validateRequest";
-import { plantValidation } from "./plantValidation";
+import { plantIdentifyValidation, plantValidation } from "./plantValidation";
 
 import {
   createPlantController,
@@ -9,6 +9,7 @@ import {
   getPlantByIdController,
   updatePlantController,
   deletePlantController,
+  diagnosePlantController,
 } from "./plantController";
 
 const router: Router = express.Router();
@@ -274,5 +275,44 @@ router.put(
  *         description: Plant deleted successfully
  */
 router.delete("/plants/:id", auth, deletePlantController);
+
+/**
+ * @swagger
+ * /api/v1/admin/plants/identify:
+ *   post:
+ *     summary: Identify plant species and health in one unified request
+ *     tags: [Plant Identification]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   example: "data:image/jpeg;base64,/9j/4AAQ..."
+ *               latitude:
+ *                 type: number
+ *               longitude:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Identification successful
+ *       400:
+ *         description: Validation failed
+ *       401:
+ *         description: Unauthorized
+ */
+router.post(
+  "/plants/identify",
+  auth,
+  validateRequest(plantIdentifyValidation),
+  diagnosePlantController
+);
 
 export default router;

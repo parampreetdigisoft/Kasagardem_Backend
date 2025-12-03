@@ -1,7 +1,19 @@
+import axios from "axios";
 import { getDB } from "../../core/config/db";
 import { getSignedFileUrl } from "../../core/services/s3UploadService";
 import { createPlantDto, updatePlantDto } from "../../dto/plantDto";
 import { IPlant, ILocation } from "./plantModel";
+import config from "../../core/config/env";
+import {
+  HealthIssue,
+  IdentifyPlantPayload,
+  PlantDiagnosis,
+  PlantIDApiResponse,
+} from "../../interface/plants";
+import {
+  categorizeHealthIssue,
+  generateKasagardemSolutions,
+} from "../../core/services/plantDiagnoseService";
 
 /**
  * CREATE MAIN PLANT RECORD
@@ -486,4 +498,149 @@ export const updateLocationsRepo = async (
       [plantId, location_type, location_value]
     );
   }
+};
+
+/**
+ * Poll Plant.id API until the result is completed.
+ *
+ * @param accessToken Access token returned from Plant.id API
+ * @param retries Number of polling attempts (default 15)
+ * @returns Completed Plant.id result response
+ */
+const pollForResult = async (
+  accessToken: string,
+  retries = 15
+): Promise<PlantIDApiResponse> => {
+  const endpoint = `${config.KASAGARDEM_PLANTAPI_URL}/identification/${accessToken}?details=common_names,url,description,description_gpt,description_all,taxonomy,rank,gbif_id,inaturalist_id,image,images,synonyms,edible_parts,watering,propagation_methods,best_watering,best_light_condition,best_soil_type,common_uses,toxicity,cultural_significance,gpt&language=en`;
+
+  for (let i = 0; i < retries; i++) {
+    const res = await axios.get<PlantIDApiResponse>(endpoint, {
+      headers: {
+        "Api-Key": config.KASAGARDEM_PLANTAPI_KEY,
+      },
+    });
+
+    if (res.data.status === "COMPLETED") {
+      return res.data;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  throw new Error("Plant.id result not ready after polling.");
+};
+
+/**
+ * Identifies a plant using the Plant.id API.
+ *
+ * @param payload Request payload containing images and optional metadata
+ * @returns Response from Plant.id API (completed or polled result)
+ */
+export const identifyPlantFromPlantID = async (
+  payload: IdentifyPlantPayload
+): Promise<PlantIDApiResponse> => {
+  const params = new URLSearchParams({
+    details:
+      "common_names,url,description,description_gpt,description_all,taxonomy,rank,gbif_id,inaturalist_id,image,images,synonyms,edible_parts,watering,propagation_methods,best_watering,best_light_condition,best_soil_type,common_uses,toxicity,cultural_significance,gpt",
+    language: "en",
+    async: "false",
+  }).toString();
+
+  const postResponse = await axios.post<PlantIDApiResponse>(
+    `${config.KASAGARDEM_PLANTAPI_URL}/identification?${params}`,
+    {
+      ...payload,
+      health: "all",
+      similar_images: payload.similar_images ?? true,
+    },
+    {
+      headers: {
+        "Api-Key": config.KASAGARDEM_PLANTAPI_KEY,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const result = postResponse.data;
+
+  if (result.status === "COMPLETED") {
+    return result;
+  }
+
+  if (result.status === "CREATED" && result.access_token) {
+    return await pollForResult(result.access_token);
+  }
+
+  throw new Error(`Unexpected Plant.id status: ${result.status}`);
+};
+
+/**
+ * Identify a plant and generate diagnosis details.
+ * @param body Plant identification request payload
+ * @returns Complete plant diagnosis result
+ */
+export const identifyPlantService = async (
+  body: IdentifyPlantPayload
+): Promise<PlantDiagnosis> => {
+  const payload: IdentifyPlantPayload = {
+    images: body.images,
+    latitude: body.latitude ?? 0,
+    longitude: body.longitude ?? 0,
+    similar_images: body.similar_images ?? true,
+  };
+
+  const result: PlantIDApiResponse = await identifyPlantFromPlantID(payload);
+
+  const topSuggestion = result.result.classification.suggestions[0];
+
+  const plantInfo = topSuggestion
+    ? {
+        scientificName: topSuggestion.name,
+        commonNames: topSuggestion.details?.common_names || [],
+        probability: topSuggestion.probability,
+        description:
+          topSuggestion.details?.description?.value ||
+          topSuggestion.details?.description_gpt ||
+          "No description available",
+        taxonomy: topSuggestion.details?.taxonomy || {},
+        images:
+          topSuggestion.details?.images?.slice(0, 5).map((img) => img.value) ||
+          [],
+        careGuide: {
+          watering:
+            topSuggestion.details?.best_watering || "Water when soil is dry",
+          lightCondition:
+            topSuggestion.details?.best_light_condition ||
+            "Provide adequate light",
+          soilType:
+            topSuggestion.details?.best_soil_type || "Well-draining soil",
+          propagation: topSuggestion.details?.propagation_methods || [],
+        },
+        uses: topSuggestion.details?.common_uses || "Ornamental purposes",
+        toxicity:
+          topSuggestion.details?.toxicity ||
+          "Toxicity information not available",
+        culturalSignificance:
+          topSuggestion.details?.cultural_significance || "",
+      }
+    : null;
+
+  const healthIssues: HealthIssue[] = result.result.disease.suggestions
+    .filter((s) => !s.redundant && s.probability > 0.03)
+    .slice(0, 5)
+    .map(categorizeHealthIssue);
+
+  const kasagardemSolutions = generateKasagardemSolutions(healthIssues);
+
+  return {
+    isPlant: result.result.is_plant.binary,
+    confidence: result.result.is_plant.probability,
+    plantInfo,
+    healthStatus: {
+      isHealthy: result.result.is_healthy.binary,
+      healthProbability: result.result.is_healthy.probability,
+      issues: healthIssues,
+    },
+    kasagardemSolutions,
+  };
 };

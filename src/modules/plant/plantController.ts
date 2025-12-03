@@ -21,6 +21,7 @@ import { findUserByEmail } from "../auth/authRepository";
 import { error, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
 import { IUser } from "../../interface/user";
+import { identifyPlantService } from "./plantRepository";
 
 /**
  * AUTH + ROLE CHECK HELPER (ADMIN ONLY)
@@ -298,5 +299,59 @@ export const deletePlantController = async (
     );
 
     next(errorObj);
+  }
+};
+
+/**
+ * Diagnose a plant based on uploaded images and geo-coordinates.
+ *
+ * @param req Express request object
+ * @param res Express response object
+ * @param next
+ * @returns Sends a JSON diagnosis response
+ */
+export const diagnosePlantController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const userPayload = req.user as
+    | { userEmail?: string; role?: string }
+    | undefined;
+
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
+
+  const user = await findUserByEmail(userPayload.userEmail);
+
+  if (!user) {
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+    return;
+  }
+
+  if (userPayload.role !== "Admin" && userPayload.role !== "User") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
+    return;
+  }
+  try {
+    const apiResponse = await identifyPlantService(req.body);
+
+    res
+      .status(HTTP_STATUS.OK)
+      .json(successResponse(apiResponse, "Plant diagnosed successfully"));
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({
+      success: false,
+      error: "Failed to diagnose plant",
+      message: err,
+    });
+    next(error);
   }
 };

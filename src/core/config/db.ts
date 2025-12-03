@@ -35,7 +35,7 @@ export const connectDB = async (): Promise<Pool> => {
     ssl: {
       rejectUnauthorized: false,
     },
-    // ✅ Connection pool settings for better performance
+    // Connection pool settings for better performance
     max: 20, // Maximum connections in pool
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 6000,

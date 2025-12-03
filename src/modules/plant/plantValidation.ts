@@ -77,3 +77,20 @@ export const updatePlantValidation: ObjectSchema = Joi.object({
   .messages({
     "object.unknown": "Unknown field is not allowed during update",
   });
+
+export const plantIdentifyValidation = Joi.object({
+  images: Joi.array()
+    .items(Joi.string().min(10).message("Invalid Base64 or URL"))
+    .min(1)
+    .required()
+    .messages({
+      "array.min": "At least one image is required",
+      "any.required": "Images field is required",
+    }),
+
+  latitude: Joi.number().optional(),
+
+  longitude: Joi.number().optional(),
+
+  similar_images: Joi.boolean().default(true).optional(),
+});
