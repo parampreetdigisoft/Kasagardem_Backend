@@ -28,3 +28,7 @@ export enum FieldIndex {
   tech_preferences = 3,
   locations = 4,
 }
+
+export interface AppError extends Error {
+  code?: string;
+}

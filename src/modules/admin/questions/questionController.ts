@@ -1,6 +1,5 @@
 import { Response, NextFunction } from "express";
 import { ZodError } from "zod";
-import { AuthRequest } from "../../../core/middleware/authMiddleware";
 import { HTTP_STATUS, MESSAGES } from "../../../core/utils/constants";
 import {
   errorResponse,
@@ -14,8 +13,9 @@ import {
   updateQuestion,
 } from "./questionModel";
 import NodeCache from "node-cache";
-import { QuestionWithOptions } from "../../../interface/quetion";
+import { QuestionWithOptions } from "../../../interface/question";
 import { AuthUserPayload } from "../../../interface/user";
+import { AuthRequest } from "../../../interface/auth";
 
 // Cache questions for 10 minutes (they rarely change)
 const questionsCache = new NodeCache({ stdTTL: 600, checkperiod: 120 });
@@ -208,7 +208,7 @@ export const createQuestionController = async (
       res.status(HTTP_STATUS.BAD_REQUEST).json({ errors: err.issues });
       return;
     }
-    console.error(" Failed to create question:", err);
+    console.error("Failed to create question:", err);
     next(err);
   }
 };
@@ -283,7 +283,7 @@ export const updateQuestionController = async (
       return;
     }
 
-    console.error("❌ Failed to update question:", error);
+    console.error("Failed to update question:", error);
     next(error);
   }
 };
@@ -335,7 +335,7 @@ export const deleteQuestionController = async (
       .status(HTTP_STATUS.OK)
       .json(successResponse(null, MESSAGES.QUESTION_DELETED));
   } catch (err) {
-    console.error("❌ Failed to delete question:", err);
+    console.error("Failed to delete question:", err);
     next(err);
   }
 };

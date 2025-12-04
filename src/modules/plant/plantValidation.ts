@@ -22,7 +22,6 @@ const locationSchema = Joi.object({
 
 /**
  * CREATE VALIDATION
- * Matches PostgreSQL schema 1:1
  */
 export const plantValidation: ObjectSchema = Joi.object({
   scientific_name: Joi.string().min(1).required().messages({

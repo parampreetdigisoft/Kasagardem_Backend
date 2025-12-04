@@ -1,7 +1,7 @@
 import Joi, { ObjectSchema } from "joi";
 
 /**
- * ✅ Validation schema for creating/updating questions
+ * Validation schema for creating/updating questions
  * Matches your Swagger `QuestionInput` and PostgreSQL structure
  */
 export const questionValidation: ObjectSchema = Joi.object({

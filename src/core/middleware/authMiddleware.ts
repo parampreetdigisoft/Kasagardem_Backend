@@ -1,6 +1,5 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import jwt, {
-  JwtPayload,
   JsonWebTokenError,
   NotBeforeError,
   TokenExpiredError,
@@ -9,18 +8,8 @@ import jwt, {
 import config from "../config/env";
 import { errorResponse } from "../utils/responseFormatter";
 import { HTTP_STATUS, MESSAGES } from "../utils/constants";
-import {  warn, error } from "../utils/logger";
-
-// Extend Express Request to include user
-export interface AuthRequest extends Request {
-  user?: JwtPayload | string | unknown;
-}
-
-interface AuthTokenPayload extends JwtPayload {
-  userId: string;
-  userEmail: string;
-  role: string;
-}
+import { warn, error } from "../utils/logger";
+import { AuthRequest, AuthTokenPayload } from "../../interface/auth";
 
 /**
  * Middleware to authenticate requests using a JWT token.

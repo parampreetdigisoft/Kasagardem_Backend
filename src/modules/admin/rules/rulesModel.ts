@@ -2,6 +2,7 @@ import { ZodError } from "zod";
 import { createRuleDto, CreateRuleDto } from "../../../dto/ruleDto";
 import { getDB } from "../../../core/config/db"; // your existing DB helper
 import NodeCache from "node-cache";
+import { IRule } from "../../../interface/rules";
 
 export const appCache = new NodeCache({
   stdTTL: 300, // cache for 5 minutes (adjust as needed)
@@ -9,23 +10,6 @@ export const appCache = new NodeCache({
 });
 
 const CACHE_KEY = "all_rules";
-
-// ---------- Interfaces ----------
-export interface ICondition {
-  questionId: string; // ✅ UUID
-  questionText?: string;
-  operator: "equal" | "and" | "or";
-  value: string; // ✅ single string (not array)
-}
-
-export interface IRule {
-  id?: string;
-  name?: string;
-  conditions: ICondition[];
-  isDeleted?: boolean;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
 
 /**
  * Create a new Rule with validation and insert it into PostgreSQL.

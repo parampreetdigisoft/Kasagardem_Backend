@@ -74,7 +74,7 @@ export async function findRoleByName(name: string): Promise<string | null> {
 
   const result = await client.query<{ id: string }>(query, [name]);
 
-  // ✅ Return the ID if found, else null
+  // Return the ID if found, else null
   return result.rows.length > 0 ? result.rows[0]!.id : null;
 }
 /**
@@ -84,13 +84,13 @@ export async function findRoleByName(name: string): Promise<string | null> {
  */
 export async function createValidatedRole(data: unknown): Promise<IRole> {
   try {
-    // ✅ 1. Validate incoming data
+    // Validate incoming data
     const parsedData = createRoleDto.parse(data);
 
-    // ✅ 2. Connect to PostgreSQL
+    // Connect to PostgreSQL
     const client = await getDB();
 
-    // ✅ 3. Insert record
+    // Insert record
     const insertQuery = `
       INSERT INTO roles (name, description)
       VALUES ($1, $2)
@@ -101,7 +101,7 @@ export async function createValidatedRole(data: unknown): Promise<IRole> {
     const result = await client.query(insertQuery, values);
     const row = result.rows[0];
 
-    // ✅ Convert created_at to ISO string
+    // Convert created_at to ISO string
     const formattedResult = {
       ...row,
       created_at: row.created_at
@@ -127,13 +127,13 @@ export async function updateValidatedRole(
   data: unknown
 ): Promise<IRole | null> {
   try {
-    // ✅ 1. Validate data (ensures same schema rules)
+    // Validate data (ensures same schema rules)
     const parsedData = createRoleDto.parse(data);
 
-    // ✅ 2. Connect to DB
+    // Connect to DB
     const client = await getDB();
 
-    // ✅ 3. Update query
+    // Update query
     const updateQuery = `
       UPDATE roles
       SET name = $1,
@@ -148,7 +148,7 @@ export async function updateValidatedRole(
 
     const row = result.rows.length > 0 ? result.rows[0] : null;
 
-    // ✅ Convert updated_at to ISO string
+    // Convert updated_at to ISO string
     const formattedResult = {
       ...row,
       updated_at: row.updated_at

@@ -42,15 +42,15 @@ export const submitAnswer = async (
       return;
     }
 
-    // ✅ FAST: Just insert raw data first (no translation yet)
+    // insert raw data first (no translation yet)
     const { responseId } = await createSurveyResponse(answers);
 
-    // ✅ IMMEDIATELY respond to user
+    // respond to user
     res
       .status(HTTP_STATUS.CREATED)
       .json(successResponse({ responseId }, "Answers submitted successfully"));
 
-    // ✅ Process translation and updates in background (fire-and-forget)
+    // Process translation and updates in background asynchronously
     setImmediate(() => {
       processAnswerTranslationAsync(responseId, answers).catch((err) => {
         console.error("Background translation failed:", {
@@ -174,7 +174,7 @@ export const getRecommendedPlantsController = async (
 
     const client = await getDB();
 
-    // 🧠 Fetch all answers for this response
+    // Fetch all answers for this response
     const result = await client.query(
       `SELECT question_id, answer_type, selected_option
        FROM survey_answers
@@ -193,7 +193,7 @@ export const getRecommendedPlantsController = async (
       selectedOption: row.selected_option,
     }));
 
-    // 🌿 Get plant recommendations
+    // Get plant recommendations
     const recommendedPlants = await getRecommendedPlants(answers);
 
     const plantRecommendations = await Promise.all(
@@ -247,7 +247,7 @@ export const getRecommendedPartnersController = async (
 
     const client = await getDB();
 
-    // 🧠 Fetch all answers for this response
+    // Fetch all answers for this response
     const result = await client.query(
       `SELECT question_id, answer_type, selected_option
        FROM survey_answers
@@ -266,7 +266,7 @@ export const getRecommendedPartnersController = async (
       selectedOption: row.selected_option,
     }));
 
-    // ✅ Determine if "aesthetic" answer was given (3rd question)
+    // Determine if "aesthetic" answer was given (3rd question)
     const thirdAnswer = answers[2]?.selectedOption?.toLowerCase() || "";
     const showPartnerRecommendations = thirdAnswer.includes("aesthetic");
 
@@ -283,7 +283,7 @@ export const getRecommendedPartnersController = async (
       return;
     }
 
-    // 👷 Get partner recommendations
+    // Get partner recommendations
     const recommendedPartners = await getRecommendedPartners(answers);
 
     const partnerRecommendations = await Promise.all(

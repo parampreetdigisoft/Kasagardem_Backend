@@ -2,7 +2,7 @@ import { getDB } from "../../../core/config/db";
 import {
   QuestionOption,
   QuestionWithOptions,
-} from "../../../interface/quetion";
+} from "../../../interface/question";
 
 /**
  * Get all active (non-deleted) questions with their options

@@ -14,14 +14,10 @@ import {
 import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { error, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
-import { AuthRequest } from "../../core/middleware/authMiddleware";
 import { ZodError } from "zod";
 import { findUserByEmail } from "../auth/authRepository";
-
-export interface AuthUserPayload {
-  userEmail?: string;
-  role?: string;
-}
+import { AuthRequest } from "../../interface/auth";
+import { AuthUserPayload } from "../../interface/user";
 
 /**
  * Creates a new role in the system.
@@ -130,7 +126,7 @@ export const getRoles = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // ✅ 1. Verify authentication
+  // Verify authentication
   const userPayload = req.user as AuthUserPayload | undefined;
   if (!userPayload?.userEmail) {
     res
@@ -139,7 +135,7 @@ export const getRoles = async (
     return;
   }
 
-  // ✅ 2. Fetch user by email
+  // Fetch user by email
   const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));

@@ -5,7 +5,6 @@ import {
 } from "../../core/utils/responseFormatter";
 import { HTTP_STATUS, MESSAGES } from "../../core/utils/constants";
 import { error } from "../../core/utils/logger";
-import { AuthRequest } from "../../core/middleware/authMiddleware";
 import {
   createPartnerProfile,
   deletePartnerProfileDb,
@@ -22,6 +21,7 @@ import {
   getSignedFileUrl,
   uploadBase64ToS3,
 } from "../../core/services/s3UploadService";
+import { AuthRequest } from "../../interface/auth";
 
 /**
  * Handles the creation of a new partner profile.
@@ -213,7 +213,7 @@ export const updatePartnerProfile = async (
       return;
     }
 
-    // 🖼️ Handle image upload (S3)
+    // Handle image upload (S3)
     let projectImageUrl = req.body.projectImageUrl;
 
     if (projectImageUrl) {
@@ -332,20 +332,20 @@ export const updatePartnerStatusController = async (
 ): Promise<void> => {
   const userPayload = req.user as AuthUserPayload | undefined;
 
-  // 1️⃣ Check for authentication
+  // Check for authentication
   if (!userPayload?.userEmail) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
     return;
   }
 
-  // 2️⃣ Check if user exists
+  // Check if user exists
   const user = await findUserByEmail(userPayload.userEmail);
   if (!user) {
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return;
   }
 
-  // 3️⃣ Only Admins can update partner status
+  // Only Admins can update partner status
   if (userPayload.role !== "Admin") {
     res
       .status(HTTP_STATUS.UNAUTHORIZED)
@@ -355,7 +355,7 @@ export const updatePartnerStatusController = async (
 
   const { partnerId, status } = req.body;
 
-  // 4️⃣ Validate input
+  // Validate input
   if (!partnerId || !status) {
     res
       .status(HTTP_STATUS.BAD_REQUEST)
@@ -364,7 +364,7 @@ export const updatePartnerStatusController = async (
   }
 
   try {
-    // 5️⃣ Update partner status in DB
+    // Update partner status in DB
     const updatedProfile = await updatePartnerStatus(partnerId, status);
 
     if (!updatedProfile) {
@@ -377,14 +377,14 @@ export const updatePartnerStatusController = async (
       return;
     }
 
-    // 6️⃣ Success response
+    // Success response
     res
       .status(HTTP_STATUS.OK)
       .json(successResponse(null, "Status updated successfully"));
   } catch (err: unknown) {
     const errorObj = err instanceof Error ? err : new Error("Unknown error");
 
-    // 7️⃣ Log internal error
+    // Log internal error
     await error("Partner status update error", {
       partnerId,
       error: errorObj.message,

@@ -14,7 +14,6 @@ import { ZodError, ZodIssue } from "zod";
 import { sendPasswordResetEmail } from "../../core/services/emailService";
 import crypto from "crypto";
 import { RoleCodeMap } from "../../interface/role";
-import { AuthRequest } from "../../core/middleware/authMiddleware";
 import { decodeGoogleIdToken } from "../../core/services/firebaseAdmin";
 import {
   comparePassword,
@@ -35,10 +34,8 @@ import {
 } from "./authRepository";
 import bcrypt from "bcryptjs";
 import { uploadBufferToS3 } from "../../core/services/s3UploadService";
-
-interface AppError extends Error {
-  code?: string;
-}
+import { AuthRequest } from "../../interface/auth";
+import { AppError } from "../../interface";
 
 /**
  * Registers a new user in the system.

@@ -1,6 +1,5 @@
 import { Response, NextFunction } from "express";
 import { ZodError } from "zod";
-import { AuthRequest } from "../../../core/middleware/authMiddleware";
 import { HTTP_STATUS, MESSAGES } from "../../../core/utils/constants";
 import {
   errorResponse,
@@ -14,6 +13,7 @@ import {
 } from "./rulesModel";
 import { findUserByEmail } from "../../auth/authRepository";
 import { AuthUserPayload } from "../../../interface/user";
+import { AuthRequest } from "../../../interface/auth";
 
 /**
  * Get all rules

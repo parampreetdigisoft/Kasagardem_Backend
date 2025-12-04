@@ -1,7 +1,5 @@
 import { Response, NextFunction } from "express";
 import { ZodError } from "zod";
-import { AuthRequest } from "../../core/middleware/authMiddleware";
-
 import {
   createPlantService,
   getAllPlantsService,
@@ -9,19 +7,17 @@ import {
   updatePlantService,
   deletePlantService,
 } from "./plantService";
-
 import {
   successResponse,
   errorResponse,
 } from "../../core/utils/responseFormatter";
-
 import { HTTP_STATUS } from "../../core/utils/constants";
 import { findUserByEmail } from "../auth/authRepository";
-
 import { error, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
 import { IUser } from "../../interface/user";
 import { identifyPlantService } from "./plantRepository";
+import { AuthRequest } from "../../interface/auth";
 
 /**
  * AUTH + ROLE CHECK HELPER (ADMIN ONLY)

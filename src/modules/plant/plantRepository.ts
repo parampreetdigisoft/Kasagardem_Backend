@@ -2,11 +2,13 @@ import axios from "axios";
 import { getDB } from "../../core/config/db";
 import { getSignedFileUrl } from "../../core/services/s3UploadService";
 import { createPlantDto, updatePlantDto } from "../../dto/plantDto";
-import { IPlant, ILocation } from "./plantModel";
 import config from "../../core/config/env";
 import {
   HealthIssue,
   IdentifyPlantPayload,
+  ILocation,
+  IPlant,
+  PaginatedPlants,
   PlantDiagnosis,
   PlantIDApiResponse,
 } from "../../interface/plants";
@@ -111,14 +113,6 @@ export const insertLocationsRepo = async (
     await client.query(query, [plantId, loc.location_type, loc.location_value]);
   }
 };
-
-export interface PaginatedPlants {
-  currentPage: number;
-  totalPages: number;
-  totalCount: number;
-  limit: number;
-  plants: IPlant[];
-}
 
 /**
  * GET ALL PLANTS

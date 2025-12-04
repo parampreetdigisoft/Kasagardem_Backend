@@ -4,53 +4,6 @@ import { getDB } from "../../core/config/db";
 import { IUserProfile } from "../../interface/userProfile";
 
 /**
- * Creates a new validated user profile in PostgreSQL.
- * @param data - Unvalidated user profile input
- * @returns The created user profile record
- */
-export async function createValidatedUserProfile(
-  data: unknown
-): Promise<IUserProfile> {
-  const client = await getDB();
-  try {
-    const parsedData = createUserProfileDto.parse(data);
-
-    const query = `
-      INSERT INTO userprofiles (
-        user_id, profile_image, date_of_birth, gender, bio,
-        street, city, state, country, zip_code, occupation, company
-      )
-      VALUES (
-        $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10, $11, $12
-      )
-      RETURNING *;
-    `;
-
-    const values = [
-      parsedData.userId,
-      parsedData.profileImage,
-      parsedData.dateOfBirth,
-      parsedData.gender,
-      parsedData.bio,
-      parsedData.street,
-      parsedData.city,
-      parsedData.state,
-      parsedData.country,
-      parsedData.zipCode,
-      parsedData.occupation,
-      parsedData.company,
-    ];
-
-    const result = await client.query<IUserProfile>(query, values);
-    return result.rows[0]!;
-  } catch (err) {
-    if (err instanceof ZodError) throw err;
-    throw err;
-  }
-}
-
-/**
  * Fetches a user profile record by its ID.
  *
  * @param profileId - The unique identifier of the user profile to fetch.
@@ -138,7 +91,7 @@ export async function updateValidatedUserProfile(
 
     const row = result.rows[0];
 
-    // ✅ Normalize timestamp fields to string
+    // Normalize timestamp fields to string
     const normalizedRow = {
       ...row,
       updated_at:
