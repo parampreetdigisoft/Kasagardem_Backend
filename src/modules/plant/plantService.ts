@@ -10,13 +10,12 @@ import {
   updateArrayRelation,
   updateLocationsRepo,
   getPlantById,
-  PaginatedPlants,
 } from "./plantRepository";
-import { IPlant } from "./plantModel";
 import {
   deleteFileFromS3,
   uploadBase64ToS3,
 } from "../../core/services/s3UploadService";
+import { IPlant, PaginatedPlants } from "../../interface/plants";
 
 /**
  * CREATE A NEW PLANT

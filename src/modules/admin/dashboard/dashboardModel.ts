@@ -1,20 +1,6 @@
 import { getDB } from "../../../core/config/db";
-
-/**
- * Type for lead status aggregate result
- */
-export interface LeadStatusCount {
-  leads_status: string;
-  count: number;
-}
-
-/**
- * Type for lead trend line chart data
- */
-export interface LeadTrendPoint {
-  date: string;
-  count: number;
-}
+import { LeadTrendPoint } from "../../../interface/dashboard";
+import { LeadStatusCount } from "../../../interface/leads";
 
 /**
  * Fetch the total number of closed leads and how many were closed this month.
@@ -143,7 +129,7 @@ export async function getLeadTrendData(): Promise<{
 
   const result = await pool.query(`
     SELECT 
-      to_char(created_at, 'YYYY-MM-DD') AS date,
+      to_char(updated_at, 'YYYY-MM-DD') AS date,
       leads_status,
       COUNT(*) AS count
     FROM leads

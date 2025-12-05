@@ -1,34 +1,10 @@
 import { ZodError } from "zod";
 import { createLeadDto } from "../../../dto/leadDto";
 import { getDB } from "../../../core/config/db";
-
-export interface ILeadGrouped {
-  lead_id: string;
-  leads_status: string;
-  user: {
-    user_id: string;
-    user_name: string;
-    user_email: string;
-  } | null; // allow null
-
-  partners: {
-    partner_id: string;
-    company_name: string | null; // partner name may be null
-  }[];
-}
+import { ILead, ILeadGrouped } from "../../../interface/leads";
 
 // Create a partial schema for updates
 const updateLeadDto = createLeadDto.partial();
-
-export interface ILead {
-  id?: string;
-  partnerIds?: string[];
-  userId?: string;
-  leadsStatus?: "new" | "converted" | "closed";
-  isDeleted?: boolean;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
 
 /**
  * Maps JavaScript field names to database column names.
@@ -51,7 +27,7 @@ function mapField(field: string): string {
  * @returns The created lead record, or null if insertion failed.
  */
 export async function createLead(data: unknown): Promise<ILead | null> {
-  // ✅ Validate first (this is fast)
+  // Validate first 
   const parsedData = createLeadDto.parse(data);
 
   const pool = getDB();
@@ -73,8 +49,6 @@ export async function createLead(data: unknown): Promise<ILead | null> {
     parsedData.leadsStatus,
     parsedData.isDeleted,
   ];
-
-  // ✅ Use pool.query directly (no client checkout needed for single query)
   const { rows } = await pool.query<ILead>(query, values);
   return rows[0] ?? null;
 }
@@ -144,13 +118,13 @@ export async function findAllLeads(
 
   const offset = (page - 1) * limit;
 
-  // 1️⃣ Count unique leads
+  // Count unique leads
   const totalResult = await client.query(
     `SELECT COUNT(*) FROM leads WHERE is_deleted = FALSE`
   );
   const total = Number(totalResult.rows[0].count);
 
-  // 2️⃣ Get ONLY the lead IDs for the given page
+  // Get ONLY the lead IDs for the given page
   const leadIdResult = await client.query(
     `
     SELECT id
@@ -168,7 +142,7 @@ export async function findAllLeads(
     return { leads: [], total };
   }
 
-  // 3️⃣ Fetch partner & user details ONLY for those leads
+  // Fetch partner & user details ONLY for those leads
   const { rows } = await client.query(
     `
     SELECT 
@@ -189,7 +163,7 @@ export async function findAllLeads(
     [leadIds]
   );
 
-  // 4️⃣ Group into unique leads
+  // Group into unique leads
   const groups: Record<string, ILeadGrouped> = {};
 
   for (const row of rows) {

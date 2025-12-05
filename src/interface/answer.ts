@@ -39,10 +39,6 @@ export interface IUserAnswer {
   selectedAddress?: ISelectedAddress;
 }
 
-// ===============================
-// Interfaces
-// ===============================
-
 export interface IPlantRecommendation {
   id: string;
   scientific_name: string;
@@ -77,9 +73,6 @@ export interface IPartnerProfile {
   status: string;
 }
 
-// 🧩 Interfaces
-// ----------------------
-
 export interface ISelectedAddress {
   state: string;
   city: string;
@@ -90,4 +83,24 @@ export interface ISurveyAnswer {
   type: number;
   selectedOption?: string | null;
   selectedAddress?: ISelectedAddress | null;
+}
+
+//  For type=2 (address-based answer)
+export interface ISelectedAddress {
+  state: string;
+  city: string;
+}
+
+//For each answer in the "answers" array
+export interface ISurveyAnswerItem {
+  questionId: string; // UUID of the question
+  responseId?: string;
+  type: 1 | 2; // 1 = option, 2 = address
+  selectedOption?: string;
+  selectedAddress?: ISelectedAddress;
+}
+
+//  Full survey response
+export interface ISurveyResponse {
+  answers: ISurveyAnswerItem[]; // Array of answer items
 }

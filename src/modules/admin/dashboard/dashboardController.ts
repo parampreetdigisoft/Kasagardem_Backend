@@ -10,48 +10,14 @@ import {
   getLeadStatusCounts,
   getLeadTrendData,
   getTotalLeadsCount,
-} from "./dashboardmModel";
-import { AuthRequest } from "../../../core/middleware/authMiddleware";
-import { AuthUserPayload } from "../../roles/roleController";
+} from "./dashboardModel";
 import { findUserByEmail } from "../../auth/authRepository";
+import NodeCache from "node-cache";
+import { AuthRequest } from "../../../interface/auth";
+import { DashboardData } from "../../../interface/dashboard";
+import { AuthUserPayload } from "../../../interface/user";
 
-interface DashboardData {
-  total_leads: {
-    count: number;
-    today: number;
-    message: string;
-  };
-  active_professionals: {
-    count: number;
-    today: number;
-    message: string;
-  };
-  closed_leads: {
-    total: number;
-    this_month: number;
-    message: string;
-  };
-  lead_status_counts: Array<{
-    leads_status: string;
-    count: number;
-  }>;
-  lead_trend: {
-    all_leads: LeadTrendPoint[];
-    new_leads: LeadTrendPoint[];
-    closed_leads: LeadTrendPoint[];
-    contacted_leads: LeadTrendPoint[];
-  };
-}
-interface LeadTrendPoint {
-  date: string;
-  count: number;
-}
-let dashboardCache: {
-  expiresAt: number;
-  data: DashboardData;
-} | null = null;
-
-const CACHE_TTL = 2.5 * 60 * 1000; // 2.5 minutes
+export const dashboardCache = new NodeCache({ stdTTL: 150 }); // 2.5 minutes TTL
 
 /**
  * Retrieves complete dashboard analytics including:
@@ -89,10 +55,12 @@ export const getDashboardData = async (
   }
 
   try {
-    if (dashboardCache && dashboardCache.expiresAt > Date.now()) {
+    const cachedDashboard = dashboardCache.get<DashboardData>("dashboard");
+
+    if (cachedDashboard) {
       res
         .status(HTTP_STATUS.OK)
-        .json(successResponse(dashboardCache.data, "Dashboard cache hit"));
+        .json(successResponse(cachedDashboard, "Dashboard cache hit"));
       return;
     }
 
@@ -138,10 +106,7 @@ export const getDashboardData = async (
       lead_trend: leadTrend,
     };
 
-    dashboardCache = {
-      expiresAt: Date.now() + CACHE_TTL,
-      data: dashboard,
-    };
+    dashboardCache.set("dashboard", dashboard);
 
     res
       .status(HTTP_STATUS.OK)

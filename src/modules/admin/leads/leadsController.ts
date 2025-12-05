@@ -1,6 +1,5 @@
 import { Response, NextFunction } from "express";
 import { ZodError } from "zod";
-import { AuthRequest } from "../../../core/middleware/authMiddleware";
 import { HTTP_STATUS } from "../../../core/utils/constants";
 import {
   errorResponse,
@@ -12,20 +11,10 @@ import { sendLeadEmails } from "../../../core/services/emailService";
 import config from "../../../core/config/env";
 import { getDB } from "../../../core/config/db";
 import { findUserByEmail } from "../../auth/authRepository";
-import { AuthUserPayload } from "../../roles/roleController";
-
-interface PartnerProfile {
-  id: string;
-  email: string;
-  company_name: string;
-  projectimageurl: string | null;
-}
-
-interface PartnerData {
-  email: string;
-  name: string;
-  logoUrl: string;
-}
+import { dashboardCache } from "../dashboard/dashboardController";
+import { AuthRequest } from "../../../interface/auth";
+import { PartnerData, PartnerProfile } from "../../../interface/partnerProfile";
+import { AuthUserPayload } from "../../../interface/user";
 
 /**
  * Get all leads (PostgreSQL version)
@@ -99,7 +88,7 @@ export const createLeadController = async (
       | { userEmail?: string; role?: string; userId?: string }
       | undefined;
 
-    // ✅ Fast validation checks
+    // Fast validation checks
     if (!userPayload?.userEmail || userPayload?.role !== "User") {
       res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
       return;
@@ -114,7 +103,7 @@ export const createLeadController = async (
       return;
     }
 
-    // ✅ ONLY validate and insert lead - no other DB calls
+    // ONLY validate and insert lead - no other DB calls
     const createdLead = await createLead({
       partnerIds,
       userId: userPayload.userId,
@@ -128,15 +117,17 @@ export const createLeadController = async (
         .json(errorResponse("Lead could not be created"));
       return;
     }
+    // Invalidate dashboard cache
+    dashboardCache.del("dashboard");
 
-    // ✅ IMMEDIATELY respond - don't wait for anything else
+    // IMMEDIATELY respond - don't wait for anything else
     res
       .status(HTTP_STATUS.CREATED)
       .json(
         successResponse({ leadId: createdLead.id }, "Lead created successfully")
       );
 
-    // ✅ Process everything else asynchronously (fire-and-forget)
+    // Process everything else asynchronously (fire-and-forget)
     setImmediate(() => {
       processLeadEmailsAsync(
         userPayload.userEmail!,
@@ -270,7 +261,9 @@ export const updateLeadStatusController = async (
         message: "Lead not found",
       });
     }
-
+    // Invalidate dashboard cache
+    dashboardCache.del("dashboard");
+    // Successful update response
     return res.status(200).json({
       success: true,
       message: "Lead status updated successfully",

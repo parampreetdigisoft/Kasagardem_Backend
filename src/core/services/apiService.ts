@@ -8,25 +8,7 @@ import FormData from "form-data";
 import { info, warn, error } from "../utils/logger";
 import type { AxiosProgressEvent } from "axios";
 import { ApiError } from "../../interface/Error";
-
-interface ApiResponse<T = unknown> {
-  data: T;
-  status: number;
-  statusText: string;
-  headers: unknown;
-  config: {
-    method?: string;
-    url?: string;
-    baseURL?: string;
-  };
-}
-
-interface ParallelRequest {
-  method: string;
-  url: string;
-  data?: unknown;
-  config?: AxiosRequestConfig;
-}
+import { ApiResponse, ParallelRequest } from "../../interface/response";
 
 /**
  * ApiService - A wrapper around Axios with request/response interceptors,

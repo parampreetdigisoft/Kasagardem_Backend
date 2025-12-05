@@ -20,7 +20,7 @@ export const updatePartnerProfileDb = async (
 ): Promise<void> => {
   const client = await getDB();
 
-  // 🧩 Map incoming data (flatten + handle arrays)
+  // Map incoming data (flatten + handle arrays)
   const mappedData = {
     mobile_number: data.mobileNumber ?? null,
     company_name: data.companyName ?? null,
@@ -203,7 +203,7 @@ export const createPartnerProfile = async (
   const client = await getDB();
 
   try {
-    // ✅ Transform input to match DTO
+    // Transform input to match DTO
     const transformedData = {
       email: data.email,
       mobileNumber: data.mobileNumber,
@@ -223,10 +223,10 @@ export const createPartnerProfile = async (
       rating: data.rating || 0.0,
     };
 
-    // ✅ Validate after mapping
+    // Validate after mapping
     const parsed = createPartnerProfileDto.parse(transformedData);
 
-    // ✅ Insert into DB
+    // Insert into DB
     const result = await client.query(
       `
       INSERT INTO partner_profiles (

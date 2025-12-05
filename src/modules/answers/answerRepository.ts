@@ -8,10 +8,6 @@ import {
   IUserAnswer,
 } from "../../interface/answer";
 
-// ===============================
-// Plant Recommendations
-// ===============================
-
 /**
  * Retrieves a list of recommended plants based on the user's provided answers.
  * Uses PostgreSQL with optimized joins and indexing.
@@ -151,7 +147,7 @@ export const getRecommendedPlants = async (
     p.image_search_url,
     p.description,
 
-    -- 🌿 Space Types
+    -- Space Types
     COALESCE(
       (
         SELECT json_agg(pst.space_type)
@@ -160,7 +156,7 @@ export const getRecommendedPlants = async (
       ), '[]'::json
     ) AS space_types,
 
-    -- 📏 Area Sizes
+    -- Area Sizes
     COALESCE(
       (
         SELECT json_agg(pas.area_size)
@@ -169,7 +165,7 @@ export const getRecommendedPlants = async (
       ), '[]'::json
     ) AS area_sizes,
 
-    -- ⚙️ Challenges
+    -- Challenges
     COALESCE(
       (
         SELECT json_agg(pc.challenge)
@@ -178,7 +174,7 @@ export const getRecommendedPlants = async (
       ), '[]'::json
     ) AS challenges,
 
-    -- 💧 Tech Preferences
+    -- Tech Preferences
     COALESCE(
       (
         SELECT json_agg(ptp.tech_preference)
@@ -187,7 +183,7 @@ export const getRecommendedPlants = async (
       ), '[]'::json
     ) AS tech_preferences,
 
-    -- 📍 Locations (state = location_type, city = location_value)
+    -- Locations (state = location_type, city = location_value)
     COALESCE(
       (
         SELECT json_agg(
@@ -266,10 +262,6 @@ export const getRecommendedPlants = async (
     throw error;
   }
 };
-
-// ===============================
-// Partner Recommendations
-// ===============================
 
 /**
  * Generates recommended partner profiles based on submitted answers.
@@ -393,10 +385,6 @@ export const getRecommendedPartners = async (
     return [];
   }
 };
-
-// ===============================
-// Helper Functions
-// ===============================
 
 /**
  * Builds a descriptive reason for recommending partners based on the user's location

@@ -2,8 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { ObjectSchema } from "joi";
 import { errorResponse } from "../utils/responseFormatter";
 import { HTTP_STATUS } from "../utils/constants";
-
-type RequestProperty = "body" | "query" | "params";
+import { RequestProperty } from "../../interface/request";
 
 /**
  * Generic middleware factory to validate request data against a Joi schema.

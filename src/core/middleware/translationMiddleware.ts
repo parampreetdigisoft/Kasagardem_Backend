@@ -1,24 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import translate from "google-translate-api-x";
 import NodeCache from "node-cache";
+import {
+  JsonResponseBody,
+  TranslatableObject,
+  TranslatableValue,
+} from "../../interface/translation";
 
 export const translationCache = new NodeCache({ stdTTL: 86400 }); // Cache for 24 hours
-
-interface JsonResponseBody {
-  message?: string;
-  [key: string]: unknown;
-}
-
-type TranslatableValue =
-  | string
-  | number
-  | boolean
-  | null
-  | undefined
-  | TranslatableObject
-  | TranslatableArray;
-type TranslatableObject = { [key: string]: TranslatableValue };
-type TranslatableArray = TranslatableValue[];
 
 /**
  * Check if a key should be excluded from translation
