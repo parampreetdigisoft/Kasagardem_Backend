@@ -46,8 +46,8 @@ const validateAdminUser = async (
     res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
     return null;
   }
-
-  if (userPayload.role !== "Admin") {
+  const allowedRoles = ["Admin", "User"];
+  if (!allowedRoles.includes(userPayload.role!)) {
     res
       .status(HTTP_STATUS.UNAUTHORIZED)
       .json(errorResponse("Unauthorized Role"));
