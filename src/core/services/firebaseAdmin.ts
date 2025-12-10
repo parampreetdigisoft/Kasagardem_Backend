@@ -6,6 +6,7 @@ import { info, error } from "../utils/logger";
 import { jwtDecode } from "jwt-decode";
 import { TokenPayload } from "google-auth-library";
 import axios from "axios";
+import * as crypto from "crypto";
 
 let firebaseInitialized = false;
 
@@ -97,15 +98,24 @@ export const verifyFacebookToken = async (
   picture: string;
 } | null> => {
   try {
-    // Validate token
-    const debugUrl = `https://graph.facebook.com/debug_token?input_token=${userAccessToken}&access_token=${`${config.FB_APP_ID}|${config.FB_APP_SECRET}`}`;
+    const appAccessToken = `${config.FB_APP_ID}|${config.FB_APP_SECRET}`;
+
+    // Step 1: Validate token
+    const debugUrl = `https://graph.facebook.com/debug_token?input_token=${userAccessToken}&access_token=${appAccessToken}`;
     const debugRes = await axios.get(debugUrl);
 
     if (!debugRes.data.data.is_valid) return null;
 
-    // Get user info from Facebook
+    // Step 2: Generate appsecret_proof
+    const appSecretProof = crypto
+      .createHmac("sha256", config.FB_APP_SECRET)
+      .update(userAccessToken)
+      .digest("hex");
+
+    // Step 3: Get user info
     const fields = "id,name,email,picture.type(large)";
-    const userUrl = `https://graph.facebook.com/me?fields=${fields}&access_token=${userAccessToken}`;
+    const userUrl = `https://graph.facebook.com/me?fields=${fields}&access_token=${userAccessToken}&appsecret_proof=${appSecretProof}`;
+
     const userRes = await axios.get(userUrl);
 
     return {
@@ -114,8 +124,12 @@ export const verifyFacebookToken = async (
       name: userRes.data.name,
       picture: userRes.data.picture.data.url,
     };
-  } catch {
-    console.error("Facebook token validation failed");
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      console.error("Facebook validation failed:", err.response?.data);
+    } else {
+      console.error("Unexpected error:", err);
+    }
     return null;
   }
 };
