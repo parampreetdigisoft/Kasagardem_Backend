@@ -46,6 +46,10 @@ function shouldSkipKey(key: string): boolean {
     "pin",
     "success",
     "name",
+    "is_healthy",
+    "is_plant",
+    "isplant",
+    "ishealthy",
   ];
 
   // Check if key matches any skip field
