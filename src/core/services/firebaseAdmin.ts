@@ -5,6 +5,7 @@ import config from "../config/env";
 import { info, error } from "../utils/logger";
 import { jwtDecode } from "jwt-decode";
 import { TokenPayload } from "google-auth-library";
+import axios from "axios";
 
 let firebaseInitialized = false;
 
@@ -79,3 +80,42 @@ export const verifyFirebaseToken = async (
 };
 
 export default admin;
+
+/**
+ * Verifies Facebook access token and fetches user info.
+ *
+ * @param {string} userAccessToken - Facebook user access token
+ * @returns {Promise<{ id: string; email: string; name: string; picture: string } | null>}
+ *          Returns user info if token is valid, otherwise null.
+ */
+export const verifyFacebookToken = async (
+  userAccessToken: string
+): Promise<{
+  id: string;
+  email: string;
+  name: string;
+  picture: string;
+} | null> => {
+  try {
+    // Validate token
+    const debugUrl = `https://graph.facebook.com/debug_token?input_token=${userAccessToken}&access_token=${`${config.FB_APP_ID}|${config.FB_APP_SECRET}`}`;
+    const debugRes = await axios.get(debugUrl);
+
+    if (!debugRes.data.data.is_valid) return null;
+
+    // Get user info from Facebook
+    const fields = "id,name,email,picture.type(large)";
+    const userUrl = `https://graph.facebook.com/me?fields=${fields}&access_token=${userAccessToken}`;
+    const userRes = await axios.get(userUrl);
+
+    return {
+      id: userRes.data.id,
+      email: userRes.data.email,
+      name: userRes.data.name,
+      picture: userRes.data.picture.data.url,
+    };
+  } catch {
+    console.error("Facebook token validation failed");
+    return null;
+  }
+};

@@ -7,6 +7,7 @@ import {
   handlePasswordResetToken,
   refreshTokenLogin,
   googleAuth,
+  facebookAuth,
 } from "./authController";
 import {
   registerValidation,
@@ -16,6 +17,7 @@ import {
   handlePasswordResetTokenValidation,
   passwordChangeValidation,
   googleAuthValidation,
+  facebookAuthValidation,
 } from "./authValidations";
 import validateRequest from "../../core/middleware/validateRequest";
 import auth from "../../core/middleware/authMiddleware";
@@ -365,5 +367,78 @@ router.post(
  *                   example: Invalid or expired Google token
  */
 router.post("/google", validateRequest(googleAuthValidation), googleAuth);
+
+/**
+ * @swagger
+ * /api/v1/auth/facebook:
+ *   post:
+ *     summary: Sign in or sign up with Facebook
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - accessToken
+ *             properties:
+ *               accessToken:
+ *                 type: string
+ *                 description: Facebook user access token obtained from Facebook Login
+ *                 example: EAAJZCZA7C5wB0BAKZAyZA7ZCZAyZA7CZA...
+ *               roleCode:
+ *                 type: string
+ *                 description: Optional role code for new users.
+ *                 example: U
+ *     responses:
+ *       200:
+ *         description: Authentication successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Login successful
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       description: Your backend JWT token for API authentication
+ *                       example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       400:
+ *         description: Validation error or missing access token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Facebook access token is required
+ *       401:
+ *         description: Invalid or expired Facebook access token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Invalid or expired Facebook token
+ */
+router.post("/facebook", validateRequest(facebookAuthValidation), facebookAuth);
 
 export default router;

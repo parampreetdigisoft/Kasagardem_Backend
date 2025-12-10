@@ -27,4 +27,6 @@ export interface Config {
   KASAGARDEM_PLANTAPI_KEY: string;
   KASAGARDEM_PLANTAPI_URL: string;
   KASAGARDEM_PLANTAPI_KEY_NAME: string;
+  FB_APP_ID: string;
+  FB_APP_SECRET: string;
 }

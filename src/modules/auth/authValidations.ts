@@ -162,3 +162,15 @@ export const googleAuthValidation = Joi.object({
 }).messages({
   "object.unknown": "Unknown field provided in request body",
 });
+
+/**
+ * Validation schema for Facebook OAuth authentication
+ */
+export const facebookAuthValidation = Joi.object({
+  fbIdToken: Joi.string().min(1).required().messages({
+    "string.empty": "Facebook access token is required",
+    "any.required": "Facebook access token is required",
+    "string.min": "Facebook access token cannot be empty",
+  }),
+  roleCode: Joi.string().optional(),
+});
