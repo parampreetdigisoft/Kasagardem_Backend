@@ -14,7 +14,10 @@ import { ZodError, ZodIssue } from "zod";
 import { sendPasswordResetEmail } from "../../core/services/emailService";
 import crypto from "crypto";
 import { RoleCodeMap } from "../../interface/role";
-import { decodeGoogleIdToken } from "../../core/services/firebaseAdmin";
+import {
+  decodeGoogleAccessToken,
+  verifyFacebookToken,
+} from "../../core/services/firebaseAdmin";
 import {
   comparePassword,
   createUserFromOAuth,
@@ -669,9 +672,9 @@ export const googleAuth = async (
   const source = "auth.googleAuth";
 
   try {
-    const { idToken, roleCode } = req.body;
+    const { googleAccessToken, roleCode } = req.body;
 
-    if (!idToken) {
+    if (!googleAccessToken) {
       res
         .status(HTTP_STATUS.BAD_REQUEST)
         .json(errorResponse("Google ID token is required"));
@@ -679,7 +682,7 @@ export const googleAuth = async (
     }
 
     // Decode Google token
-    const decoded = await decodeGoogleIdToken(idToken);
+    const decoded = await decodeGoogleAccessToken(googleAccessToken);
 
     if (!decoded) {
       res
@@ -741,7 +744,10 @@ export const googleAuth = async (
         email,
         uid,
         role.id!,
-        email_verified === true
+        email_verified === true,
+        true,
+        false,
+        false
       );
 
       //  Download image
@@ -758,7 +764,13 @@ export const googleAuth = async (
       user = userData;
     } else {
       // Update Google uid if any register user google uid changes..
-      await updateUserFromOAuth(user.id!, user.google_uid ? undefined : uid);
+      await updateUserFromOAuth(
+        user.id!,
+        user.google_uid ? undefined : uid,
+        true,
+        false,
+        false
+      );
     }
     // Generate JWT token
     const token = generateToken(user?.email!, "User", user?.id!);
@@ -777,6 +789,139 @@ export const googleAuth = async (
     await error(
       "Google authentication failed with unexpected error",
       { error: errorObj.message, stack: errorObj.stack, code: errorObj.code },
+      { source, req }
+    );
+
+    next(errorObj);
+  }
+};
+
+/**
+ * Handles Facebook Sign-In/Sign-Up.
+ * Validates the Facebook access token, retrieves the user's profile,
+ * creates a new user if necessary, or logs in an existing user.
+ *
+ * @param {Request} req - Express request object containing the Facebook access token.
+ * @param {Response} res - Express response object used to send the result.
+ * @param {NextFunction} next - Express next middleware function for error handling.
+ * @returns {Promise<void>}
+ */
+export const facebookAuth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const source = "auth.facebookAuth";
+
+  try {
+    const { facebookAccessToken, roleCode } = req.body;
+
+    if (!facebookAccessToken) {
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("Facebook access token is required"));
+      return;
+    }
+
+    // Decode + Verify Facebook Token
+    const fbUser = await verifyFacebookToken(facebookAccessToken);
+
+    if (!fbUser) {
+      res
+        .status(HTTP_STATUS.UNAUTHORIZED)
+        .json(errorResponse("Invalid Facebook token"));
+      return;
+    }
+
+    const { id: fbUid, email, name, picture } = fbUser;
+
+    if (!email) {
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("Email not found in Facebook account"));
+      return;
+    }
+
+    let user = await findUserByEmail(email);
+    let isNewUser = false;
+
+    // New User Registration
+    if (!user) {
+      isNewUser = true;
+
+      // Determine role (same as Google)
+      let roleName = "user";
+      if (roleCode) {
+        const mappedRole = RoleCodeMap[roleCode];
+        if (!mappedRole) {
+          await warn(
+            "Facebook auth failed - invalid role code",
+            { email, roleCode },
+            { source, req }
+          );
+          res
+            .status(HTTP_STATUS.BAD_REQUEST)
+            .json(errorResponse(MESSAGES.ROLE_INVALID_ID));
+          return;
+        }
+        roleName = mappedRole;
+      }
+
+      const role = await findRoleByName(roleName);
+      if (!role) {
+        res
+          .status(HTTP_STATUS.BAD_REQUEST)
+          .json(errorResponse("Valid role is required for registration"));
+        return;
+      }
+
+      // Create new user
+      const userData = await createUserFromOAuth(
+        name!,
+        email,
+        fbUid,
+        role.id!,
+        true, // Facebook does not provide email_verified by default making true
+        false,
+        true,
+        false
+      );
+
+      // Download Facebook picture
+      const buffer = await downloadImageAsBuffer(picture);
+      // Upload image
+      const uploadedFileKey = await uploadBufferToS3(
+        buffer,
+        `${Date.now()}.jpg`,
+        "Users/ProfileImages"
+      );
+
+      // Save profile image
+      await createUserProfileWithImage(userData.id!, uploadedFileKey);
+
+      user = userData;
+    } else {
+      // Update Facebook UID if newly linked
+      await updateUserFromOAuth(user.id!, fbUid, false, true, false);
+    }
+
+    // Generate JWT token
+    const token = generateToken(user.email!, "User", user.id!);
+
+    res.status(HTTP_STATUS.OK).json(
+      successResponse(
+        {
+          token,
+        },
+        isNewUser ? MESSAGES.USER_CREATED : MESSAGES.LOGIN_SUCCESS
+      )
+    );
+  } catch (err: unknown) {
+    const errorObj = err as AppError;
+
+    await error(
+      "Facebook authentication failed",
+      { error: errorObj.message, stack: errorObj.stack },
       { source, req }
     );
 

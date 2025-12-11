@@ -366,43 +366,63 @@ export async function findRoleByName(roleName: string): Promise<IRole | null> {
 }
 
 /**
- * Create new user from OAuth (Google, Facebook, Apple)
- * @param name
- * @param email
- * @param googleUid
- * @param roleId
- * @param isVerified
- * @returns Created user row
+ * Creates a new user record using OAuth provider data (Google, Facebook, or Apple).
+ *
+ * This method is called when a user signs in for the first time through an OAuth
+ * provider. It stores the essential profile details along with provider-specific
+ * flags to indicate the source of authentication.
+ *
+ * @param name - Full name of the user returned by the OAuth provider.
+ * @param email - Email address verified by the OAuth provider.
+ * @param uid - Unique identifier from the OAuth provider (Google UID, Facebook ID, Apple sub ID).
+ * @param roleId - Role assigned to the user during registration.
+ * @param isVerified - Indicates whether the user's email is verified.
+ * @param isGoogleToken - True if the user authenticated via Google.
+ * @param isFacebookToken - True if the user authenticated via Facebook.
+ * @param isAppleToken - True if the user authenticated via Apple.
+ * @returns Promise resolving to the created OAuth user record.
  */
 export async function createUserFromOAuth(
   name: string,
   email: string,
-  googleUid: string,
+  uid: string,
   roleId: string,
-  isVerified: boolean
+  isVerified: boolean,
+  isGoogleToken: boolean,
+  isFacebookToken: boolean,
+  isAppleToken: boolean
 ): Promise<IUserOAuth> {
   const db = await getDB();
+
+  // Determine which UID column to use
+  let uidColumn = "";
+  if (isGoogleToken) uidColumn = "google_uid";
+  else if (isFacebookToken) uidColumn = "facebook_uid";
+  else if (isAppleToken) uidColumn = "apple_uid";
+  else throw new Error("No OAuth provider flag provided");
+
+  // Build dynamic SQL using the selected UID column
   const query = `
-    INSERT INTO users (name, email, google_uid, role_id, is_email_verified, created_at, updated_at)
+    INSERT INTO users (name, email, ${uidColumn}, role_id, is_email_verified, created_at, updated_at)
     VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
     RETURNING id, name, email, role_id, is_email_verified;
   `;
 
-  const result = await db.query(query, [
-    name,
-    email,
-    googleUid,
-    roleId,
-    isVerified,
-  ]);
+  const result = await db.query(query, [name, email, uid, roleId, isVerified]);
 
   return result.rows[0];
 }
 
 /**
- * Creates a user profile with an image
- * @param userId
- * @param pictureLink
+ * Creates a new user profile entry and stores the user's profile image URL.
+ *
+ * This method is typically called after OAuth login when a new user is created
+ * and their profile picture needs to be saved. Only the basic profile data
+ * (user ID and image link) is stored here.
+ *
+ * @param userId - The unique identifier of the user.
+ * @param pictureLink - URL of the user's profile image from the OAuth provider.
+ * @returns Promise resolving when the profile record is created.
  */
 export async function createUserProfileWithImage(
   userId: string,
@@ -417,25 +437,43 @@ export async function createUserProfileWithImage(
 }
 
 /**
- * Update existing user OAuth info (google_uid, profile picture)
- * @param userId
- * @param googleUid
+ * Updates OAuth-related information for an existing user, such as provider UID
+ * and authentication flags (Google, Facebook, Apple).
+ *
+ * This method is used when an existing user logs in again using an OAuth provider.
+ * It ensures their provider UID and authentication source indicators remain updated.
+ *
+ * @param userId - The user's internal database ID.
+ * @param uid - The OAuth provider's unique identifier (e.g., Google UID, Facebook ID, Apple sub ID).
+ * @param isGoogleToken - True if the user authenticated via Google.
+ * @param isFacebookToken - True if the user authenticated via Facebook.
+ * @param isAppleToken - True if the user authenticated via Apple.
+ * @returns Promise resolving when the user OAuth data is updated.
  */
 export async function updateUserFromOAuth(
   userId: string,
-  googleUid?: string
+  uid: string | undefined,
+  isGoogleToken: boolean,
+  isFacebookToken: boolean,
+  isAppleToken: boolean
 ): Promise<void> {
+  if (!uid) return; // nothing to update
+
   const db = await getDB();
 
-  // Update users table only google_uid
-  if (googleUid) {
-    await db.query(
-      `
-        UPDATE users 
-        SET google_uid = $1, updated_at = NOW()
-        WHERE id = $2
-      `,
-      [googleUid, userId]
-    );
-  }
+  let uidColumn = "";
+
+  if (isGoogleToken) uidColumn = "google_uid";
+  else if (isFacebookToken) uidColumn = "facebook_uid";
+  else if (isAppleToken) uidColumn = "apple_uid";
+  else throw new Error("No OAuth provider flag provided");
+
+  const query = `
+    UPDATE users
+    SET ${uidColumn} = $1,
+        updated_at = NOW()
+    WHERE id = $2
+  `;
+
+  await db.query(query, [uid, userId]);
 }

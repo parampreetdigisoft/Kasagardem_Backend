@@ -14,7 +14,7 @@ const options = {
     servers: [
       {
         url: config.APPDEV_URL,
-        description: "Server",
+        description: "Development Server",
       },
     ],
     components: {
@@ -23,30 +23,26 @@ const options = {
           type: "http",
           scheme: "bearer",
           bearerFormat: "JWT",
-          description: "Enter your JWT token here. **'Bearer'**, token.",
+          description: "Enter JWT token with 'Bearer {token}'",
+        },
+      },
+      parameters: {
+        AcceptLanguage: {
+          in: "header",
+          name: "Accept-Language",
+          required: false,
+          schema: {
+            type: "string",
+            enum: ["en", "pt"],
+            default: "pt",
+          },
+          description: "Language preference (default: pt)",
         },
       },
     },
-    parameters: {
-      AcceptLanguage: {
-        in: "header",
-        name: "Accept-Language",
-        schema: {
-          type: "string",
-          enum: ["en", "pt"],
-          default: "pt",
-        },
-        required: false,
-        description:
-          "Language preference for the response (defaults to Portuguese if not specified)",
-      },
-    },
-    security: [
-      {
-        bearerAuth: [],
-      },
-    ],
+    security: [{ bearerAuth: [] }],
   },
+
   apis: [
     "./src/modules/auth/*.ts",
     "./src/modules/roles/*.ts",
@@ -62,38 +58,79 @@ const options = {
   ],
 };
 
+// Build swagger docs
 const specs = swaggerJsdoc(options);
 
+// ⭐ Convert specs to a safe mutable object
+const specDoc = specs as unknown as {
+  paths?: Record<string, unknown>;
+};
+
+// ⭐ Inject Accept-Language into ALL routes
+if (specDoc.paths) {
+  Object.entries(specDoc.paths).forEach(([_, pathItem]) => {
+    const item = pathItem as Record<string, unknown>;
+
+    Object.entries(item).forEach(([__, operation]) => {
+      const op = operation as Record<string, unknown>;
+
+      // Ensure parameters exists
+      if (!op.parameters) {
+        op.parameters = [];
+      }
+
+      const params = op.parameters as Array<Record<string, string>>;
+
+      const exists = params.some(
+        (p) => p.$ref === "#/components/parameters/AcceptLanguage"
+      );
+
+      if (!exists) {
+        params.push({
+          $ref: "#/components/parameters/AcceptLanguage",
+        });
+      }
+    });
+  });
+}
+
 /**
- * Configures and mounts the Swagger UI for API documentation.
- * @param {Application} app - The Express application instance.
+ * Configures Swagger UI for API documentation.
+ *
+ * @param app - Express application instance
+ * @returns void
  */
 function setupSwagger(app: Application): void {
-  // Swagger UI options with request interceptor
   const swaggerUiOptions = {
     swaggerOptions: {
       persistAuthorization: true,
+
       /**
-       * Intercepts all Swagger requests to add default Accept-Language header.
-       * @param {Record<string, unknown>} req - The request object from Swagger UI
-       * @returns {Record<string, unknown>} The modified request object with Accept-Language header
+       * Inject default Accept-Language header into all Swagger requests.
+       *
+       * @param req - Swagger outgoing request object
+       * @returns Modified request object
        */
       requestInterceptor: (
         req: Record<string, unknown>
       ): Record<string, unknown> => {
+        if (!req.headers) req.headers = {};
+
         const headers = req.headers as Record<string, string>;
-        // Add Accept-Language header only if not already set
-        if (!headers["Accept-Language"]) {
-          headers["Accept-Language"] = "pt"; // Default to Portuguese
+
+        if (!headers["accept-language"]) {
+          headers["accept-language"] = "pt"; // default
         }
+
         return req;
       },
     },
   };
+
   app.use(
     "/swagger",
     swaggerUi.serve,
-    swaggerUi.setup(specs, swaggerUiOptions)
+    swaggerUi.setup(specDoc, swaggerUiOptions)
   );
 }
 
