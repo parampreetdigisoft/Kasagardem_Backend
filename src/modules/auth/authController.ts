@@ -15,7 +15,7 @@ import { sendPasswordResetEmail } from "../../core/services/emailService";
 import crypto from "crypto";
 import { RoleCodeMap } from "../../interface/role";
 import {
-  decodeGoogleIdToken,
+  decodeGoogleAccessToken,
   verifyFacebookToken,
 } from "../../core/services/firebaseAdmin";
 import {
@@ -672,9 +672,9 @@ export const googleAuth = async (
   const source = "auth.googleAuth";
 
   try {
-    const { idToken, roleCode } = req.body;
+    const { googleAccessToken, roleCode } = req.body;
 
-    if (!idToken) {
+    if (!googleAccessToken) {
       res
         .status(HTTP_STATUS.BAD_REQUEST)
         .json(errorResponse("Google ID token is required"));
@@ -682,7 +682,7 @@ export const googleAuth = async (
     }
 
     // Decode Google token
-    const decoded = await decodeGoogleIdToken(idToken);
+    const decoded = await decodeGoogleAccessToken(googleAccessToken);
 
     if (!decoded) {
       res
@@ -814,9 +814,9 @@ export const facebookAuth = async (
   const source = "auth.facebookAuth";
 
   try {
-    const { accessToken, roleCode } = req.body;
+    const { facebookAccessToken, roleCode } = req.body;
 
-    if (!accessToken) {
+    if (!facebookAccessToken) {
       res
         .status(HTTP_STATUS.BAD_REQUEST)
         .json(errorResponse("Facebook access token is required"));
@@ -824,7 +824,7 @@ export const facebookAuth = async (
     }
 
     // Decode + Verify Facebook Token
-    const fbUser = await verifyFacebookToken(accessToken);
+    const fbUser = await verifyFacebookToken(facebookAccessToken);
 
     if (!fbUser) {
       res

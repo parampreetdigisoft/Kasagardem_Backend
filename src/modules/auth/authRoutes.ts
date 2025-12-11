@@ -308,11 +308,11 @@ router.post(
  *           schema:
  *             type: object
  *             required:
- *               - idToken
+ *               - googleAccessToken
  *             properties:
- *               idToken:
+ *               googleAccessToken:
  *                 type: string
- *                 description: Google ID token obtained from Google Sign-In
+ *                 description: Google Access token obtained from Google Sign-In
  *                 example: eyJhbGciOiJSUzI1NiIsImtpZCI6IjFkYzBmM...
  *               roleCode:
  *                 type: string
@@ -351,7 +351,7 @@ router.post(
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: Google ID token is required
+ *                   example: Google Access token is required
  *       401:
  *         description: Invalid or expired Google token
  *         content:
@@ -381,9 +381,9 @@ router.post("/google", validateRequest(googleAuthValidation), googleAuth);
  *           schema:
  *             type: object
  *             required:
- *               - accessToken
+ *               - facebookAccessToken
  *             properties:
- *               accessToken:
+ *               facebookAccessToken:
  *                 type: string
  *                 description: Facebook user access token obtained from Facebook Login
  *                 example: EAAJZCZA7C5wB0BAKZAyZA7ZCZAyZA7CZA...

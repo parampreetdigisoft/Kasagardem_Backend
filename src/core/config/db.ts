@@ -37,8 +37,8 @@ export const connectDB = async (): Promise<Pool> => {
     },
     // Connection pool settings for better performance
     max: 20, // Maximum connections in pool
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 6000,
+    idleTimeoutMillis: 50000,
+    connectionTimeoutMillis: 10000,
   });
 
   try {

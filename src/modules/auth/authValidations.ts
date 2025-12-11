@@ -150,10 +150,10 @@ export const passwordChangeValidation = Joi.object({
  * Validation schema for Google OAuth authentication
  */
 export const googleAuthValidation = Joi.object({
-  idToken: Joi.string().min(1).required().messages({
-    "string.empty": "Firebase ID token is required",
-    "any.required": "Firebase ID token is required",
-    "string.min": "Firebase ID token cannot be empty",
+  googleAccessToken: Joi.string().min(1).required().messages({
+    "string.empty": "Google access token is required",
+    "any.required": "Google access token is required",
+    "string.min": "Google access token cannot be empty",
   }),
 
   roleCode: Joi.string().optional().messages({
@@ -167,7 +167,7 @@ export const googleAuthValidation = Joi.object({
  * Validation schema for Facebook OAuth authentication
  */
 export const facebookAuthValidation = Joi.object({
-  accessToken: Joi.string().min(1).required().messages({
+  facebookAccessToken: Joi.string().min(1).required().messages({
     "string.empty": "Facebook access token is required",
     "any.required": "Facebook access token is required",
     "string.min": "Facebook access token cannot be empty",
