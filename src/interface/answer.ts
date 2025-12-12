@@ -24,6 +24,7 @@ export interface IPartnerRecommendation {
   contactPerson?: string;
   projectImageUrl?: string;
   status?: string;
+  rating: string;
   whyRecommended?: string;
 }
 
