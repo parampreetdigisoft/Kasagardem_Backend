@@ -61,12 +61,12 @@ const options = {
 // Build swagger docs
 const specs = swaggerJsdoc(options);
 
-// ⭐ Convert specs to a safe mutable object
+// Convert specs to a safe mutable object
 const specDoc = specs as unknown as {
   paths?: Record<string, unknown>;
 };
 
-// ⭐ Inject Accept-Language into ALL routes
+// Inject Accept-Language into ALL routes
 if (specDoc.paths) {
   Object.entries(specDoc.paths).forEach(([_, pathItem]) => {
     const item = pathItem as Record<string, unknown>;
