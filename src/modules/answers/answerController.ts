@@ -298,6 +298,7 @@ export const getRecommendedPartnersController = async (
         contactPerson: partner.contactPerson,
         projectImageUrl:
           (await getSignedFileUrl(partner.projectImageUrl!)) || null,
+        rating: partner.rating,
         whyRecommended: partner.whyRecommended,
       }))
     );

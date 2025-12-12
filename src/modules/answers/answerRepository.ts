@@ -378,6 +378,7 @@ export const getRecommendedPartners = async (
       website: partner.website || "",
       contactPerson: partner.contact_person || "",
       projectImageUrl: partner.project_image_url || "",
+      rating: partner.rating || "0.0",
       whyRecommended,
     }));
   } catch (error) {
