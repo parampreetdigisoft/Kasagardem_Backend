@@ -16,8 +16,7 @@ export const translationCache = new NodeCache({ stdTTL: 86400 }); // Cache for 2
  */
 function shouldSkipKey(key: string): boolean {
   const lowerKey = key.toLowerCase();
-
-  // List of technical/sensitive fields that should never be translated
+ 
   const skipFields = [
     "token",
     "accesstoken",
@@ -51,18 +50,20 @@ function shouldSkipKey(key: string): boolean {
     "isplant",
     "ishealthy",
   ];
-
-  // Check if key matches any skip field
+ 
   if (skipFields.some((field) => lowerKey.includes(field))) {
     return true;
   }
-
-  // Skip keys that contain 'id' or end with 'id'
+ 
+  // More precise ID matching - only skip if it's clearly an ID field
   return (
-    lowerKey.includes("id") ||
-    lowerKey.endsWith("_id") ||
     key === "id" ||
-    key === "ID"
+    key === "ID" ||
+    key === "_id" ||
+    lowerKey.endsWith("_id") ||
+    (lowerKey.endsWith("id") &&
+      (lowerKey.length <= 4 || /[^a-z]id$/.test(lowerKey))) ||
+    /^id[^a-z]/i.test(key) // Matches "id123", "idUser", etc.
   );
 }
 
