@@ -14,7 +14,9 @@ import {
  */
 export const createTransporter = (): Transporter => {
   return nodemailer.createTransport({
-    service: "gmail", // or your email service
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false, // or your email service
     auth: {
       user: config.EMAIL_USER,
       pass: config.EMAIL_PASS, // Use app password for Gmail
@@ -22,7 +24,7 @@ export const createTransporter = (): Transporter => {
   });
 };
 
-/**
+/**    
  * Sends a password reset email with a token to the user.
  *
  * @param email - The recipient's email address.
