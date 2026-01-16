@@ -223,7 +223,7 @@ export const getCitiesByState = async (
       cities = await makeCSCRequest<City[]>(
         `/countries/BR/states/${stateIso2}/cities`
       );
-
+      // converted city id string to Number.
       cities = cities.map((city) => ({
         ...city,
         id: Number(city.id),
