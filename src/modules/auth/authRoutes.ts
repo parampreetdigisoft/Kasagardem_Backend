@@ -8,6 +8,7 @@ import {
   refreshTokenLogin,
   googleAuth,
   facebookAuth,
+  appleAuth,
 } from "./authController";
 import {
   registerValidation,
@@ -18,6 +19,7 @@ import {
   passwordChangeValidation,
   googleAuthValidation,
   facebookAuthValidation,
+  appleAuthValidation,
 } from "./authValidations";
 import validateRequest from "../../core/middleware/validateRequest";
 import auth from "../../core/middleware/authMiddleware";
@@ -440,5 +442,103 @@ router.post("/google", validateRequest(googleAuthValidation), googleAuth);
  *                   example: Invalid or expired Facebook token
  */
 router.post("/facebook", validateRequest(facebookAuthValidation), facebookAuth);
+
+
+/**
+ * @swagger
+ * /api/v1/auth/apple:
+ *   post:
+ *     summary: Sign in or sign up with Apple
+ *     description: >
+ *       Authenticates a user using Apple Sign-In.
+ *       Verifies the Apple identity token, creates a new user on first login,
+ *       or logs in an existing user.
+ *       Apple provides firstName and lastName **only on the first authorization**.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - appleIdToken
+ *             properties:
+ *               appleIdToken:
+ *                 type: string
+ *                 description: Apple identity token (JWT) obtained from Apple Sign-In
+ *                 example: eyJraWQiOiJBMkJDM0QiLCJhbGciOiJSUzI1NiJ9...
+ *               firstName:
+ *                 type: string
+ *                 description: Optional first name (returned only once by Apple on first login)
+ *                 example: John
+ *               lastName:
+ *                 type: string
+ *                 description: Optional last name (returned only once by Apple on first login)
+ *                 example: Doe
+ *               email:
+ *                 type: string
+ *                 description: Optional email (returned by Apple or provided by frontend)
+ *                 example: john.doe@example.com
+ *               roleCode:
+ *                 type: string
+ *                 description: Optional role code for new users
+ *                 example: U
+ *     responses:
+ *       200:
+ *         description: Authentication successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Login successful
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       description: Backend JWT token for API authentication
+ *                       example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       400:
+ *         description: Validation error or missing Apple identity token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Apple identity token is required
+ *       401:
+ *         description: Invalid or expired Apple identity token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Invalid or expired Apple token
+ *       500:
+ *         description: Internal server error
+ */
+router.post(
+  "/apple",
+  validateRequest(appleAuthValidation),
+  appleAuth
+);
+
 
 export default router;
