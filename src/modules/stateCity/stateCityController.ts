@@ -162,10 +162,10 @@ export const getCountries = async (
       err instanceof Error
         ? (err as CustomError)
         : ({
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          } as CustomError);
+          name: "UnknownError",
+          message:
+            typeof err === "string" ? err : "An unknown error occurred",
+        } as CustomError);
 
     await logError(
       "Failed to fetch countries",
@@ -223,6 +223,11 @@ export const getCitiesByState = async (
       cities = await makeCSCRequest<City[]>(
         `/countries/BR/states/${stateIso2}/cities`
       );
+
+      cities = cities.map((city) => ({
+        ...city,
+        id: Number(city.id),
+      }));
 
       cities.sort((a, b) =>
         a.name.localeCompare(b.name, "en", { sensitivity: "base" })
