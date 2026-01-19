@@ -25,6 +25,7 @@ import {
   createUserProfileWithImage,
   createValidatedUser,
   findRoleByName,
+  findUserByAppleId,
   findUserByEmail,
   findUserByEmailOrPhone,
   findUserById,
@@ -34,6 +35,7 @@ import {
   updatePasswordResetToken,
   updateUserFromOAuth,
   updateUserPassword,
+  verifyAppleIdToken,
 } from "./authRepository";
 import bcrypt from "bcryptjs";
 import { uploadBufferToS3 } from "../../core/services/s3UploadService";
@@ -928,3 +930,129 @@ export const facebookAuth = async (
     next(errorObj);
   }
 };
+
+
+/**
+ * Handles Apple Sign-In / Sign-Up.
+ * Verifies the Apple identity token (JWT), validates the token signature
+ * using Apple public keys, extracts the user's Apple profile information,
+ * creates a new user if necessary, or logs in an existing user.
+ *
+ * @param {Request} req - Express request object containing the Apple identity token
+ * and optional authorization code.
+ * @param {Response} res - Express response object used to send the authentication result.
+ * @param {NextFunction} next - Express next middleware function for error handling.
+ * @returns {Promise<void>}
+ */
+export const appleAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const source = "auth.appleAuth";
+
+  try {
+    const { appleIdToken, roleCode,firstName, lastName , email} = req.body;
+
+    if (!appleIdToken) {
+      res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse("apple access token is required"));
+      return;
+    }
+
+    // Decode + Verify Facebook Token
+    const appleUser = await verifyAppleIdToken(appleIdToken);
+    
+
+    if (!appleUser) {
+      res
+        .status(HTTP_STATUS.UNAUTHORIZED)
+        .json(errorResponse("Invalid apple  token"));
+      return;
+    }
+    
+    let appleId= appleUser.sub;
+  
+    let existingUser = await findUserByAppleId(appleId);
+    let isNewUser
+    if (!existingUser) {
+      isNewUser = true;
+      // Determine role 
+      let roleName = "user";
+      if (roleCode) {
+        const mappedRole = RoleCodeMap[roleCode];
+        if (!mappedRole) {
+          await warn(
+            "Apple auth failed - invalid role code",
+            { email, roleCode },
+            { source, req }
+          );
+          res
+            .status(HTTP_STATUS.BAD_REQUEST)
+            .json(errorResponse(MESSAGES.ROLE_INVALID_ID));
+          return;
+        }
+        roleName = mappedRole;
+      }
+
+      const role = await findRoleByName(roleName);
+      if (!role) {
+        res
+          .status(HTTP_STATUS.BAD_REQUEST)
+          .json(errorResponse("Valid role is required for registration"));
+        return;
+      }
+      
+      const name = `${firstName??  ""} ${lastName??  ""}`.trim() || "User";
+      // Create new user
+      const userData = await createUserFromOAuth(
+        name!,
+        email,
+        appleId,
+        role.id!,
+        true,
+        false,
+        false,
+        true
+      );
+      const picture = `https://ui-avatars.com/api/?background=9CA3AF&color=ffffff&size=256&name=${encodeURIComponent(
+        name
+      )}`;
+      // Download avatar picture
+      const buffer = await downloadImageAsBuffer(picture);
+      // Upload image
+      const uploadedFileKey = await uploadBufferToS3(
+        buffer,
+        `${Date.now()}.jpg`,
+        "Users/ProfileImages"
+      );
+
+      // Save profile image
+      await createUserProfileWithImage(userData.id!, uploadedFileKey);
+
+      existingUser = userData;
+    } else {
+      // Update Google uid if any register user google uid changes..
+      await updateUserFromOAuth(existingUser.id!, appleId, false, false, true);
+    }
+
+    const token = generateToken(existingUser.email!, "User", existingUser.id!);
+
+    res.status(HTTP_STATUS.OK).json(
+      successResponse(
+        {
+          token,
+        },
+        isNewUser ? MESSAGES.USER_CREATED : MESSAGES.LOGIN_SUCCESS
+      )
+    );
+
+  } catch (err: unknown) {
+    const errorObj = err as AppError;
+
+    await error(
+      "apple authentication failed",
+      { error: errorObj.message, stack: errorObj.stack },
+      { source, req }
+    );
+    next(errorObj);
+  }
+};
+

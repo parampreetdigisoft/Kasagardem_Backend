@@ -2,7 +2,10 @@ import bcrypt from "bcryptjs";
 import { ZodError } from "zod";
 import { createUserDto } from "../../dto/userDto";
 import { IRole, IUser, IUserOAuth } from "../../interface/user";
-import { getDB } from "../../core/config/db";
+import {  getDB } from "../../core/config/db";
+import  JwksClient from "jwks-rsa";
+import jwt, { JwtHeader } from "jsonwebtoken";
+import { AppleJwtPayload } from "../../interface/auth";
 
 /**
  * Hash password helper
@@ -476,4 +479,87 @@ export async function updateUserFromOAuth(
   `;
 
   await db.query(query, [uid, userId]);
+}
+
+
+/**
+ * JWKS client configured to fetch Apple public signing keys.
+ * Used to verify the signature of Apple identity tokens (JWT).
+ */
+const client = JwksClient({
+  jwksUri: "https://appleid.apple.com/auth/keys",
+});
+/**
+ * Retrieves the Apple public signing key based on the JWT header `kid`.
+ * This function is used as a dynamic key resolver for `jsonwebtoken.verify`.
+ *
+ * @param {object} header - Decoded JWT header containing the `kid` (Key ID).
+ * @param {Function} callback - Callback function invoked with the public key
+ * or an error if the key cannot be retrieved.
+ */
+function getAppleSigningKey(header: JwtHeader, callback: (err: Error | null, key?: string) => void):void {
+  client.getSigningKey(header.kid, (err, key) => {
+    if (err) {
+      return callback(err);
+    }
+
+    if (!key) {
+      return callback(new Error("Signing key not found"));
+    }
+
+    const signingKey = key.getPublicKey();
+    callback(null, signingKey);
+  });
+}
+
+/**
+ * Verifies an Apple identity token (JWT).
+ * The token is validated using Apple's public keys, ensuring:
+ * - The signature is valid (RS256)
+ * - The issuer is Apple
+ * - The audience matches the configured Apple client ID
+ *
+ * @param appleIdToken - Apple identity token received from Apple Sign-In.
+ * @returns Decoded token payload if valid.
+ */
+export function verifyAppleIdToken(
+  appleIdToken: string
+): Promise<AppleJwtPayload> {
+  return new Promise((resolve, reject) => {
+    const _decoded = jwt.decode(appleIdToken, { complete: true }) as
+      | { header: JwtHeader; payload: AppleJwtPayload }
+      | null;
+
+    jwt.verify(
+      appleIdToken,
+      getAppleSigningKey,
+      {
+        algorithms: ["RS256"],
+        issuer: "https://appleid.apple.com",
+        audience: process.env.APPLE_CLIENT_ID,
+      },
+      (err, verified) => {
+        if (err) return reject(err);
+
+        if (!verified || typeof verified === "string") {
+          return reject(new Error("Invalid Apple ID token payload"));
+        }
+
+        resolve(verified as AppleJwtPayload);
+      }
+    );
+  });
+}
+
+/**
+ * Finds a user in the database by their Apple UID.
+ *
+ * @param appleId - The unique Apple identifier (`sub`) for the user.
+ * @returns The user object if found, or `null` if no user exists.
+ */
+export async function findUserByAppleId(appleId: string):Promise<IUser | null> {
+  const db = await getDB();
+  const query = `SELECT * FROM users WHERE apple_uid = $1`;
+  const result = await db.query(query, [appleId]);
+  return result.rows[0] || null;
 }

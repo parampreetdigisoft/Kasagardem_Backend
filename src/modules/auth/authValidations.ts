@@ -174,3 +174,24 @@ export const facebookAuthValidation = Joi.object({
   }),
   roleCode: Joi.string().optional(),
 });
+
+/**
+ * Validation schema for Apple OAuth authentication
+ */
+export const appleAuthValidation = Joi.object({
+  appleIdToken: Joi.string().min(1).required().messages({
+    "string.empty": "Apple access token is required",
+    "any.required": "Apple access token is required",
+    "string.min": "Apple access token cannot be empty",
+  }),
+
+  firstName: Joi.string().optional().allow("", null),
+
+  lastName: Joi.string().optional().allow("", null),
+
+  roleCode: Joi.string().optional(),
+
+  email: Joi.string().email().optional().allow("", null).messages({
+    "string.email": "Email must be a valid email address",
+  }),
+})

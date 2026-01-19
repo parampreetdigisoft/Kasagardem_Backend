@@ -16,3 +16,12 @@ export interface AuthUserPayload {
   userEmail?: string;
   role?: string;
 }
+export interface AppleJwtPayload {
+  sub: string;
+  email?: string;
+  email_verified?: string;
+  auth_time?: number;
+  nonce?: string;
+  nonce_supported?: boolean;
+  c_hash?: string;
+}
