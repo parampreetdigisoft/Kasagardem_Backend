@@ -16,7 +16,7 @@ import crypto from "crypto";
 import { RoleCodeMap } from "../../interface/role";
 import {
   decodeGoogleAccessToken,
-  verifyFacebookToken,
+  verifyFacebookToken as verifyFacebookAccessToken,
 } from "../../core/services/firebaseAdmin";
 import {
   comparePassword,
@@ -36,6 +36,7 @@ import {
   updateUserFromOAuth,
   updateUserPassword,
   verifyAppleIdToken,
+  verifyFacebookIdToken,
 } from "./authRepository";
 import bcrypt from "bcryptjs";
 import { uploadBufferToS3 } from "../../core/services/s3UploadService";
@@ -256,10 +257,10 @@ export const login = async (
       err instanceof Error
         ? { ...err }
         : {
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          };
+          name: "UnknownError",
+          message:
+            typeof err === "string" ? err : "An unknown error occurred",
+        };
 
     await error(
       "Login failed with unexpected error",
@@ -347,10 +348,10 @@ export const refreshTokenLogin = async (
       err instanceof Error
         ? { ...err }
         : {
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          };
+          name: "UnknownError",
+          message:
+            typeof err === "string" ? err : "An unknown error occurred",
+        };
 
     await error(
       "Refresh Login failed with unexpected error",
@@ -401,7 +402,7 @@ export const handlePasswordResetToken = async (
     ) {
       const timeLeft = Math.ceil(
         (new Date(user.password_reset_expires).getTime() - Date.now()) /
-          (60 * 1000)
+        (60 * 1000)
       );
       res
         .status(HTTP_STATUS.OK)
@@ -435,9 +436,8 @@ export const handlePasswordResetToken = async (
       res.status(HTTP_STATUS.OK).json(
         successResponse(
           {
-            message: `Password reset token ${
-              isResend ? "resent" : "sent"
-            } to your email`,
+            message: `Password reset token ${isResend ? "resent" : "sent"
+              } to your email`,
             expiresIn: "5 minutes",
           },
           MESSAGES.PASSWORD_RESET_TOKEN_SENT
@@ -816,17 +816,49 @@ export const facebookAuth = async (
   const source = "auth.facebookAuth";
 
   try {
-    const { facebookAccessToken, roleCode } = req.body;
+    const { facebookAccessToken, roleCode, facebookIdToken } = req.body;
 
-    if (!facebookAccessToken) {
+    if (!facebookAccessToken && !facebookIdToken) {
       res
         .status(HTTP_STATUS.BAD_REQUEST)
-        .json(errorResponse("Facebook access token is required"));
+        .json(errorResponse("Facebook token is required"));
       return;
     }
 
     // Decode + Verify Facebook Token
-    const fbUser = await verifyFacebookToken(facebookAccessToken);
+    // const fbUser = await verifyFacebookToken(facebookAccessToken);
+
+    /**
+ * Checks if a token string is in JWT format.
+ *
+ * A JWT has three parts separated by dots: header.payload.signature
+ *
+ * @param token - The token string to check
+ * @returns True if the string looks like a JWT, false otherwise
+ */
+    const isJwt = (token: string):boolean  => token.split(".").length === 3;
+
+
+    let fbUser;
+
+    if (facebookIdToken) {
+      // iOS: explicit ID token
+      fbUser = await verifyFacebookIdToken(facebookIdToken);
+
+    } else if (facebookAccessToken && isJwt(facebookAccessToken)) {
+      // Misnamed JWT sent as access token
+      fbUser = await verifyFacebookIdToken(facebookAccessToken);
+
+    } else if (facebookAccessToken) {
+      // Android: real access token
+      fbUser = await verifyFacebookAccessToken(facebookAccessToken);
+
+    } else {
+      res
+        .status(HTTP_STATUS.UNAUTHORIZED)
+        .json(errorResponse("Invalid Facebook token"));
+      return;
+    }
 
     if (!fbUser) {
       res
@@ -890,7 +922,7 @@ export const facebookAuth = async (
       );
 
       // Download Facebook picture
-      const buffer = await downloadImageAsBuffer(picture);
+      const buffer = await downloadImageAsBuffer(picture!);
       // Upload image
       const uploadedFileKey = await uploadBufferToS3(
         buffer,
@@ -948,7 +980,7 @@ export const appleAuth = async (req: Request, res: Response, next: NextFunction)
   const source = "auth.appleAuth";
 
   try {
-    const { appleIdToken, roleCode,firstName, lastName , email} = req.body;
+    const { appleIdToken, roleCode, firstName, lastName, email } = req.body;
 
     if (!appleIdToken) {
       res
@@ -959,7 +991,7 @@ export const appleAuth = async (req: Request, res: Response, next: NextFunction)
 
     // Decode + Verify Facebook Token
     const appleUser = await verifyAppleIdToken(appleIdToken);
-    
+
 
     if (!appleUser) {
       res
@@ -967,9 +999,9 @@ export const appleAuth = async (req: Request, res: Response, next: NextFunction)
         .json(errorResponse("Invalid apple  token"));
       return;
     }
-    
-    let appleId= appleUser.sub;
-  
+
+    let appleId = appleUser.sub;
+
     let existingUser = await findUserByAppleId(appleId);
     let isNewUser
     if (!existingUser) {
@@ -999,8 +1031,8 @@ export const appleAuth = async (req: Request, res: Response, next: NextFunction)
           .json(errorResponse("Valid role is required for registration"));
         return;
       }
-      
-      const name = `${firstName??  ""} ${lastName??  ""}`.trim() || "User";
+
+      const name = `${firstName ?? ""} ${lastName ?? ""}`.trim() || "User";
       // Create new user
       const userData = await createUserFromOAuth(
         name!,

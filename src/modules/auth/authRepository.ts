@@ -1,9 +1,9 @@
 import bcrypt from "bcryptjs";
 import { ZodError } from "zod";
 import { createUserDto } from "../../dto/userDto";
-import { IRole, IUser, IUserOAuth } from "../../interface/user";
-import {  getDB } from "../../core/config/db";
-import  JwksClient from "jwks-rsa";
+import { FacebookIdTokenPayload, FacebookUser, IRole, IUser, IUserOAuth } from "../../interface/user";
+import { getDB } from "../../core/config/db";
+import JwksClient from "jwks-rsa";
 import jwt, { JwtHeader } from "jsonwebtoken";
 import { AppleJwtPayload } from "../../interface/auth";
 
@@ -497,7 +497,7 @@ const client = JwksClient({
  * @param {Function} callback - Callback function invoked with the public key
  * or an error if the key cannot be retrieved.
  */
-function getAppleSigningKey(header: JwtHeader, callback: (err: Error | null, key?: string) => void):void {
+function getAppleSigningKey(header: JwtHeader, callback: (err: Error | null, key?: string) => void): void {
   client.getSigningKey(header.kid, (err, key) => {
     if (err) {
       return callback(err);
@@ -557,9 +557,109 @@ export function verifyAppleIdToken(
  * @param appleId - The unique Apple identifier (`sub`) for the user.
  * @returns The user object if found, or `null` if no user exists.
  */
-export async function findUserByAppleId(appleId: string):Promise<IUser | null> {
+export async function findUserByAppleId(appleId: string): Promise<IUser | null> {
   const db = await getDB();
   const query = `SELECT * FROM users WHERE apple_uid = $1`;
   const result = await db.query(query, [appleId]);
   return result.rows[0] || null;
+}
+
+
+
+/**
+ * Initializes a JWKS (JSON Web Key Set) client for Facebook.
+ *
+ * This client fetches and caches Facebook's public RSA keys, which are used
+ * to verify the signature of Facebook ID tokens (JWTs).
+ *
+ * Keys are retrieved from Facebook’s official OpenID Connect JWKS endpoint
+ * and cached in memory to reduce network calls and improve performance.
+ */
+const facebookJwksClient = JwksClient({
+  jwksUri: "https://www.facebook.com/.well-known/oauth/openid/jwks/",
+  cache: true,
+  cacheMaxEntries: 5,
+  cacheMaxAge: 10 * 60 * 1000, // 10 minutes
+});
+
+/**
+ * Retrieves the appropriate Facebook public signing key based on the `kid`
+ * (Key ID) found in the JWT header.
+ *
+ * This function is used internally by the `jsonwebtoken.verify` method
+ * to dynamically resolve the correct public key for signature validation.
+ *
+ * @param header - Decoded JWT header containing the `kid`
+ * @param callback - Callback function invoked with the resolved public key
+ *                   or an error if the key cannot be retrieved
+ * @returns void
+ */
+const getFacebookSigningKey = (
+  header: JwtHeader,
+  callback: (err: Error | null, key?: string) => void
+):void  => {
+  if (!header.kid) {
+    return callback(new Error("Missing kid in Facebook ID token"));
+  }
+
+  facebookJwksClient.getSigningKey(header.kid, (err, key) => {
+    if (err) return callback(err);
+    callback(null, key!.getPublicKey());
+  });
+};
+
+/**
+ * Verifies a Facebook ID token (JWT).
+ *
+ * The token is validated using Facebook’s public keys, ensuring:
+ * - The signature is valid (RS256)
+ * - The issuer (`iss`) is Facebook
+ * - The audience (`aud`) matches the configured Facebook App ID
+ * - The token is not expired
+ *
+ * This method performs full cryptographic verification and should be used
+ * only for authentication (not for Graph API access).
+ *
+ * @param idToken - Facebook ID token received from the client
+ * @returns A promise resolving to a normalized Facebook user object
+ *          containing the user’s unique Facebook ID and optional profile data
+ *
+ * @throws Error if the token is invalid, expired, or fails verification
+ */
+export function verifyFacebookIdToken(
+  idToken: string
+): Promise<FacebookUser> {
+  return new Promise((resolve, reject) => {
+    jwt.verify(
+      idToken,
+      getFacebookSigningKey,
+      {
+        algorithms: ["RS256"],
+        issuer: "https://www.facebook.com",
+        audience: process.env.FACEBOOK_APP_ID,
+      },
+      (err, decoded) => {
+        if (err) return reject(err);
+
+        if (!decoded || typeof decoded === "string") {
+          return reject(new Error("Invalid Facebook ID token payload"));
+        }
+
+        const payload = decoded as FacebookIdTokenPayload;
+
+        if (!payload.sub) {
+          return reject(new Error("Facebook ID token missing sub"));
+        }
+
+        const user: FacebookUser = {
+          id: payload.sub,
+          ...(payload.email && { email: payload.email }),
+          ...(payload.name && { name: payload.name }),
+          ...(payload.picture && { picture: payload.picture }),
+        };
+
+        resolve(user);
+      }
+    );
+  });
 }
