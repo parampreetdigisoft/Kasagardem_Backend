@@ -167,13 +167,36 @@ export const googleAuthValidation = Joi.object({
  * Validation schema for Facebook OAuth authentication
  */
 export const facebookAuthValidation = Joi.object({
-  facebookAccessToken: Joi.string().min(1).required().messages({
-    "string.empty": "Facebook access token is required",
-    "any.required": "Facebook access token is required",
-    "string.min": "Facebook access token cannot be empty",
-  }),
+  facebookAccessToken: Joi.string()
+    .min(1)
+    .allow(null),
+
+  facebookIdToken: Joi.string()
+    .min(1)
+    .allow(null),
+
   roleCode: Joi.string().optional(),
+})
+.custom((value, helpers) => {
+  const hasAccessToken =
+    typeof value.facebookAccessToken === "string" &&
+    value.facebookAccessToken.length > 0;
+
+  const hasIdToken =
+    typeof value.facebookIdToken === "string" &&
+    value.facebookIdToken.length > 0;
+
+  if (!hasAccessToken && !hasIdToken) {
+    return helpers.error("any.custom");
+  }
+
+  return value;
+})
+.messages({
+  "any.custom":
+    "Either Facebook access token or Facebook ID token is required",
 });
+
 
 /**
  * Validation schema for Apple OAuth authentication

@@ -37,3 +37,24 @@ export interface IUserOAuth {
   role_id: string;
   is_email_verified: boolean;
 }
+
+
+export interface FacebookIdTokenPayload {
+  iss: string;
+  aud: string;
+  sub: string;
+  email?: string;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
+  picture?: string;
+  exp: number;
+  iat: number;
+}
+
+export interface FacebookUser {
+  id: string;
+  email?: string;
+  name?: string;
+  picture?: string;
+}

@@ -382,16 +382,25 @@ router.post("/google", validateRequest(googleAuthValidation), googleAuth);
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - facebookAccessToken
+ *             oneOf:
+ *               - required: [facebookAccessToken]
+ *               - required: [facebookIdToken]
  *             properties:
  *               facebookAccessToken:
  *                 type: string
- *                 description: Facebook user access token obtained from Facebook Login
+ *                 description: >
+ *                   Facebook access token obtained from Facebook Login.
+ *                   Typically used by Android or web clients.
  *                 example: EAAJZCZA7C5wB0BAKZAyZA7ZCZAyZA7CZA...
+ *               facebookIdToken:
+ *                 type: string
+ *                 description: >
+ *                   Facebook ID token (JWT) obtained from Facebook Login.
+ *                   Typically used by iOS clients.
+ *                 example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
  *               roleCode:
  *                 type: string
- *                 description: Optional role code for new users.
+ *                 description: Optional role code for new users
  *                 example: U
  *     responses:
  *       200:
@@ -412,10 +421,10 @@ router.post("/google", validateRequest(googleAuthValidation), googleAuth);
  *                   properties:
  *                     token:
  *                       type: string
- *                       description: Your backend JWT token for API authentication
+ *                       description: Backend JWT token for API authentication
  *                       example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *       400:
- *         description: Validation error or missing access token
+ *         description: Validation error or missing Facebook token
  *         content:
  *           application/json:
  *             schema:
@@ -426,9 +435,9 @@ router.post("/google", validateRequest(googleAuthValidation), googleAuth);
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: Facebook access token is required
+ *                   example: Either Facebook access token or Facebook ID token is required
  *       401:
- *         description: Invalid or expired Facebook access token
+ *         description: Invalid or expired Facebook token
  *         content:
  *           application/json:
  *             schema:
