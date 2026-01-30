@@ -64,7 +64,7 @@ app.use("/api/v1/admin", dashboardRoutes);
 // Error handler (must be last middleware)
 app.use(errorHandler);
 
-// 404 handler
+// 404 handler.
 app.use(/.*/, (req, res) => {
   res.status(404).json({
     success: false,
