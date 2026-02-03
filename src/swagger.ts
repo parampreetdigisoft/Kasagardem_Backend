@@ -55,6 +55,7 @@ const options = {
     "./src/modules/plant/*.ts",
     "./src/modules/stateCity/*.ts",
     "./src/modules/admin/dashboard/*.ts",
+    "./src/modules/subscription/*.ts",
   ],
 };
 

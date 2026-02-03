@@ -15,6 +15,7 @@ import plantRoutes from "./modules/plant/plantRoutes";
 import stateCityRoutes from "./modules/stateCity/stateCityRoutes";
 import leadsRoutes from "./modules/admin/leads/leadsRoute";
 import dashboardRoutes from "./modules/admin/dashboard/dashboardRoutes";
+import subscriptionRoutes from "./modules/subscription/subscriptionRoutes"
 import translationMiddleware from "./core/middleware/translationMiddleware";
 import { connectDB } from "./core/config/db";
 const app = express();
@@ -60,6 +61,8 @@ app.use("/api/v1/stateCityData", stateCityRoutes);
 app.use("/api/v1/admin", leadsRoutes);
 // Dashboard Routes
 app.use("/api/v1/admin", dashboardRoutes);
+// Subscription Plans
+app.use("/api/v1/subscription", subscriptionRoutes)
 
 // Error handler (must be last middleware)
 app.use(errorHandler);

@@ -1,0 +1,180 @@
+import express, { Router } from "express";
+import auth from "../../core/middleware/authMiddleware";
+import validateRequest from "../../core/middleware/validateRequest";
+import { createPlanValidation, updatePlanValidation } from "./subscriptionValidation";
+import { CreatePlan, getPlans, updatePlan } from "./subscriptionController";
+
+
+
+const router: Router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   name: Subscription
+ *   description: Subscription plan management
+ */
+
+/**
+ * @swagger
+ * /api/v1/subscription:
+ *   post:
+ *     summary: Create subscription plan
+ *     description: |
+ *       **Admin only**. Creates a professional subscription plan.
+ *
+ *       ⚠️ Business rules:
+ *       - Only 3 plans are allowed: **Talk, Gold, Diamante**
+ *       - Plan names are immutable after creation
+ *       - Annual price must be `monthly_price × 12`
+ *       - Maximum of 3 plans can exist in the system
+ *       - Subscriptions are for professionals only (customers are free)
+ *       - Billing is annual (monthly price is display-only)
+ *     tags: [Subscription]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - plan_name
+ *               - description
+ *               - monthly_price
+ *               - annual_price
+ *               - lead_limit_per_month
+ *               - number_of_regions
+ *               - highlight_in_result
+ *               - verification_badge
+ *               - status
+ *             properties:
+ *               plan_name:
+ *                 type: string
+ *                 enum: [Talk, Gold, Diamante]
+ *                 example: Talk
+ *               description:
+ *                 type: string
+ *                 example: Entry-level plan for professionals
+ *               monthly_price:
+ *                 type: number
+ *                 example: 49
+ *               annual_price:
+ *                 type: number
+ *                 example: 588
+ *               lead_limit_per_month:
+ *                 type: integer
+ *                 description: "0 means unlimited leads"
+ *                 example: 0
+ *               number_of_regions:
+ *                 type: integer
+ *                 example: 1
+ *               highlight_in_result:
+ *                 type: boolean
+ *                 example: false
+ *               verification_badge:
+ *                 type: boolean
+ *                 example: false
+ *               status:
+ *                 type: string
+ *                 enum: [active, inactive]
+ *                 example: active
+ *     responses:
+ *       201:
+ *         description: Subscription plan created successfully
+ *       400:
+ *         description: Validation or business rule error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Admin only)
+ */
+router.post("/", auth, validateRequest(createPlanValidation), CreatePlan);
+
+
+/**
+ * @swagger
+ * /api/v1/subscription:
+ *   get:
+ *     summary: Get all subscription plans
+ *     description: Fetch all subscription plans
+ *     tags: [Subscription]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Subscription plans fetched successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/", auth, getPlans);
+
+/**
+ * @swagger
+ * /api/v1/subscription/{id}:
+ *   put:
+ *     summary: Update subscription plan
+ *     description: Admin only. Updates an existing subscription plan by ID. Plan name cannot be modified.
+ *     tags: [Subscription]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Subscription plan ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - description
+ *               - monthly_price
+ *               - annual_price
+ *               - lead_limit_per_month
+ *               - number_of_regions
+ *               - highlight_in_result
+ *               - verification_badge
+ *               - status
+ *             properties:
+ *               description:
+ *                 type: string
+ *                 example: Updated description for professionals
+ *               monthly_price:
+ *                 type: number
+ *                 example: 59.99
+ *               annual_price:
+ *                 type: number
+ *                 example: 599.99
+ *               lead_limit_per_month:
+ *                 type: integer
+ *                 example: 300
+ *               number_of_regions:
+ *                 type: integer
+ *                 example: 8
+ *               highlight_in_result:
+ *                 type: boolean
+ *                 example: true
+ *               verification_badge:
+ *                 type: boolean
+ *                 example: true
+ *               status:
+ *                 type: string
+ *                 enum: [active, inactive]
+ *     responses:
+ *       200:
+ *         description: Subscription plan updated successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Plan not found
+ */
+router.put("/:id", auth, validateRequest(updatePlanValidation), updatePlan);
+
+export default router;
