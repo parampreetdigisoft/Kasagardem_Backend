@@ -186,3 +186,35 @@ export const getSubscriptionPlanById = async (
  // TS now sees this as ISubscriptionPlan
 };
 
+
+/**
+ * Updates the status of a subscription plan by its ID.
+ *
+ * Currently supports partial updates for the `status` field only.
+ *
+ * @param planId - Unique ID of the subscription plan
+ * @param updates - Object containing the new status value
+ *
+ * @returns The updated subscription plan if found, otherwise null
+ */
+export const updateSubscriptionPlanStatusById = async (
+  planId: string,
+  updates: Partial<Pick<ISubscriptionPlan, "status">> // currently only status for PATCH
+): Promise<ISubscriptionPlan | null> => {
+  const client = await getDB();
+
+  const query = `
+    UPDATE subscrptionPlans
+    SET 
+      status = $1,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $2
+    RETURNING *;
+  `;
+
+  const values = [updates.status, planId];
+
+  const result = await client.query<ISubscriptionPlan>(query, values);
+  return result.rows[0] || null;
+};
+

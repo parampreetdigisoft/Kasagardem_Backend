@@ -36,7 +36,7 @@ export async function createSubscriptionPlans(): Promise<void> {
         highlight_in_result BOOLEAN DEFAULT FALSE,
         verification_badge BOOLEAN DEFAULT FALSE,
         status VARCHAR(10) DEFAULT 'active'
-            CHECK (status IN ('active', 'inactive')),
+        CHECK (status IN ('active', 'inactive')),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );

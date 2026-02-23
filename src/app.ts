@@ -15,9 +15,13 @@ import plantRoutes from "./modules/plant/plantRoutes";
 import stateCityRoutes from "./modules/stateCity/stateCityRoutes";
 import leadsRoutes from "./modules/admin/leads/leadsRoute";
 import dashboardRoutes from "./modules/admin/dashboard/dashboardRoutes";
-import subscriptionRoutes from "./modules/subscription/subscriptionRoutes"
+import subscriptionRoutes from "./modules/subscription/subscriptionRoutes";
+import externalLinksRoutes from "./modules/admin/externalLinks/externalLinksRoutes";
+import myPlantRoutes from "./modules/myPlants/myPlantRoute";
+import professionalRoutes from "./modules/professional/professionalRoutes";
 import translationMiddleware from "./core/middleware/translationMiddleware";
 import { connectDB } from "./core/config/db";
+// import { registerBlockExpiredTrialsCron } from "./core/utils/blockTrials";
 const app = express();
 setupSwagger(app);
 
@@ -62,9 +66,14 @@ app.use("/api/v1/admin", leadsRoutes);
 // Dashboard Routes
 app.use("/api/v1/admin", dashboardRoutes);
 // Subscription Plans
-app.use("/api/v1/subscription", subscriptionRoutes)
-
+app.use("/api/v1/subscription", subscriptionRoutes);
+//external Links Routes
+app.use("/api/v1/externalLinks",externalLinksRoutes);
+// Professional Routes
+app.use("/api/v1/professional", professionalRoutes);  
 // Error handler (must be last middleware)
+app.use("/api/v1/myPlants", myPlantRoutes);
+// registerBlockExpiredTrialsCron();
 app.use(errorHandler);
 
 // 404 handler.

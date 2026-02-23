@@ -5,7 +5,7 @@ import { HTTP_STATUS } from "../../core/utils/constants";
 import { errorResponse, successResponse } from "../../core/utils/responseFormatter";
 import { findUserByEmail } from "../auth/authRepository";
 import { SubscriptionPlanInput } from "../../interface/subscription";
-import { createSubscriptionPlan, getAllSubscriptionPlans, getSubscriptionPlanById, updateSubscriptionPlan } from "./subscriptionRepository";
+import { createSubscriptionPlan, getAllSubscriptionPlans, getSubscriptionPlanById, updateSubscriptionPlan, updateSubscriptionPlanStatusById } from "./subscriptionRepository";
 import { CustomError } from "../../interface/Error";
 import { error } from "../../core/utils/logger";
 
@@ -224,7 +224,7 @@ export const getPlans = async (
         if (cachedPlans) {
             res.status(HTTP_STATUS.OK).json(
                 successResponse(
-                    cachedPlans,
+                    {plans:cachedPlans},
                     "Subscription plans fetched successfully (cached)"
                 )
             );
@@ -238,7 +238,7 @@ export const getPlans = async (
         appCache.set(CACHE_KEYS.SUBSCRIPTION_PLANS, plans);
 
         res.status(HTTP_STATUS.OK).json(
-            successResponse(plans, "Subscription plans fetched successfully")
+            successResponse({plans:plans}, "Subscription plans fetched successfully")
         );
     } catch (err: unknown) {
         // Handle unknown errors
@@ -281,7 +281,7 @@ export const updatePlan = async (
     next: NextFunction
 ): Promise<void> => {
     const userPayload = req.user as AuthUserPayload | undefined;
-    const planId = req.params.id;
+    const planId = req.body.id as string | undefined;
 
     try {
         if (!userPayload?.userEmail) {
@@ -357,7 +357,7 @@ export const updatePlan = async (
         }
 
         // Invalidate cache
-      
+        appCache.del(CACHE_KEYS.SUBSCRIPTION_PLANS);
 
         res.status(HTTP_STATUS.OK).json(
             successResponse(updatedPlan, "Subscription plan updated successfully")
@@ -371,4 +371,77 @@ export const updatePlan = async (
         console.error("Error updating subscription plan:", errorObj);
         next(errorObj);
     }
+};
+
+
+/**
+ * Controller to update only the status of a subscription plan by ID.
+ * Only Admin users can update.
+ *
+ * @param req AuthRequest with user and plan ID in params
+ * @param res Response
+ * @param next NextFunction
+ */
+export const updateSubscriptionStatusById = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const planId = req.params.id as string | undefined;
+  const { status } = req.body;
+
+  try {
+    // Auth & Role Check
+    const userPayload = req.user as AuthUserPayload | undefined;
+    if (!userPayload?.userEmail) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized request"));
+      return;
+    }
+
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user || userPayload.role !== "Admin") {
+      res.status(HTTP_STATUS.FORBIDDEN).json(errorResponse("Unauthorized Role"));
+      return;
+    }
+
+    //  Input validation
+    if (!planId) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Subscription plan ID is required"));
+      return;
+    }
+
+    if (!status || !["active", "inactive"].includes(status)) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Status must be 'active' or 'inactive'"));
+      return;
+    }
+
+    //  Fetch existing plan
+    const existingPlan = await getSubscriptionPlanById(planId);
+    if (!existingPlan) {
+      res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Subscription plan not found"));
+      return;
+    }
+
+    //  Update only the status
+    const updatedPlan = await updateSubscriptionPlanStatusById(planId, {
+      ...existingPlan,
+      status,
+    });
+
+    if (!updatedPlan) {
+      res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Failed to update subscription plan"));
+      return;
+    }
+
+    //  Clear cache
+    appCache.del(CACHE_KEYS.SUBSCRIPTION_PLANS);
+
+    // Return success
+    res.status(HTTP_STATUS.OK).json(
+      successResponse(updatedPlan, "Subscription plan status updated successfully")
+    );
+  } catch (error: unknown) {
+    console.error("Failed to update subscription plan status:", error);
+    next(error);
+  }
 };

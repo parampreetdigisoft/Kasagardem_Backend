@@ -53,7 +53,10 @@ export const updatePlanValidation: ObjectSchema = Joi.object({
   plan_name: Joi.forbidden().messages({
     "any.unknown": "Plan name cannot be updated",
   }),
-
+  id: Joi.string().required().messages({
+    "string.base": "Plan ID must be a string",
+    "any.required": "Plan ID is required",
+  }),
   description: Joi.string().min(5).required().messages({
     "string.base": "Description must be a string",
     "string.empty": "Description is required",

@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import validateRequest from "../../core/middleware/validateRequest";
 import { createPlanValidation, updatePlanValidation } from "./subscriptionValidation";
-import { CreatePlan, getPlans, updatePlan } from "./subscriptionController";
+import { CreatePlan, getPlans, updatePlan, updateSubscriptionStatusById } from "./subscriptionController";
 
 
 
@@ -111,7 +111,7 @@ router.get("/", auth, getPlans);
 
 /**
  * @swagger
- * /api/v1/subscription/{id}:
+ * /api/v1/subscription/update:
  *   put:
  *     summary: Update subscription plan
  *     description: Admin only. Updates an existing subscription plan by ID. Plan name cannot be modified.
@@ -175,6 +175,54 @@ router.get("/", auth, getPlans);
  *       404:
  *         description: Plan not found
  */
-router.put("/:id", auth, validateRequest(updatePlanValidation), updatePlan);
+router.put("/update", auth, validateRequest(updatePlanValidation), updatePlan);
+
+/**
+ * @swagger
+ * /api/v1/subscription/status/{id}:
+ *   patch:
+ *     summary: Update subscription plan status
+ *     description: |
+ *       **Admin only**. Activate or deactivate a subscription plan by ID.
+ *
+ *        Business rules:
+ *       - Only the `status` field can be updated using this endpoint
+ *       - Used to temporarily enable or disable a plan without modifying other details
+ *     tags: [Subscription]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Subscription plan ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [active, inactive]
+ *                 example: inactive
+ *     responses:
+ *       200:
+ *         description: Subscription plan status updated successfully
+ *       400:
+ *         description: Invalid status value
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Admin only)
+ *       404:
+ *         description: Subscription plan not found
+ */
+router.patch("/status/:id", auth, updateSubscriptionStatusById);
 
 export default router;

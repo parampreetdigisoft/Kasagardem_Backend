@@ -6,6 +6,7 @@ import {
   leadSuccessEmailTemplateForPartner,
   leadSuccessEmailTemplateForUser,
 } from "../../templates/leadsGeneratedEmail";
+import { professionalWelcomeEmailTemplate } from "../../templates/sendWelcomeEmail";
 
 /**
  * Creates and configures an email transporter using Nodemailer.
@@ -145,3 +146,53 @@ export const sendLeadEmails = async (
     transporter.sendMail(adminMailOptions),
   ]);
 };
+
+interface WelcomeEmailData {
+    email: string;
+    name: string;
+    password: string;
+    trialEndDate: Date;
+}
+/**
+ * Sends a welcome email to a newly registered professional user.
+ *
+ * The email contains:
+ * - Login email
+ * - Generated password
+ * - Trial expiration date
+ *
+ * @param {WelcomeEmailData} data - Professional user email details.
+ * @param {string} data.email - Recipient email address.
+ * @param {string} data.name - Professional's full name.
+ * @param {string} data.password - Generated temporary password.
+ * @param {Date} data.trialEndDate - Trial expiration date.
+ *
+ * @returns {Promise<void>} Resolves when the email is successfully sent.
+ */
+export const sendProfessionalWelcomeEmail = async (
+  data: WelcomeEmailData
+): Promise<void> => {
+  const transporter = createTransporter();
+
+  // Format the trial end date
+  const formattedTrialEndDate = data.trialEndDate.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: data.email,
+    subject: "Welcome to Kasagardem Professional - Your Account is Ready!",
+    html: professionalWelcomeEmailTemplate(
+      data.name,
+      data.email,
+      data.password,
+      formattedTrialEndDate
+    ),
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
