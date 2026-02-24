@@ -47,6 +47,10 @@ export async function createPlantSpeciesTable(): Promise<void> {
                 -- Multiple generic care options 
                 -- Each object: { name, frequency, preferred_time, notification_enabled }
                 generic_options JSONB DEFAULT '[]'::jsonb,
+                generic_reminder_frequency INTEGER 
+                    CHECK (pruning_alert > 0),
+                generic_notification_enable BOOLEAN DEFAULT FALSE,
+
 
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP

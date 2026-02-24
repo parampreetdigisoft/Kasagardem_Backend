@@ -22,33 +22,32 @@ export async function userplantTable(): Promise<void> {
             user_id UUID NOT NULL,
             plant_species_id UUID NOT NULL,
 
-            nickname VARCHAR(255),
             added_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
             -- ══════════════════════════════════════
             -- Watering Tracking
             -- ══════════════════════════════════════
+            watering_frequency_days INTEGER,
             last_watered_at TIMESTAMPTZ,
             next_watered_at TIMESTAMPTZ,
-            custom_water_frequency INTEGER CHECK (custom_water_frequency > 0),
             water_notification_enabled BOOLEAN DEFAULT FALSE,
             water_preferred_time TIME DEFAULT '09:00:00',
 
             -- ══════════════════════════════════════
             -- Fertilizer Tracking
             -- ══════════════════════════════════════
+            fertilizing_frequency_days INTEGER,
             last_fertilized_at TIMESTAMPTZ,
             next_fertilized_at TIMESTAMPTZ,
-            custom_fertilizer_schedule INTEGER CHECK (custom_fertilizer_schedule > 0),
             fertilizer_notification_enabled BOOLEAN DEFAULT FALSE,
             fertilizer_preferred_time TIME DEFAULT '09:00:00',
 
             -- ══════════════════════════════════════
             -- Pruning Tracking
             -- ══════════════════════════════════════
+            pruning_frequency_days INTEGER,
             last_pruned_at TIMESTAMPTZ,
             next_pruned_at TIMESTAMPTZ,
-            custom_pruning_schedule INTEGER CHECK (custom_pruning_schedule > 0),
             pruning_notification_enabled BOOLEAN DEFAULT FALSE,
             pruning_preferred_time TIME DEFAULT '09:00:00',
 
@@ -57,8 +56,13 @@ export async function userplantTable(): Promise<void> {
             -- Mirrors generic_options from plant_species
             -- Each object: { name, last_done_at, next_due_at, custom_frequency, preferred_time, notification_enabled }
             -- ══════════════════════════════════════
+            generic_frequency_days INTEGER,
             generic_options_tracking JSONB DEFAULT '[]'::jsonb,
-
+            last_generic_care_at TIMESTAMPTZ,
+            next_generic_care_at TIMESTAMPTZ,
+            generic_care_notification_enabled BOOLEAN DEFAULT FALSE,
+            generic_care_preferred_time TIME DEFAULT '09:00:00',
+            
             health_status VARCHAR(50) DEFAULT 'healthy',
 
             created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -72,7 +76,7 @@ export async function userplantTable(): Promise<void> {
             CONSTRAINT fk_plant_species
                 FOREIGN KEY(plant_species_id)
                 REFERENCES plant_species(id)
-                ON DELETE CASCADE
+                ON DELETE CASCADE,
 
             CONSTRAINT unique_user_plant        
             UNIQUE (user_id, plant_species_id)

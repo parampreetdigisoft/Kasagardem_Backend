@@ -146,7 +146,7 @@ router.get("/",auth, getAllPlants);
 
 /**
  * @swagger
- * /api/v1/myPlants/{id}:
+ * /api/v1/allplants/{id}:
  *   get:
  *     summary: Get plant by ID
  *     description: Fetch the details of a plant by its unique ID.
@@ -273,7 +273,6 @@ router.get("/",auth, getAllPlants);
 
 router.get("/:id",auth, getPlantById);
 
-
 /**
  * @swagger
  * tags:
@@ -292,21 +291,11 @@ router.get("/:id",auth, getPlantById);
  *
  *   schemas:
  *
- *     # ── Reusable Schemas ─────────────────────────────────────────────────────
- *
  *     TimeString:
  *       type: string
  *       pattern: '^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$'
  *       example: "09:00:00"
  *       description: Time in HH:mm:ss format
- *
- *     HealthStatus:
- *       type: string
- *       enum: [healthy, needs_attention, critical]
- *       default: healthy
- *       example: healthy
- *
- *     # ── Request Body ─────────────────────────────────────────────────────────
  *
  *     AddUserPlantRequest:
  *       type: object
@@ -316,76 +305,72 @@ router.get("/:id",auth, getPlantById);
  *         plant_species_id:
  *           type: string
  *           format: uuid
- *           description: ID of the plant species to add
  *           example: "c9d4c053-49b6-410c-bc78-2d54a9991870"
  *
- *         nickname:
- *           type: string
- *           maxLength: 255
- *           description: Optional nickname for the plant
- *           example: "My Balcony Aloe"
- *
- *         health_status:
- *           $ref: '#/components/schemas/HealthStatus'
- *
- *         # ── Water ──────────────────────────────────────────────────────────
- *         custom_water_frequency:
- *           type: integer
- *           minimum: 1
- *           description: Custom watering frequency in days. Falls back to plant species default if not provided
- *           example: 3
- *
+ *         # ───────── WATER ─────────
  *         water_notification_enabled:
  *           type: boolean
  *           default: false
- *           description: Enable watering reminders
+ *           description: Enable watering notification
  *
  *         water_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
  *           description: >
- *             Preferred time for watering notifications.
- *             **Required** when water_notification_enabled is true.
- *             Defaults to 09:00:00 if not provided.
+ *             Required when water_notification_enabled is true.
+ *             Defaults to 09:00:00 if notification is disabled.
  *
- *         # ── Fertilizer ─────────────────────────────────────────────────────
- *         custom_fertilizer_schedule:
- *           type: integer
- *           minimum: 1
- *           description: Custom fertilizer schedule in days. Falls back to plant species default if not provided
- *           example: 30
- *
+ *         # ───────── FERTILIZER ─────────
  *         fertilizer_notification_enabled:
  *           type: boolean
  *           default: false
- *           description: Enable fertilizer reminders
+ *           description: Enable fertilizer notification
  *
  *         fertilizer_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
  *           description: >
- *             Preferred time for fertilizer notifications.
- *             **Required** when fertilizer_notification_enabled is true.
- *             Defaults to 09:00:00 if not provided.
+ *             Required when fertilizer_notification_enabled is true.
+ *             Defaults to 09:00:00 if notification is disabled.
  *
- *         # ── Pruning ────────────────────────────────────────────────────────
- *         custom_pruning_schedule:
- *           type: integer
- *           minimum: 1
- *           description: Custom pruning schedule in days. Falls back to plant species default if not provided
- *           example: 60
- *
+ *         # ───────── PRUNING ─────────
  *         pruning_notification_enabled:
  *           type: boolean
  *           default: false
- *           description: Enable pruning reminders
+ *           description: Enable pruning notification
  *
  *         pruning_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
  *           description: >
- *             Preferred time for pruning notifications.
- *             **Required** when pruning_notification_enabled is true.
- *             Defaults to 09:00:00 if not provided.
+ *             Required when pruning_notification_enabled is true.
+ *             Defaults to 09:00:00 if notification is disabled.
  *
- *     # ── Response Body ────────────────────────────────────────────────────────
+ *         # ───────── GENERIC CARE ─────────
+ *         generic_care_notification_enabled:
+ *           type: boolean
+ *           default: false
+ *           description: Enable generic care notification
+ *
+ *         generic_care_preferred_time:
+ *           $ref: '#/components/schemas/TimeString'
+ *           description: >
+ *             Required when generic_care_notification_enabled is true.
+ *             Defaults to 09:00:00 if notification is disabled.
+ *
+ *         # ───────── FREQUENCIES ─────────
+ *         watering_frequency_days:
+ *           type: integer
+ *           description: Frequency in days for watering reminders. Optional, defaults to the species default if not provided.
+ *
+ *         fertilizing_frequency_days:
+ *           type: integer
+ *           description: Frequency in days for fertilizing reminders. Optional, defaults to the species default if not provided.
+ *
+ *         pruning_frequency_days:
+ *           type: integer
+ *           description: Frequency in days for pruning reminders. Optional, defaults to the species default if not provided.
+ *
+ *         generic_frequency_days:
+ *           type: integer
+ *           description: Frequency in days for generic care reminders. Optional, defaults to the species default if not provided.
  *
  *     UserPlantResponse:
  *       type: object
@@ -393,118 +378,58 @@ router.get("/:id",auth, getPlantById);
  *         id:
  *           type: string
  *           format: uuid
- *           example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
  *         user_id:
  *           type: string
  *           format: uuid
- *           example: "d73b8c16-4c69-4c5e-b2ad-63bce8f66cf7"
  *         plant_species_id:
  *           type: string
  *           format: uuid
- *           example: "c9d4c053-49b6-410c-bc78-2d54a9991870"
- *         nickname:
- *           type: string
- *           nullable: true
- *           example: "My Balcony Aloe"
- *         health_status:
- *           $ref: '#/components/schemas/HealthStatus'
  *
- *         # ── Water ──────────────────────────────────────────────────────────
- *         custom_water_frequency:
- *           type: integer
- *           example: 3
+ *         # ───────── WATERING ─────────
  *         water_notification_enabled:
  *           type: boolean
- *           example: true
  *         water_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
- *         last_watered_at:
- *           type: string
- *           format: date-time
- *           nullable: true
- *           example: null
  *         next_watered_at:
  *           type: string
  *           format: date-time
- *           example: "2025-03-05T09:00:00Z"
  *
- *         # ── Fertilizer ─────────────────────────────────────────────────────
- *         custom_fertilizer_schedule:
- *           type: integer
- *           nullable: true
- *           example: 30
+ *         # ───────── FERTILIZER ─────────
  *         fertilizer_notification_enabled:
  *           type: boolean
- *           example: false
  *         fertilizer_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
- *         last_fertilized_at:
- *           type: string
- *           format: date-time
- *           nullable: true
- *           example: null
  *         next_fertilized_at:
  *           type: string
  *           format: date-time
  *           nullable: true
- *           example: "2025-04-01T09:00:00Z"
  *
- *         # ── Pruning ────────────────────────────────────────────────────────
- *         custom_pruning_schedule:
- *           type: integer
- *           nullable: true
- *           example: 60
+ *         # ───────── PRUNING ─────────
  *         pruning_notification_enabled:
  *           type: boolean
- *           example: false
  *         pruning_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
- *         last_pruned_at:
- *           type: string
- *           format: date-time
- *           nullable: true
- *           example: null
  *         next_pruned_at:
  *           type: string
  *           format: date-time
  *           nullable: true
- *           example: "2025-05-01T09:00:00Z"
  *
- *         added_at:
+ *         # ───────── GENERIC CARE ─────────
+ *         generic_care_notification_enabled:
+ *           type: boolean
+ *         generic_care_preferred_time:
+ *           $ref: '#/components/schemas/TimeString'
+ *         next_generic_care_at:
  *           type: string
  *           format: date-time
- *           example: "2025-02-12T10:00:00Z"
+ *           nullable: true
+ *
  *         created_at:
  *           type: string
  *           format: date-time
- *           example: "2025-02-12T10:00:00Z"
  *         updated_at:
  *           type: string
  *           format: date-time
- *           example: "2025-02-12T10:00:00Z"
- *
- *     # ── Error Schemas ────────────────────────────────────────────────────────
- *
- *     ValidationError:
- *       type: object
- *       properties:
- *         success:
- *           type: boolean
- *           example: false
- *         message:
- *           type: string
- *           example: "Validation failed"
- *         errors:
- *           type: array
- *           items:
- *             type: object
- *             properties:
- *               field:
- *                 type: string
- *                 example: "water_preferred_time"
- *               message:
- *                 type: string
- *                 example: "Water preferred time is required when notification is enabled"
  *
  *     ErrorResponse:
  *       type: object
@@ -519,17 +444,15 @@ router.get("/:id",auth, getPlantById);
 
 /**
  * @swagger
- * /api/v1/myPlants:
+ * /api/v1/allPlants/addplant:
  *   post:
- *     summary: Add a plant to the authenticated user's collection
+ *     summary: Add plant to user's collection
  *     description: >
- *       Adds a plant species to the user's personal collection.
- *       All care settings (water, fertilizer, pruning) are **optional** —
- *       if not provided, they fall back to the plant species defaults.
- *       Notification time is **required** only when the corresponding
+ *       Adds a plant species to the authenticated user's collection.
+ *       Preferred time fields are required only when their corresponding
  *       notification is enabled.
- *       `next_watered_at`, `next_fertilized_at`, and `next_pruned_at`
- *       are automatically calculated as `NOW() + frequency days` on creation.
+ *       Next reminder timestamps are automatically calculated.
+ *       The user may optionally provide custom frequency for watering, fertilizing, pruning, and generic care. If not provided, the species default is used.
  *     tags: [My Plants]
  *     security:
  *       - bearerAuth: []
@@ -540,35 +463,10 @@ router.get("/:id",auth, getPlantById);
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/AddUserPlantRequest'
- *           examples:
- *             minimal:
- *               summary: Minimal — only required field
- *               value:
- *                 plant_species_id: "c9d4c053-49b6-410c-bc78-2d54a9991870"
- *             with_water_notification:
- *               summary: Enable water notification only
- *               value:
- *                 plant_species_id: "c9d4c053-49b6-410c-bc78-2d54a9991870"
- *                 water_notification_enabled: true
- *                 water_preferred_time: "07:30:00"
- *             fully_customized:
- *               summary: Full customization
- *               value:
- *                 plant_species_id: "c9d4c053-49b6-410c-bc78-2d54a9991870"
- *                 nickname: "My Balcony Aloe"
- *                 custom_water_frequency: 3
- *                 water_notification_enabled: true
- *                 water_preferred_time: "08:00:00"
- *                 custom_fertilizer_schedule: 30
- *                 fertilizer_notification_enabled: true
- *                 fertilizer_preferred_time: "10:00:00"
- *                 custom_pruning_schedule: 60
- *                 pruning_notification_enabled: false
- *                 health_status: "healthy"
  *
  *     responses:
  *       201:
- *         description: Plant successfully added to user's collection
+ *         description: Plant added successfully
  *         content:
  *           application/json:
  *             schema:
@@ -584,39 +482,18 @@ router.get("/:id",auth, getPlantById);
  *                   $ref: '#/components/schemas/UserPlantResponse'
  *
  *       400:
- *         description: Validation failed — missing or invalid fields
+ *         description: Validation failed
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ValidationError'
- *             example:
- *               success: false
- *               message: "Validation failed"
- *               errors:
- *                 - field: "plant_species_id"
- *                   message: "Plant species ID must be a valid UUID"
- *                 - field: "water_preferred_time"
- *                   message: "Water preferred time is required when notification is enabled"
+ *               $ref: '#/components/schemas/ErrorResponse'
  *
  *       401:
- *         description: Unauthorized — missing or invalid token
+ *         description: Unauthorized
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               success: false
- *               message: "Unauthorized"
- *
- *       403:
- *         description: Forbidden — only users with role "User" can add plants
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               success: false
- *               message: "Unauthorized Role"
  *
  *       404:
  *         description: Plant species not found
@@ -624,19 +501,13 @@ router.get("/:id",auth, getPlantById);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               success: false
- *               message: "Plant species not found"
  *
  *       409:
- *         description: Conflict — plant already added to user's collection
+ *         description: Plant already added
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               success: false
- *               message: "Plant already added to user"
  *
  *       500:
  *         description: Internal server error
@@ -644,11 +515,8 @@ router.get("/:id",auth, getPlantById);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               success: false
- *               message: "Something went wrong"
  */
-router.post("/",auth,validateRequest(createUserPlantValidation), AddPlantToUser);
+router.post("/addplant",auth,validateRequest(createUserPlantValidation), AddPlantToUser);
 /**
  * @swagger
  * /api/v1/allPlants/user/myplants:
@@ -657,6 +525,24 @@ router.post("/",auth,validateRequest(createUserPlantValidation), AddPlantToUser)
  *     tags: [My Plants]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of records per page
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by plant name or nickname
  *     responses:
  *       200:
  *         description: User plants retrieved successfully
@@ -672,13 +558,30 @@ router.post("/",auth,validateRequest(createUserPlantValidation), AddPlantToUser)
  *                   type: string
  *                   example: User plants retrieved successfully
  *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/PlantRecommendation'
+ *                   type: object
+ *                   properties:
+ *                     plants:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/PlantRecommendation'
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         currentPage:
+ *                           type: integer
+ *                           example: 1
+ *                         totalPages:
+ *                           type: integer
+ *                           example: 5
+ *                         totalItems:
+ *                           type: integer
+ *                           example: 45
  *       400:
  *         description: Bad Request
  *       401:
  *         description: Unauthorized
+ *       404:
+ *         description: User not found
  *       500:
  *         description: Internal Server Error
  */
@@ -693,7 +596,7 @@ router.get("/user/myplants", auth, getAllUserPlants);
 
 /**
  * @swagger
- * /api/v1/myPlants/user/plants/{id}:
+ * /api/v1/allplants/user/plants/{id}:
  *   get:
  *     summary: Get a specific plant of the authenticated user
  *     description: Fetch the details of a specific plant owned by the authenticated user.

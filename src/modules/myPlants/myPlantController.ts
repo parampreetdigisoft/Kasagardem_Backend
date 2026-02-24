@@ -48,11 +48,11 @@ export const getAllPlants = async (
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 10;
         const search = (req.query.search as string)?.trim() || undefined;
-        
+
         const data = await getAllPlantsService(page, limit,search);
 
         res.status(HTTP_STATUS.OK).json(successResponse(
-            { data },
+             data,
             "Plants retrieved successfully"
         ));
 
@@ -249,7 +249,11 @@ export const getAllUserPlants = async (
 
     // ── 2. Call Service ───────────────────────────────────────────────────────
     try {
-        const data = await getUserPlantsService(user.id!);
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const search = (req.query.search as string)?.trim() || undefined;
+
+        const data = await getUserPlantsService(user.id!, page, limit, search   );
 
         res.status(HTTP_STATUS.OK).json(
             successResponse(data, "User plants retrieved successfully")
