@@ -8,32 +8,58 @@ import { AddUserPlantInput, PaginatedPlants } from "../../interface/myPlants";
  *
  * @param {number} page - Current page number.
  * @param {number} limit - Number of records per page.
+ * @param search
  * @returns {Promise<PaginatedPlants>} Paginated plant result including
  * current page, total pages, total count, and plant list.
  */
 export const getAllPlantsService = async (
   page: number,
-  limit: number
+  limit: number,
+  search?: string
 ): Promise<PaginatedPlants> => {
-    const pool = await getDB(); 
-  
+  const pool = await getDB();
   const offset = (page - 1) * limit;
+
+  const searchCondition = search
+    ? `WHERE common_name ILIKE $1 OR scientific_name ILIKE $1 OR description ILIKE $1`
+    : "";
+
+  const searchParam = search ? [`%${search}%`] : [];
 
   // Total count
   const totalResult = await pool.query(
-    `SELECT COUNT(*) FROM plant_species`
+    `SELECT COUNT(*) FROM plant_species ${searchCondition}`,
+    searchParam
   );
 
   const totalCount = Number(totalResult.rows[0].count);
   const totalPages = Math.ceil(totalCount / limit);
 
-  // Paginated data
+  // Paginated data — param indices shift when search is present
+  const limitParam = search ? 2 : 1;
+  const offsetParam = search ? 3 : 2;
+
   const plantsResult = await pool.query(
-    `SELECT *
+    `SELECT 
+       id,
+       scientific_name,
+       common_name,
+       description,
+       image_url,
+       water_reminder_frequency,
+       water_notification_enabled::boolean,
+       fertilizer_schedule,
+       fertilizer_notification_enabled::boolean,
+       pruning_alert,
+       pruning_notification_enabled::boolean,
+       generic_options,
+       created_at,
+       updated_at
      FROM plant_species
+     ${searchCondition}
      ORDER BY created_at DESC
-     LIMIT $1 OFFSET $2`,
-    [limit, offset]
+     LIMIT $${limitParam} OFFSET $${offsetParam}`,
+    search ? [`%${search}%`, limit, offset] : [limit, offset]
   );
 
   return {

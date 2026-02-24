@@ -4,17 +4,9 @@ import { AddPlantToUser, getAllPlants, getAllUserPlants, getPlantById, getUserPl
 import validateRequest from "../../core/middleware/validateRequest";
 import { createUserPlantValidation } from "./myPlantValidation";
 const router = express.Router();
-
 /**
  * @swagger
- * tags:
- *   name: My Plants
- *   description: Plant management APIs
- */
-
-/**
- * @swagger
- * /api/v1/myPlants:
+ * /api/v1/allplants:
  *   get:
  *     summary: Get all plants (Paginated)
  *     description: Retrieve a paginated list of plants for the authenticated user. Requires a valid bearer token and user role "User".
@@ -34,6 +26,13 @@ const router = express.Router();
  *           type: integer
  *           default: 10
  *         description: The number of plants per page.
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Search plants by common name, scientific name, or description (case-insensitive, partial match supported).
+ *        
  *     responses:
  *       200:
  *         description: Successfully retrieved list of plants.
@@ -71,15 +70,44 @@ const router = express.Router();
  *                           id:
  *                             type: integer
  *                             example: 1
- *                           name:
+ *                           scientific_name:
+ *                             type: string
+ *                             example: "Rosa rubiginosa"
+ *                           common_name:
  *                             type: string
  *                             example: "Rose"
  *                           description:
  *                             type: string
  *                             example: "A beautiful flowering plant"
- *                           imageUrl:
+ *                           image_url:
  *                             type: string
  *                             example: "https://example.com/rose.jpg"
+ *                           water_reminder_frequency:
+ *                             type: string
+ *                             example: "Every 2 days"
+ *                           water_notification_enabled:
+ *                             type: boolean
+ *                             example: true
+ *                           fertilizer_schedule:
+ *                             type: string
+ *                             example: "Monthly"
+ *                           fertilizer_notification_enabled:
+ *                             type: boolean
+ *                             example: false
+ *                           pruning_alert:
+ *                             type: string
+ *                             example: "Spring"
+ *                           pruning_notification_enabled:
+ *                             type: boolean
+ *                             example: true
+ *                           created_at:
+ *                             type: string
+ *                             format: date-time
+ *                             example: "2024-01-15T10:30:00Z"
+ *                           updated_at:
+ *                             type: string
+ *                             format: date-time
+ *                             example: "2024-06-01T08:00:00Z"
  *       401:
  *         description: Unauthorized - User must be authenticated and have the correct role.
  *         content:
@@ -106,16 +134,6 @@ const router = express.Router();
  *                 message:
  *                   type: string
  *                   example: Something went wrong
- */
-
-/**
- * @swagger
- * components:
- *   securitySchemes:
- *     bearerAuth:
- *       type: http
- *       scheme: bearer
- *       bearerFormat: JWT
  */
 router.get("/",auth, getAllPlants);
 
@@ -633,7 +651,7 @@ router.get("/:id",auth, getPlantById);
 router.post("/",auth,validateRequest(createUserPlantValidation), AddPlantToUser);
 /**
  * @swagger
- * /api/v1/myPlants/user/plants:
+ * /api/v1/allPlants/user/myplants:
  *   get:
  *     summary: Get all plants of the authenticated user
  *     tags: [My Plants]
@@ -664,7 +682,7 @@ router.post("/",auth,validateRequest(createUserPlantValidation), AddPlantToUser)
  *       500:
  *         description: Internal Server Error
  */
-router.get("/user/plants", auth, getAllUserPlants);
+router.get("/user/myplants", auth, getAllUserPlants);
 
 /**
  * @swagger

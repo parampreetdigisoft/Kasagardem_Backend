@@ -72,7 +72,7 @@ app.use("/api/v1/externalLinks",externalLinksRoutes);
 // Professional Routes
 app.use("/api/v1/professional", professionalRoutes);  
 // Error handler (must be last middleware)
-app.use("/api/v1/myPlants", myPlantRoutes);
+app.use("/api/v1/allplants", myPlantRoutes);
 // registerBlockExpiredTrialsCron();
 app.use(errorHandler);
 
