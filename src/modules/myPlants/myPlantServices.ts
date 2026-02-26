@@ -46,12 +46,6 @@ export const getAllPlantsService = async (
        common_name,
        description,
        image_url,
-       water_reminder_frequency,
-       water_notification_enabled::boolean,
-       fertilizer_schedule,
-       fertilizer_notification_enabled::boolean,
-       pruning_alert,
-       pruning_notification_enabled::boolean,
        generic_options,
        created_at,
        updated_at
@@ -107,6 +101,20 @@ export const getPlantDetailsByIdService = async (plantId: string): Promise<void>
 };
 
 /**
+ * Calculates the date that is a specified number of days ahead of the current date.
+ *
+ * @param {number | null} days - The number of days to add to the current date. If `null`, the function will return `null`.
+ * @returns {Date | null} - The resulting date after adding the specified number of days. If `days` is `null`, returns `null`.
+ */
+const calculateNextDate = (days: number | null): Date | null => {
+    if (days === null || days === undefined) return null;
+    const next = new Date();
+    next.setDate(next.getDate() + days);
+    return next;
+};
+
+
+/**
  * Adds a plant to a user's plant collection.
  *
  * @param {string} userId - UUID of the user.
@@ -120,7 +128,6 @@ export const addPlantToUserService = async (
     userId: string,
     payload: AddUserPlantInput
 ): Promise<Record<string, unknown>> => {
-
     const pool = await getDB();
 
     const {
@@ -135,65 +142,45 @@ export const addPlantToUserService = async (
         generic_care_notification_enabled = false,
         water_preferred_time = "09:00:00",
         fertilizer_preferred_time = "09:00:00",
-        pruning_preferred_time = "09:00:00",
-        generic_care_preferred_time = "09:00:00",
     } = payload;
 
     // ─────────────────────────────────────────────
     //  Fetch species defaults
     // ─────────────────────────────────────────────
-    const plantCheck = await pool.query(
-        `
-        SELECT 
-            id,
-            water_reminder_frequency,
-            fertilizer_schedule,
-            pruning_alert,
-            generic_reminder_frequency
-        FROM plant_species 
-        WHERE id = $1
-        `,
+    // Assume you are fetching species details (e.g., water reminder frequency)
+    const species = await pool.query(
+        `SELECT * FROM plant_species WHERE id = $1`,
         [plant_species_id]
     );
 
-    if (!plantCheck.rows.length) {
+    if (!species.rows.length) {
         throw new Error("Plant species not found");
     }
 
-    const species = plantCheck.rows[0];
-    const now = new Date();
+    // const speciesDefaults = species.rows[0];
 
-/**
- * Calculates the date that is a specified number of days ahead of the current date.
- *
- * @param {number | null} days - The number of days to add to the current date. If `null`, the function will return `null`.
- * @returns {Date | null} - The resulting date after adding the specified number of days. If `days` is `null`, returns `null`.
- */
-    const calculateNextDate = (days: number | null):Date | null=> {
-        if (!days) return null;
-        const next = new Date(now);
-        next.setDate(now.getDate() + days);
-        return next;
-    };
+    // ─────────────────────────────────────────────
+    //  Calculate Next Dates for each care action
+    // ─────────────────────────────────────────────
 
     const next_watered_at = calculateNextDate(
-        watering_frequency_days ?? species.water_reminder_frequency
+        water_notification_enabled ? watering_frequency_days : null
     );
 
     const next_fertilized_at = calculateNextDate(
-        fertilizing_frequency_days ?? species.fertilizer_schedule
+        fertilizer_notification_enabled ? fertilizing_frequency_days : null
     );
 
     const next_pruned_at = calculateNextDate(
-        pruning_frequency_days ?? species.pruning_alert
+        pruning_notification_enabled ? pruning_frequency_days : null
     );
 
     const next_generic_care_at = calculateNextDate(
-        generic_frequency_days ?? species.generic_reminder_frequency
+        generic_care_notification_enabled ? generic_frequency_days : null
     );
 
     // ─────────────────────────────────────────────
-    // 3️⃣ Insert User Plant Data
+    // Insert User Plant Data into Database
     // ─────────────────────────────────────────────
     try {
         const result = await pool.query(
@@ -233,10 +220,10 @@ export const addPlantToUserService = async (
                 fertilizer_preferred_time,
                 next_fertilized_at,
                 pruning_notification_enabled,
-                pruning_preferred_time,
+                "09:00:00", // Default preferred time for pruning
                 next_pruned_at,
                 generic_care_notification_enabled,
-                generic_care_preferred_time,
+                "09:00:00", // Default preferred time for generic care
                 next_generic_care_at,
                 watering_frequency_days,
                 fertilizing_frequency_days,
@@ -246,9 +233,8 @@ export const addPlantToUserService = async (
         );
 
         return result.rows[0];
-
     } catch (err) {
-        if (err instanceof Error && err.message.includes("duplicate key value violates unique constraint")  ) {
+        if (err instanceof Error && err.message.includes("duplicate key value violates unique constraint")) {
             throw new Error("Plant already added to user");
         }
         throw err;

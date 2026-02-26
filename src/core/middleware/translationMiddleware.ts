@@ -52,6 +52,13 @@ function shouldSkipKey(key: string): boolean {
     "water_notification_enabled",
     "fertilizer_notification_enabled",
     "pruning_notification_enabled",
+    "generic_care_notification_enabled",
+    "next_watered_at",
+    "next_fertilized_at",
+    "next_pruned_at",
+    "next_generic_care_at",
+    "created_at",
+    "updated_at"
   ];
  
   if (skipFields.some((field) => lowerKey.includes(field))) {

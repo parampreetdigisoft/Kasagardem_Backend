@@ -92,20 +92,6 @@ export const createUserPlantValidation = Joi.object({
     // ─────────────────────────────────────────────
     pruning_notification_enabled: Joi.boolean().default(false),
 
-    pruning_preferred_time: Joi.when("pruning_notification_enabled", {
-        is: true,
-        then: Joi.string()
-            .pattern(timePattern)
-            .required()
-            .messages({
-                "any.required": "Pruning preferred time is required when notification is enabled",
-                "string.pattern.base": "Pruning preferred time must be in HH:mm:ss format"
-            }),
-        otherwise: Joi.string()
-            .pattern(timePattern)
-            .default("09:00:00")
-    }),
-
     pruning_frequency_days: Joi.when("pruning_notification_enabled", {
         is: true,
         then: Joi.number()
@@ -128,20 +114,6 @@ export const createUserPlantValidation = Joi.object({
     // GENERIC CARE ALERT (if you added it)
     // ─────────────────────────────────────────────
     generic_care_notification_enabled: Joi.boolean().default(false),
-
-    generic_care_preferred_time: Joi.when("generic_care_notification_enabled", {
-        is: true,
-        then: Joi.string()
-            .pattern(timePattern)
-            .required()
-            .messages({
-                "any.required": "Generic care preferred time is required when notification is enabled",
-                "string.pattern.base": "Generic care preferred time must be in HH:mm:ss format"
-            }),
-        otherwise: Joi.string()
-            .pattern(timePattern)
-            .default("09:00:00")
-    }),
 
     generic_frequency_days: Joi.when("generic_care_notification_enabled", {
         is: true,

@@ -49,7 +49,6 @@ export async function userplantTable(): Promise<void> {
             last_pruned_at TIMESTAMPTZ,
             next_pruned_at TIMESTAMPTZ,
             pruning_notification_enabled BOOLEAN DEFAULT FALSE,
-            pruning_preferred_time TIME DEFAULT '09:00:00',
 
             -- ══════════════════════════════════════
             -- Generic Options Tracking
@@ -61,7 +60,6 @@ export async function userplantTable(): Promise<void> {
             last_generic_care_at TIMESTAMPTZ,
             next_generic_care_at TIMESTAMPTZ,
             generic_care_notification_enabled BOOLEAN DEFAULT FALSE,
-            generic_care_preferred_time TIME DEFAULT '09:00:00',
             
             health_status VARCHAR(50) DEFAULT 'healthy',
 

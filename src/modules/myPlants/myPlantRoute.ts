@@ -306,71 +306,46 @@ router.get("/:id",auth, getPlantById);
  *           type: string
  *           format: uuid
  *           example: "c9d4c053-49b6-410c-bc78-2d54a9991870"
- *
- *         # ───────── WATER ─────────
  *         water_notification_enabled:
  *           type: boolean
  *           default: false
  *           description: Enable watering notification
- *
  *         water_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
- *           description: >
- *             Required when water_notification_enabled is true.
- *             Defaults to 09:00:00 if notification is disabled.
- *
- *         # ───────── FERTILIZER ─────────
+ *           description: Required when watering notification is enabled, defaults to "09:00:00".
  *         fertilizer_notification_enabled:
  *           type: boolean
  *           default: false
  *           description: Enable fertilizer notification
- *
  *         fertilizer_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
- *           description: >
- *             Required when fertilizer_notification_enabled is true.
- *             Defaults to 09:00:00 if notification is disabled.
- *
- *         # ───────── PRUNING ─────────
+ *           description: Required when fertilizer notification is enabled, defaults to "09:00:00".
  *         pruning_notification_enabled:
  *           type: boolean
  *           default: false
  *           description: Enable pruning notification
- *
  *         pruning_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
- *           description: >
- *             Required when pruning_notification_enabled is true.
- *             Defaults to 09:00:00 if notification is disabled.
- *
- *         # ───────── GENERIC CARE ─────────
+ *           description: Required when pruning notification is enabled, defaults to "09:00:00".
  *         generic_care_notification_enabled:
  *           type: boolean
  *           default: false
  *           description: Enable generic care notification
- *
  *         generic_care_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
- *           description: >
- *             Required when generic_care_notification_enabled is true.
- *             Defaults to 09:00:00 if notification is disabled.
- *
- *         # ───────── FREQUENCIES ─────────
+ *           description: Required when generic care notification is enabled, defaults to "09:00:00".
  *         watering_frequency_days:
  *           type: integer
- *           description: Frequency in days for watering reminders. Optional, defaults to the species default if not provided.
- *
+ *           description: Optional. Defaults to the species default if not provided.
  *         fertilizing_frequency_days:
  *           type: integer
- *           description: Frequency in days for fertilizing reminders. Optional, defaults to the species default if not provided.
- *
+ *           description: Optional. Defaults to the species default if not provided.
  *         pruning_frequency_days:
  *           type: integer
- *           description: Frequency in days for pruning reminders. Optional, defaults to the species default if not provided.
- *
+ *           description: Optional. Defaults to the species default if not provided.
  *         generic_frequency_days:
  *           type: integer
- *           description: Frequency in days for generic care reminders. Optional, defaults to the species default if not provided.
+ *           description: Optional. Defaults to the species default if not provided.
  *
  *     UserPlantResponse:
  *       type: object
@@ -384,8 +359,6 @@ router.get("/:id",auth, getPlantById);
  *         plant_species_id:
  *           type: string
  *           format: uuid
- *
- *         # ───────── WATERING ─────────
  *         water_notification_enabled:
  *           type: boolean
  *         water_preferred_time:
@@ -393,8 +366,6 @@ router.get("/:id",auth, getPlantById);
  *         next_watered_at:
  *           type: string
  *           format: date-time
- *
- *         # ───────── FERTILIZER ─────────
  *         fertilizer_notification_enabled:
  *           type: boolean
  *         fertilizer_preferred_time:
@@ -403,8 +374,6 @@ router.get("/:id",auth, getPlantById);
  *           type: string
  *           format: date-time
  *           nullable: true
- *
- *         # ───────── PRUNING ─────────
  *         pruning_notification_enabled:
  *           type: boolean
  *         pruning_preferred_time:
@@ -413,8 +382,6 @@ router.get("/:id",auth, getPlantById);
  *           type: string
  *           format: date-time
  *           nullable: true
- *
- *         # ───────── GENERIC CARE ─────────
  *         generic_care_notification_enabled:
  *           type: boolean
  *         generic_care_preferred_time:
@@ -423,7 +390,6 @@ router.get("/:id",auth, getPlantById);
  *           type: string
  *           format: date-time
  *           nullable: true
- *
  *         created_at:
  *           type: string
  *           format: date-time
@@ -448,11 +414,9 @@ router.get("/:id",auth, getPlantById);
  *   post:
  *     summary: Add plant to user's collection
  *     description: >
- *       Adds a plant species to the authenticated user's collection.
- *       Preferred time fields are required only when their corresponding
- *       notification is enabled.
- *       Next reminder timestamps are automatically calculated.
- *       The user may optionally provide custom frequency for watering, fertilizing, pruning, and generic care. If not provided, the species default is used.
+ *       Adds a plant species to the authenticated user's collection. 
+ *       Time fields are required only when their corresponding notification is enabled. 
+ *       If no frequency is provided for watering, fertilizing, pruning, or generic care, the species default is used.
  *     tags: [My Plants]
  *     security:
  *       - bearerAuth: []
