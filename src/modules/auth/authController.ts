@@ -203,7 +203,7 @@ export const login = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const { email, password, loginType } = req.body;
 
     //  Find user by email
     const user = await findUserByEmail(email.toLowerCase());
@@ -245,13 +245,39 @@ export const login = async (
       return;
     }
 
+    const roleName = role.name.toLowerCase();
+
+    // ── Role vs loginType gate ──────────────────────────────
+    if (loginType === "professional" && roleName !== "professional") {
+      res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse("Access denied. This login is for professionals only.")
+      );
+      return;
+    }
+
+    if (loginType === "user" && roleName !== "user") {
+      res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse("Access denied. This login is for users only.")
+      );
+      return;
+    }
     //  Generate JWT
     const token = generateToken(user.email.toLowerCase(), role.name, user.id!);
 
+    res.status(HTTP_STATUS.OK).json(
+      successResponse(
+        {
+          token,
+          role: role.name,
+          
+        },
+        MESSAGES.LOGIN_SUCCESS
+      )
+    );
     // Send success response
-    res
-      .status(HTTP_STATUS.OK)
-      .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
+    // res
+    //   .status(HTTP_STATUS.OK)
+    //   .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
   } catch (err: unknown) {
     const errorObj =
       err instanceof Error
@@ -836,7 +862,7 @@ export const facebookAuth = async (
  * @param token - The token string to check
  * @returns True if the string looks like a JWT, false otherwise
  */
-    const isJwt = (token: string):boolean  => token.split(".").length === 3;
+    const isJwt = (token: string): boolean => token.split(".").length === 3;
 
 
     let fbUser;

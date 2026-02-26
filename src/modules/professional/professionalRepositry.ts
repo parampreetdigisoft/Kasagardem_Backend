@@ -81,7 +81,8 @@ export async function registerProfessionalsService(
 
                 // Generate password
                 generatedPassword = generatePassword();
-                const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+                const hashedPassword = await bcrypt.hash(generatedPassword, 12);
+               
 
                 // Insert into users table
                 const userInsertQuery = `
@@ -104,7 +105,7 @@ export async function registerProfessionalsService(
                     professional.email,
                     hashedPassword,
                     professionalRoleId,
-                    professional.phone || null,
+                    professional.telefone || null,
                     false
                 ]);
 
@@ -116,9 +117,9 @@ export async function registerProfessionalsService(
                 trialEndDate.setDate(trialEndDate.getDate() + 30);
 
                 // Prepare states JSON
-                const statesJson = professional.state
-                    ? JSON.stringify([professional.state.trim()])
-                    : JSON.stringify([]);
+                // const statesJson = professional.state
+                //     ? JSON.stringify([professional.state.trim()])
+                //     : JSON.stringify([]);
 
 
                 const isFounder = currentFounderCounter < founderLimit;
@@ -141,35 +142,47 @@ export async function registerProfessionalsService(
                 // Insert into professional_profiles table
                 // Insert into professional_profiles table
                 const profileInsertQuery = `
-                    INSERT INTO professional_profiles (
-                        user_id,
-                        status,
-                        trial_start_date,
-                        trial_end_date,
-                        primary_city,
-                        states,
-                        profile_visible,
-                        is_founder,
-                        founder_number,
-                        national_coverage,
-                        created_at,
-                        updated_at
-                    )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    RETURNING id
-                `;
-
+                INSERT INTO professional_profiles (
+                    user_id, status, trial_start_date, trial_end_date,
+                     profile_visible,
+                    is_founder, founder_number, national_coverage,
+                    category, description, city, state,
+                    telefone, whatsapp, website, instagram,
+                    address, assessment, num_avaliacoes,
+                    verified_source, latitude, longitude,
+                    created_at, updated_at
+                )
+                VALUES (
+                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+                    $11,$12,$13,$14,$15,$16,$17,$18,
+                    $19,$20,$21,$22,
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP   -- was missing comma before this
+                )
+                RETURNING id
+            `;
                 await client.query(profileInsertQuery, [
-                    userId,
-                    'trial',
-                    trialStartDate,
-                    trialEndDate,
-                    professional.city || null,
-                    statesJson,
-                    false,
-                    isFounder,
-                    founderNumber,
-                    false
+                    userId,                                                          // $1
+                    'trial',                                                         // $2
+                    trialStartDate,                                                  // $3
+                    trialEndDate,                                                    // $4                                                   // $6  states — was removed from columns but value was still passed, causing all params to shift
+                    false,                                                           // $7  profile_visible
+                    isFounder,                                                       // $8  is_founder
+                    founderNumber,                                                   // $9  founder_number
+                    false,                                                           // $10 national_coverage
+                    professional.category || null,                                   // $11 — was `category || null`, missing `professional.`
+                    professional.description || null,                                // $12 — was `description || null`, missing `professional.`
+                    professional.city || null,                                       // $13 city
+                    professional.state || null,                                      // $14 state
+                    professional.telefone || null,                                   // $15
+                    professional.whatsapp || null,                                   // $16
+                    professional.website || null,                                    // $17
+                    professional.instagram || null,                                  // $18
+                    professional.address || null,                                    // $19
+                    professional.assessment ? parseFloat(String(professional.assessment)) : null,       // $20
+                    professional.num_avaliacoes ? parseInt(String(professional.num_avaliacoes)) : null, // $21
+                    professional.verified_source || null,                            // $22
+                    professional.latitude ? parseFloat(String(professional.latitude)) : null,           // $23
+                    professional.longitude ? parseFloat(String(professional.longitude)) : null,         // $24
                 ]);
                 // Commit transaction
                 await client.query('COMMIT');
@@ -273,17 +286,17 @@ export async function registerProfessionalsService(
  * @returns Generated password string
  */
 function generatePassword(length: number = 12): string {
-    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    
+    const lowercase = 'ABCDEFGHILMNQRSabcdefghijklmnopqrstuvwxyz';
     const numbers = '0123456789';
     const symbols = '!@#$%^&*';
 
-    const allChars = uppercase + lowercase + numbers + symbols;
+    const allChars =   lowercase + numbers + symbols;
 
     let password = '';
 
     // Ensure at least one of each type
-    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    // password += uppercase[Math.floor(Math.random() * uppercase.length)];
     password += lowercase[Math.floor(Math.random() * lowercase.length)];
     password += numbers[Math.floor(Math.random() * numbers.length)];
     password += symbols[Math.floor(Math.random() * symbols.length)];
@@ -384,7 +397,7 @@ export const getAllProfessionalProfilesDb = async (
     }));
 
     return {
-        professionals :formatted,
+        professionals: formatted,
         totalCount,
     };
 };

@@ -11,33 +11,34 @@ import { AuthRequest } from "../../interface/auth";
  * @returns {multer.Multer} Configured multer instance
  */
 export const uploadCsv = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5 MB
-  },
-  /**
-   * Validates uploaded file is CSV.
-   *
-   * @param {AuthRequest} _req - Express request object (not used)
-   * @param {Express.Multer.File} file - Uploaded file
-   * @param {FileFilterCallback} cb - Multer callback to accept/reject file
-   *
-   * @throws Error if file is not a CSV
-   * @returns void Calls callback with error or success
-   */
-  fileFilter: (
-    _req: AuthRequest,
-    file: Express.Multer.File,
-    cb: FileFilterCallback
-  ):void => {
-    const isCsv =
-      file.mimetype === "text/csv" ||
-      file.originalname.toLowerCase().endsWith(".csv");
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+    },
+    /**
+     * Filters incoming files to allow only CSV uploads.
+     *
+     * @param {AuthRequest} _req - The authenticated Express request object.
+     * @param {Express.Multer.File} file - The uploaded file metadata.
+     * @param {FileFilterCallback} cb - Callback to accept or reject the file.
+     * @returns {void}
+     *
+     * @throws {Error} If the uploaded file is not a CSV.
+     */
+    fileFilter: (
+        _req: AuthRequest,
+        file: Express.Multer.File,
+        cb: FileFilterCallback
+    ): void => {
+        const isCsv =
+            file.mimetype === "text/csv" ||
+            file.originalname.toLowerCase().endsWith(".csv");
 
-    if (!isCsv) {
-      return cb(new Error("Only CSV files are allowed"));
-    }
+        if (!isCsv) {
+            cb(new Error("Only CSV files are allowed"));
+            return;
+        }
 
-    cb(null, true);
-  },
+        cb(null, true);
+    },
 });

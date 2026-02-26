@@ -3,13 +3,21 @@ import { Request } from "express";
 
 export interface csvUser {
   name: string;
-  category: string;
-  description: string;
-  city: string;
-  state: string;
+  category?: string;
+  description?: string;
+  city?: string;
+  state?: string;
   email: string;
-  phone: string;
+  telefone?: string;
   website?: string;
+  instagram?: string;
+  whatsapp?: string;
+  address?: string;
+  assessment?: number;
+  num_avaliacoes?: number;
+  verified_source?: string;
+  latitude?: number;
+  longitude?: number;
   __rowNumber?: number; // optional, for error reporting
 }
 

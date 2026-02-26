@@ -32,66 +32,73 @@ export const createProfessionlals = async (
   req: AuthRequest,
   res: Response,
 ): Promise<void> => {
-    const userPayload = req.user as AuthUserPayload | undefined;
+  const userPayload = req.user as AuthUserPayload | undefined;
 
-    if (!userPayload?.userEmail) {
-        res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
-        return;
+  if (!userPayload?.userEmail) {
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+    return;
+  }
+
+  const user = await findUserByEmail(userPayload.userEmail);
+  if (!user) {
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+    return;
+  }
+
+  if (userPayload.role !== "Admin") {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized Role"));
+    return;
+  }
+
+  try {
+    const professionals = req.professional as csvUser[] | undefined;
+
+    if (!professionals || professionals.length === 0) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse("No professionals data found")
+      );
+      return;
     }
 
-    const user = await findUserByEmail(userPayload.userEmail);
-    if (!user) {
-        res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-        return;
-    }
+    // Register all professionals
+    const result = await registerProfessionalsService(professionals);
 
-    if (userPayload.role !== "Admin") {
-        res
-            .status(HTTP_STATUS.UNAUTHORIZED)
-            .json(errorResponse("Unauthorized Role"));
-        return;
-    }
+    const allFailed = result.successful === 0;
+    const partialSuccess = result.successful > 0 && result.failed > 0;
 
-    try {
-        const professionals = req.professional as csvUser[] | undefined;
+    res.status(allFailed ? HTTP_STATUS.BAD_REQUEST : HTTP_STATUS.CREATED).json({
+      success: !allFailed,
+      message: allFailed
+        ? "All registrations failed"
+        : partialSuccess
+          ? `Partially completed: ${result.successful} succeeded, ${result.failed} failed`
+          : "Professionals registered successfully",
+      summary: {
+        total: result.total,
+        successful: result.successful,
+        failed: result.failed,
+      },
+      successfulRegistrations: result.results.filter(r => r.success),
+      failedRegistrations: result.results.filter(r => !r.success),
+    });
+    return;
 
-        if (!professionals || professionals.length === 0) {
-            res.status(HTTP_STATUS.BAD_REQUEST).json(
-                errorResponse("No professionals data found")
-            );
-            return;
+  }
+  catch (error) {
+    console.error("Error in createProfessionlals:", error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse(
+        "Failed to create professionals",
+        {
+          message: error instanceof Error ? error.message : String(error),
         }
+      )
+    );
 
-        // Register all professionals
-        const result = await registerProfessionalsService(professionals);
 
-        res.status(HTTP_STATUS.CREATED).json({
-            success: true,
-            message: "Professionals registered successfully",
-            summary: {
-                total: result.total,
-                successful: result.successful,
-                failed: result.failed
-            },
-            successfulRegistrations: result.results.filter(r => r.success),
-            failedRegistrations: result.results.filter(r => !r.success)
-        });
-        return;
-        
-    }
-    catch (error) {
-        console.error("Error in createProfessionlals:", error);
-        res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
-            errorResponse(
-                "Failed to create professionals",
-                {
-                    message: error instanceof Error ? error.message : String(error),
-                }
-            )
-        );
-        
-        
-    }
+  }
 
 }
 

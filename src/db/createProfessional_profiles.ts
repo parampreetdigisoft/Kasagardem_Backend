@@ -35,16 +35,30 @@ export async function createProfessionalProfilesTable(): Promise<void> {
       
         is_founder BOOLEAN DEFAULT FALSE,
         founder_number INTEGER,
-
-        primary_city VARCHAR(100),
         states JSONB,
         national_coverage BOOLEAN DEFAULT FALSE,
+
+        category VARCHAR(100),
+        description TEXT,
+        city VARCHAR(100),
+        state VARCHAR(100),
+        telefone VARCHAR(20),
+        whatsapp VARCHAR(20),
+        website VARCHAR(255),
+        instagram VARCHAR(100),
+        address TEXT,
+        assessment FLOAT,
+        num_avaliacoes INTEGER,
+        verified_source VARCHAR(50) DEFAULT 'false', -- Updated to store string value
+        latitude FLOAT,
+        longitude FLOAT,
 
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
 
         await client.query(query);
+        console.error("professional_profiles table created or already exists.");
 
     } catch (error: unknown) {
         if (error instanceof Error) {

@@ -28,30 +28,43 @@ export const extractUsersFromCsv = async (
 ): Promise<void> => {
     try {
         if (!req.file) {
-             res.status(400).json({ message: "CSV file is required" });
-             return;
+            res.status(400).json({ message: "CSV file is required" });
+            return;
         }
 
         const rows = await extractCsvData<csvUser>(req.file.buffer);
 
         if (!rows.length) {
-             res.status(400).json({ message: "CSV file is empty" });
-                return;
+            res.status(400).json({ message: "CSV file is empty" });
+            return;
         }
 
-        // normalize + trim data
         req.professional = rows.map((row, index) => ({
-            name: row.name?.trim() || "",
-            category: row.category?.trim() || "",
-            description: row.description?.trim() || "",
-            city: row.city?.trim() || "",
-            state: row.state?.trim() || "",
-            email: row.email?.toLowerCase().trim() || "",
-            phone: row.phone?.trim() || "",
-            website: row.website?.trim() || "",
+            name: row.name?.trim() || undefined,
+            email: row.email?.toLowerCase().trim() || undefined,
+            category: row.category?.trim() || undefined,
+            description: row.description?.trim() || undefined,
+            city: row.city?.trim() || undefined,
+            state: row.state?.trim() || undefined,
+            telefone: row.telefone?.trim() || undefined,
+            whatsapp: row.whatsapp?.trim() || undefined,
+            website: row.website?.trim() || undefined,
+            instagram: row.instagram?.trim() || undefined,
+            address: row.address?.trim() || undefined,
+            assessment: row.assessment || undefined,
+            num_avaliacoes: row.num_avaliacoes || undefined,
+            verified_source: row.verified_source?.trim() || undefined,
+            latitude: row.latitude || undefined,
+            longitude: row.longitude || undefined,
             __rowNumber: index + 1,
-        }));
+        })) as csvUser[];
 
+        // Reject if no rows have a valid email
+        const validRows = req.professional.filter(r => r.email);
+        if (!validRows.length) {
+            res.status(400).json({ message: "CSV contains no rows with a valid email" });
+            return;
+        }
 
         next();
     } catch (error) {

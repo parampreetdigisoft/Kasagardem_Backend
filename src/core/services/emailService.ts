@@ -22,6 +22,7 @@ export const createTransporter = (): Transporter => {
       user: config.EMAIL_USER,
       pass: config.EMAIL_PASS, // Use app password for Gmail
     },
+   
   });
 };
 

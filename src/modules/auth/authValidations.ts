@@ -56,6 +56,9 @@ export const registerValidation = Joi.object({
 export const loginValidation = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required(),
+  loginType: Joi.string()
+                  .valid("professional", "user")
+                  .optional(),
 });
 
 // Unified Validation for Send/Resend Password Reset Token
