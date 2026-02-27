@@ -42,6 +42,7 @@ import bcrypt from "bcryptjs";
 import { uploadBufferToS3 } from "../../core/services/s3UploadService";
 import { AuthRequest } from "../../interface/auth";
 import { AppError } from "../../interface";
+import { handleProfessionalLogin } from "../professional/professionalRepositry";
 
 /**
  * Registers a new user in the system.
@@ -261,7 +262,57 @@ export const login = async (
       );
       return;
     }
+    
     //  Generate JWT
+    if (loginType === "professional" && roleName === "professional") {
+      let professionalStatus;
+
+      try {
+        professionalStatus = await handleProfessionalLogin(user.id!);
+      } catch (professionalError) {
+        console.error("[login] Failed to handle professional login:", {
+          userId: user.id,
+          email,
+          error: professionalError instanceof Error
+            ? professionalError.message
+            : String(professionalError),
+        });
+        res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+          errorResponse("Failed to process professional account. Please try again.")
+        );
+        return;
+      }
+
+      // Block if trial expired or account issue
+      if (!professionalStatus.success) {
+        await warn(
+          "Professional login blocked",
+          { email, userId: user.id, accountStatus: professionalStatus.accountStatus },
+          { userId: user.id!, source: "auth.login", req }
+        );
+        res.status(HTTP_STATUS.FORBIDDEN).json(
+          errorResponse(professionalStatus.message)
+        );
+        return;
+      }
+
+      const token = generateToken(user.email.toLowerCase(), role.name, user.id!);
+
+      res.status(HTTP_STATUS.OK).json(
+        successResponse(
+          {
+            token,
+            role: role.name,
+            accountStatus: professionalStatus.accountStatus,
+            statusMessage: professionalStatus.message,
+          },
+          MESSAGES.LOGIN_SUCCESS
+        )
+      );
+      return;
+    }
+
+    // ─── 6. Standard user login ────────────────────────────────────────────
     const token = generateToken(user.email.toLowerCase(), role.name, user.id!);
 
     res.status(HTTP_STATUS.OK).json(
@@ -269,15 +320,11 @@ export const login = async (
         {
           token,
           role: role.name,
-          
         },
         MESSAGES.LOGIN_SUCCESS
       )
     );
-    // Send success response
-    // res
-    //   .status(HTTP_STATUS.OK)
-    //   .json(successResponse({ token }, MESSAGES.LOGIN_SUCCESS));
+
   } catch (err: unknown) {
     const errorObj =
       err instanceof Error

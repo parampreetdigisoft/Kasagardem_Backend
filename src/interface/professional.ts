@@ -20,22 +20,39 @@ export interface ServiceResult {
 
 export interface ProfessionalProfileResponse {
     id: string;
-    userId: string;
-    status: string;
-    profileVisible: boolean;
-    trialPeriod: {
-        startDate: Date;
-        endDate: Date;
+    companyName: string | null;
+    email: string | null;
+    category: string | null;
+    description: string | null;
+
+    location: {
+        city: string | null;
+        state: string | null;
+        address: string | null;
+        latitude: number | null;
+        longitude: number | null;
     };
-    activeSubscriptionId: string | null;
-    founder: {
-        isFounder: boolean;
-        founderNumber: number | null;
+
+    contact: {
+        telefone: string | null;
+        whatsapp: string | null;
+        website: string | null;
+        instagram: string | null;
     };
-    coverage: {
-        primaryCity: string;
-        states: string[];
-        national: boolean;
+
+    ratings: {
+        assessment: number | null;
+        numAvaliacoes: number;
     };
+
+    verifiedSource: string | null;
     createdAt: Date;
+    updatedAt: Date;
 }
+
+
+
+export type InsertResult = {
+    inserted: number;
+    failed: { row: number; error: string }[];
+};

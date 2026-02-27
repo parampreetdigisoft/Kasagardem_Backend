@@ -1,10 +1,10 @@
-import { AuthRequest, csvUser } from "../../interface/auth";
+import { AuthRequest, csvUser, ProfessionalProfileResponse } from "../../interface/auth";
 import { NextFunction, Response } from "express";
 import { AuthUserPayload } from "../../interface/user";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import { errorResponse, successResponse } from "../../core/utils/responseFormatter";
 import { findUserByEmail } from "../auth/authRepository";
-import { getAllProfessionalProfilesDb, registerProfessionalsService } from "./professionalRepositry";
+import {  createProfessionalsService, getAllProfessionalProfilesDb, getProfessionalDataById, registerProfessionalService} from "./professionalRepositry";
 
 
 /**
@@ -63,26 +63,9 @@ export const createProfessionlals = async (
     }
 
     // Register all professionals
-    const result = await registerProfessionalsService(professionals);
+    const result = await createProfessionalsService(professionals);
 
-    const allFailed = result.successful === 0;
-    const partialSuccess = result.successful > 0 && result.failed > 0;
-
-    res.status(allFailed ? HTTP_STATUS.BAD_REQUEST : HTTP_STATUS.CREATED).json({
-      success: !allFailed,
-      message: allFailed
-        ? "All registrations failed"
-        : partialSuccess
-          ? `Partially completed: ${result.successful} succeeded, ${result.failed} failed`
-          : "Professionals registered successfully",
-      summary: {
-        total: result.total,
-        successful: result.successful,
-        failed: result.failed,
-      },
-      successfulRegistrations: result.results.filter(r => r.success),
-      failedRegistrations: result.results.filter(r => !r.success),
-    });
+    res.status(HTTP_STATUS.CREATED).json(successResponse(result, "Professionals registered successfully"));
     return;
 
   }
@@ -173,5 +156,135 @@ export const getAllProfessionalProfiles = async (
     );
   } catch (err) {
     next(err);
+  }
+};
+
+
+/**
+ * Registers a professional user account (Admin only).
+ *
+ * Workflow:
+ * 1. Validates JWT authentication.
+ * 2. Ensures the requesting user has the "Admin" role.
+ * 3. Verifies the requesting user still exists in the database.
+ * 4. Validates request body (professionalId, email).
+ * 5. Fetches and validates the professional profile record.
+ * 6. Delegates account creation to registerProfessionalService.
+ *
+ * Business Rules:
+ * - Only Admin users can register professionals.
+ * - Email must match the professional profile record.
+ * - Email must be unique in the users table.
+ *
+ * Possible Responses:
+ * - 201 Created → Professional successfully registered.
+ * - 400 Bad Request → Validation errors.
+ * - 401 Unauthorized → Invalid or missing authentication.
+ * - 403 Forbidden → User is not an Admin.
+ * - 404 Not Found → Professional profile not found.
+ * - 409 Conflict → Email already exists.
+ * - 500 Internal Server Error → Unexpected system failure.
+ *
+ * @async
+ * @function registerProfessionals
+ *
+ * @param {AuthRequest} req - Express request object with authenticated user payload.
+ * @param {Response} res - Express response object.
+ *
+ * @returns {Promise<void>} Sends a JSON response with success or error message.
+ */
+export const registerProfessionals = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  
+  // ─── 1. Auth guard ─────────────────────────────────────────────────────────
+  const userPayload = req.user as AuthUserPayload | undefined;
+
+  if (!userPayload?.userEmail) {
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+    return;
+  }
+
+  // ─── 2. Role guard ─────────────────────────────────────────────────────────
+  if (userPayload.role !== "Admin") {
+    res.status(HTTP_STATUS.FORBIDDEN).json(errorResponse("Access denied: Admins only"));
+    return;
+  }
+
+  // ─── 3. Verify requesting user still exists ────────────────────────────────
+  try {
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Requesting user no longer exists"));
+      return;
+    }
+  } catch (error) {
+    console.error("Error verifying requesting user:", error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse("Failed to verify user identity. Please try again.")
+    );
+    return;
+  }
+
+  // ─── 4. Validate request body ──────────────────────────────────────────────
+  const { professionalId, email } = req.body;
+
+  if (!professionalId) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Professional ID is required"));
+    return;
+  }
+
+  if (!email) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Email is required"));
+    return;
+  }
+
+  // ─── 5. Fetch & validate professional record ───────────────────────────────
+  let professionalData: ProfessionalProfileResponse | null = null;
+
+  try {
+    professionalData = await getProfessionalDataById(professionalId);
+  } catch (error) {
+    console.error("Error fetching professional data:", error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse("Failed to fetch professional record. Please try again.")
+    );
+    return;
+  }
+
+  if (!professionalData) {
+    res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Professional not found"));
+    return;
+  }
+
+  if (professionalData.email !== email) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json(
+      errorResponse("Email does not match professional record")
+    );
+    return;
+  }
+
+  // ─── 6. Register professional ──────────────────────────────────────────────
+  try {
+    const result = await registerProfessionalService(professionalId, professionalData);
+
+    if (!result.success) {
+      const isConflict = result.message === "Email already exists";
+      res
+        .status(isConflict ? HTTP_STATUS.CONFLICT : HTTP_STATUS.BAD_REQUEST)
+        .json(errorResponse(result.message));
+      return;
+    }
+
+    res
+      .status(HTTP_STATUS.CREATED)
+      .json(successResponse(result, "Professional registered successfully"));
+
+  } catch (error) {
+    // console.error("Unexpected error in registerProfessionals:", error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse("An unexpected error occurred while registering the professional.",error instanceof Error ? { message: error.message } : undefined) 
+    );
   }
 };

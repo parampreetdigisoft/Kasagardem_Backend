@@ -13,59 +13,58 @@ import { connectDB } from "../core/config/db";
  * @returns {Promise<void>} Resolves when the table creation completes.
  * @throws {Error} Logs any database-related errors encountered during execution.
  */
+// import { connectDB } from "../core/config/db";
+
+/**
+ * Drops and recreates the `professional_profiles` table
+ * with the new complete structure.
+ */
 export async function createProfessionalProfilesTable(): Promise<void> {
     try {
         const client = await connectDB();
 
-        const query = `CREATE TABLE IF NOT EXISTS professional_profiles (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL UNIQUE
-            REFERENCES users(id) ON DELETE CASCADE,
+        const query = `
+        DROP TABLE IF EXISTS professional_profiles CASCADE;
 
-        status VARCHAR(20) NOT NULL
-            CHECK (status IN ('trial','active','blocked')),
+        CREATE TABLE professional_profiles (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            -- Basic Info
+            company_name VARCHAR(150),
+            email VARCHAR(150),
+            category VARCHAR(100),
+            description TEXT,
 
-        profile_visible BOOLEAN DEFAULT TRUE,
+            -- Location
+            city VARCHAR(100),
+            state VARCHAR(100),
+            address TEXT,
+            latitude DOUBLE PRECISION,
+            longitude DOUBLE PRECISION,
 
-        trial_start_date DATE NOT NULL,
-        trial_end_date DATE NOT NULL,
+            -- Contact
+            telefone VARCHAR(20),
+            whatsapp VARCHAR(20),
+            website VARCHAR(255),
+            instagram VARCHAR(100),
 
-        active_subscription_id UUID NULL,
+            -- Ratings
+            assessment NUMERIC(3,2), -- example: 4.75
+            num_avaliacoes INTEGER DEFAULT 0,
+            verified_source VARCHAR(100), 
 
-      
-        is_founder BOOLEAN DEFAULT FALSE,
-        founder_number INTEGER,
-        states JSONB,
-        national_coverage BOOLEAN DEFAULT FALSE,
-
-        category VARCHAR(100),
-        description TEXT,
-        city VARCHAR(100),
-        state VARCHAR(100),
-        telefone VARCHAR(20),
-        whatsapp VARCHAR(20),
-        website VARCHAR(255),
-        instagram VARCHAR(100),
-        address TEXT,
-        assessment FLOAT,
-        num_avaliacoes INTEGER,
-        verified_source VARCHAR(50) DEFAULT 'false', -- Updated to store string value
-        latitude FLOAT,
-        longitude FLOAT,
-
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );`;
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        `;
 
         await client.query(query);
-        console.error("professional_profiles table created or already exists.");
+        console.error("professional_profiles table recreated successfully.");
 
     } catch (error: unknown) {
         if (error instanceof Error) {
-            console.error("Error creating professional_profiles table:", error.message);
+            console.error("Error recreating professional_profiles table:", error.message);
         } else {
             console.error("Unknown error:", error);
         }
-
     }
 }   

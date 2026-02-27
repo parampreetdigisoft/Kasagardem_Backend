@@ -152,7 +152,7 @@ interface WelcomeEmailData {
     email: string;
     name: string;
     password: string;
-    trialEndDate: Date;
+    trialEndDate: string;
 }
 /**
  * Sends a welcome email to a newly registered professional user.
@@ -176,11 +176,11 @@ export const sendProfessionalWelcomeEmail = async (
   const transporter = createTransporter();
 
   // Format the trial end date
-  const formattedTrialEndDate = data.trialEndDate.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
+  // const formattedTrialEndDate = data.trialEndDate.toLocaleDateString('en-US', {
+  //   year: 'numeric',
+  //   month: 'long',
+  //   day: 'numeric'
+  // });
 
   const mailOptions = {
     from: process.env.EMAIL_FROM,
@@ -190,7 +190,7 @@ export const sendProfessionalWelcomeEmail = async (
       data.name,
       data.email,
       data.password,
-      formattedTrialEndDate
+      data.trialEndDate
     ),
   };
 
