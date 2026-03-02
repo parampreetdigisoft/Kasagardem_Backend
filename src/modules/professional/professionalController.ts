@@ -356,7 +356,7 @@ export async function getSortedProfessionals(
       offset: pageOffset,
     });
 
-    res.status(200).json(result);
+    res.status(200).json(successResponse(result, "Professionals retrieved successfully"));
   } catch (error: unknown) {
     if (error instanceof Error) {
       console.error("getSortedProfessionals error:", error.message);
