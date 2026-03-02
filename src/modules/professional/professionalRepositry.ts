@@ -2,7 +2,7 @@
 import { connectDB, getDB } from "../../core/config/db";
 import { sendProfessionalWelcomeEmail } from "../../core/services/emailService";
 import { csvUser } from "../../interface/auth";
-import { InsertResult, ProfessionalProfileResponse } from "../../interface/professional";
+import { GetProfessionalsParams, GetProfessionalsResponse, InsertResult, ProfessionalProfileResponse } from "../../interface/professional";
 import bcrypt from "bcryptjs";
 
 /**
@@ -285,24 +285,24 @@ export const createProfessionalsService = async (
         const p = professionals[i];
         if (!p) continue;
         try {
-           /** 
-             * Converts a value to a number, or returns null if conversion is not possible.
-             *
-             * Rules:
-             * - Returns `null` if the value is `null`, `undefined`, or an empty string.
-             * - Converts other values using `Number(val)`.
-             * - Returns `null` if the result of `Number(val)` is `NaN`.
-             *
-             * @function toNumberOrNull
-             * @param {unknown} val - The value to convert to a number.
-             * @returns {number | null} The numeric value, or `null` if conversion fails.
-             *
-             * @example
-             * toNumberOrNull("42"); // returns 42
-             * toNumberOrNull("");   // returns null
-             * toNumberOrNull("abc"); // returns null
-             * toNumberOrNull(null);  // returns null
-             */
+            /** 
+              * Converts a value to a number, or returns null if conversion is not possible.
+              *
+              * Rules:
+              * - Returns `null` if the value is `null`, `undefined`, or an empty string.
+              * - Converts other values using `Number(val)`.
+              * - Returns `null` if the result of `Number(val)` is `NaN`.
+              *
+              * @function toNumberOrNull
+              * @param {unknown} val - The value to convert to a number.
+              * @returns {number | null} The numeric value, or `null` if conversion fails.
+              *
+              * @example
+              * toNumberOrNull("42"); // returns 42
+              * toNumberOrNull("");   // returns null
+              * toNumberOrNull("abc"); // returns null
+              * toNumberOrNull(null);  // returns null
+              */
             const toNumberOrNull = (val: unknown): number | null => {
                 if (val == null || val === "") return null;// eslint-disable-line eqeqeq
                 const n = Number(val);
@@ -984,3 +984,232 @@ export const handleProfessionalLogin = async (
     }
 
 };
+
+/**
+ * Calculates the great-circle distance between two geographic coordinates
+ * using the Haversine formula.
+ *
+ * The Haversine formula accounts for Earth's curvature and returns
+ * the shortest distance over the Earth's surface.
+ *
+ * @function haversineDistance
+ *
+ * @param {number} lat1 - Latitude of the first point in decimal degrees
+ * @param {number} lon1 - Longitude of the first point in decimal degrees
+ * @param {number} lat2 - Latitude of the second point in decimal degrees
+ * @param {number} lon2 - Longitude of the second point in decimal degrees
+ *
+ * @returns {number} Distance between the two points in kilometers (km)
+ *
+ * @example
+ * const distance = haversineDistance(
+ *   12.9716, 77.5946,   // Bangalore
+ *   12.2958, 76.6394    // Mysore
+ * );
+ * console.log(distance); // ~126 km
+ */
+function haversineDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+): number {
+    const R = 6371;
+    /**
+ * Converts degrees to radians.
+ *
+ * JavaScript trigonometric functions (Math.sin, Math.cos, etc.)
+ * expect angles in radians, not degrees.
+ *
+ * @param {number} deg - Angle in degrees
+ * @returns {number} Angle converted to radians
+ *
+ * @example
+ * const radians = toRad(180);
+ * console.log(radians); // 3.141592653589793 (π)
+ */
+    const toRad = (deg: number):number  => (deg * Math.PI) / 180;
+
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+// ----------------------------
+// Subscription plan priority
+// Adjust names to match your DB values
+// ----------------------------
+const PLAN_PRIORITY: Record<string, number> = {
+    Diamante: 4,
+    Gold: 3,
+    Talk: 2,
+    trial: 0,
+};
+
+/**
+ * Returns the numeric priority of a subscription plan.
+ *
+ * Plans with higher priority values are ranked higher
+ * when sorting professionals.
+ *
+ * @param {string | null} planName - The name of the subscription plan
+ * @returns {number} Numeric priority value.
+ *                   Returns -1 if plan is null or not found.
+ *
+ * @example
+ * getPlanPriority("premium"); // 3
+ * getPlanPriority(null); // -1
+ */
+function getPlanPriority(planName: string | null): number {
+    if (!planName) return -1;
+    return PLAN_PRIORITY[planName.toLowerCase()] ?? -1;
+}
+
+/**
+ * Fetches professionals from the database and sorts them by:
+ *   1️ Distance from user (ascending)
+ *   2️ Subscription plan priority (descending)
+ *   3️ Rating (descending)
+ *
+ * Steps:
+ *   - Apply optional category filter
+ *   - Fetch professionals with valid coordinates
+ *   - Calculate Haversine distance in memory
+ *   - Sort using multi-level comparator
+ *   - Apply pagination
+ *
+ *  Note:
+ * Sorting and distance calculation currently happen in memory.
+ * For large datasets, this should be moved to SQL for better performance.
+ *
+ * @param {GetProfessionalsParams} params - Filtering and pagination parameters
+ * @param {number} params.userLat - User latitude
+ * @param {number} params.userLng - User longitude
+ * @param {string} [params.category] - Optional category filter
+ * @param {number} params.limit - Maximum number of records to return
+ * @param {number} params.offset - Pagination offset
+ *
+ * @returns {Promise<GetProfessionalsResponse>} Sorted and paginated professionals list
+ */
+export async function fetchSortedProfessionals(
+    params: GetProfessionalsParams
+): Promise<GetProfessionalsResponse> {
+    const { userLat, userLng, category, limit, offset } = params;
+
+    const client = await connectDB();
+
+    const conditions: string[] = [
+        "pp.latitude IS NOT NULL",
+        "pp.longitude IS NOT NULL",
+    ];
+    const values: unknown[] = [];
+
+    if (category) {
+        values.push(category);
+        conditions.push(`pp.category = $${values.length}`);
+    }
+
+    const whereClause = `WHERE ${conditions.join(" AND ")}`;
+
+    const query = `
+    SELECT
+      pp.id                   AS profile_id,
+      pp.company_name,
+      pp.category,
+      pp.description,
+      pp.city,
+      pp.state,
+      pp.address,
+      pp.latitude,
+      pp.longitude,
+      pp.telefone,
+      pp.whatsapp,
+      pp.website,
+      pp.instagram,
+      pp.assessment           AS rating,
+      pp.num_avaliacoes,
+      pp.verified_source,
+
+      pa.plan                 AS plan_name,
+
+      sp.plan_name            AS subscription_plan_name,
+      sp.highlight_in_result,
+      sp.verification_badge
+    FROM professional_profiles pp
+    LEFT JOIN professional_accounts pa
+      ON pa.professional_profile_id = pp.id
+    LEFT JOIN subscrptionPlans sp
+      ON sp.id = pa.subscription_plan_id
+    ${whereClause}
+  `;
+
+    const result = await client.query(query, values);
+
+    // Attach distance to each row
+    const withDistance = result.rows.map((pro) => ({
+        ...pro,
+        distance_km: haversineDistance(
+            userLat,
+            userLng,
+            parseFloat(pro.latitude),
+            parseFloat(pro.longitude)
+        ),
+    }));
+
+    // Sort: 1) Distance  2) Subscription Plan  3) Rating
+    withDistance.sort((a, b) => {
+        // 1. Distance ascending (10m tolerance)
+        const distDiff = a.distance_km - b.distance_km;
+        if (Math.abs(distDiff) > 0.01) return distDiff;
+
+        // 2. Subscription plan descending
+        const planA = getPlanPriority(a.subscription_plan_name ?? a.plan_name);
+        const planB = getPlanPriority(b.subscription_plan_name ?? b.plan_name);
+        if (planA !== planB) return planB - planA;
+
+        // 3. Rating descending
+        const ratingA = parseFloat(a.rating) || 0;
+        const ratingB = parseFloat(b.rating) || 0;
+        return ratingB - ratingA;
+    });
+
+    // Paginate
+    const paginated = withDistance.slice(offset, offset + limit);
+
+    return {
+        total: withDistance.length,
+        limit,
+        offset,
+        user_location: { lat: userLat, lng: userLng },
+        data: paginated.map((pro) => ({
+            id: pro.profile_id,
+            company_name: pro.company_name,
+            category: pro.category,
+            description: pro.description,
+            city: pro.city,
+            state: pro.state,
+            address: pro.address,
+            contact: {
+                telefone: pro.telefone,
+                whatsapp: pro.whatsapp,
+                website: pro.website,
+                instagram: pro.instagram,
+            },
+            rating: pro.rating,
+            num_avaliacoes: pro.num_avaliacoes,
+            verified_source: pro.verified_source,
+            subscription: {
+                plan_name: pro.subscription_plan_name ?? pro.plan_name ?? "free",
+                highlight_in_result: pro.highlight_in_result ?? false,
+                verification_badge: pro.verification_badge ?? false,
+            },
+            distance_km: parseFloat(pro.distance_km.toFixed(2)),
+        })),
+    };
+}

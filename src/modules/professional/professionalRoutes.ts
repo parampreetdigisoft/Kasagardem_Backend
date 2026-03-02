@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import { uploadCsv } from "../../core/middleware/uploadCsv";
 import { extractUsersFromCsv } from "../../core/middleware/extractUserFromCsv";
-import { createProfessionlals, getAllProfessionalProfiles, registerProfessionals  } from "./professionalController";
+import { createProfessionlals, getAllProfessionalProfiles, getSortedProfessionals, registerProfessionals  } from "./professionalController";
 const router: Router = express.Router();
 
 /**
@@ -188,4 +188,103 @@ router.get("/", auth, getAllProfessionalProfiles);
  */
 router.post("/register", auth, registerProfessionals);
 
+/**
+ * @swagger
+ * /api/v1/professional/getSortedProfessionals:
+ *   get:
+ *     summary: Get professionals sorted by distance, subscription priority, and rating
+ *     description: >
+ *       Returns a list of professionals sorted primarily by nearest distance 
+ *       (based on user latitude and longitude), then by subscription priority,
+ *       and finally by rating. Supports optional category filtering and pagination.
+ *     tags:
+ *       - Professionals
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: lat
+ *         required: true
+ *         schema:
+ *           type: number
+ *           format: float
+ *         description: User latitude
+ *         example: 12.9716
+ *       - in: query
+ *         name: lng
+ *         required: true
+ *         schema:
+ *           type: number
+ *           format: float
+ *         description: User longitude
+ *         example: 77.5946
+ *       - in: query
+ *         name: category
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Filter professionals by category
+ *         example: plumber
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *           maximum: 100
+ *         description: Number of results to return (max 100)
+ *         example: 20
+ *       - in: query
+ *         name: offset
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Pagination offset
+ *         example: 0
+ *     responses:
+ *       200:
+ *         description: Sorted professionals retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 count:
+ *                   type: integer
+ *                   example: 20
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         format: uuid
+ *                       company_name:
+ *                         type: string
+ *                       category:
+ *                         type: string
+ *                       city:
+ *                         type: string
+ *                       state:
+ *                         type: string
+ *                       assessment:
+ *                         type: number
+ *                         format: float
+ *                       distance:
+ *                         type: number
+ *                         format: float
+ *                         description: Distance in kilometers
+ *       400:
+ *         description: Invalid or missing latitude/longitude
+ *       401:
+ *         description: Unauthorized (Bearer token required)
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/getSortedProfessionals",auth, getSortedProfessionals);
 export default router;

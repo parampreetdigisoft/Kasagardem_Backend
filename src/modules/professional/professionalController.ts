@@ -4,7 +4,7 @@ import { AuthUserPayload } from "../../interface/user";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import { errorResponse, successResponse } from "../../core/utils/responseFormatter";
 import { findUserByEmail } from "../auth/authRepository";
-import {  createProfessionalsService, getAllProfessionalProfilesDb, getProfessionalDataById, registerProfessionalService} from "./professionalRepositry";
+import {  createProfessionalsService, fetchSortedProfessionals, getAllProfessionalProfilesDb, getProfessionalDataById, registerProfessionalService} from "./professionalRepositry";
 
 
 /**
@@ -288,3 +288,77 @@ export const registerProfessionals = async (
     );
   }
 };
+
+
+
+
+
+/**
+ * Retrieves a list of professionals sorted by:
+ *  1. Distance from the user's location (ascending)
+ *  2. Subscription priority (higher plans first)
+ *  3. Rating/assessment (higher first)
+ *
+ * Supports optional category filtering and pagination.
+ *
+ * @async
+ * @function getSortedProfessionals
+ *
+ * @param {AuthRequest} req - Express request object containing:
+ *   @param {string} req.query.lat - User latitude (required)
+ *   @param {string} req.query.lng - User longitude (required)
+ *   @param {string} [req.query.category] - Optional category filter
+ *   @param {string} [req.query.limit=50] - Number of results to return (max 100)
+ *   @param {string} [req.query.offset=0] - Pagination offset
+ *
+ * @param {Response} res - Express response object
+ *
+ * @returns {Promise<void>} Sends a JSON response containing:
+ *   - Sorted professionals list
+ *   - Or error response (400 / 500)
+ *
+ * @throws {Error} Returns 500 if an unexpected server error occurs.
+ */
+export async function getSortedProfessionals(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { lat, lng, category, limit = "50", offset = "0" } = req.query;
+
+    // --- Validate required params ---
+    if (!lat || !lng) {
+      res.status(400).json({ error: "User location (lat, lng) is required." });
+      return;
+    }
+
+    const userLat = parseFloat(lat as string);
+    const userLng = parseFloat(lng as string);
+
+    if (isNaN(userLat) || isNaN(userLng)) {
+      res.status(400).json({ error: "Invalid lat/lng values." });
+      return;
+    }
+
+    const pageLimit = Math.min(parseInt(limit as string) || 50, 100);
+    const pageOffset = parseInt(offset as string) || 0;
+
+    // --- Delegate to service ---
+    const result = await fetchSortedProfessionals({
+      userLat,
+      userLng,
+      category: category as string | undefined,
+      limit: pageLimit,
+      offset: pageOffset,
+    });
+
+    res.status(200).json(result);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("getSortedProfessionals error:", error.message);
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Unknown server error." });
+    }
+  }
+}

@@ -56,3 +56,46 @@ export type InsertResult = {
     inserted: number;
     failed: { row: number; error: string }[];
 };
+
+
+
+
+export interface GetProfessionalsParams {
+  userLat: number;
+  userLng: number;
+  category?: string |undefined;
+  limit: number;
+  offset: number;
+}
+
+export interface ProfessionalResult {
+  id: string;
+  company_name: string;
+  category: string;
+  description: string;
+  city: string;
+  state: string;
+  address: string;
+  contact: {
+    telefone: string;
+    whatsapp: string;
+    website: string;
+    instagram: string;
+  };
+  rating: number;
+  num_avaliacoes: number;
+  verified_source: string;
+  subscription: {
+    plan_name: string;
+    highlight_in_result: boolean;
+    verification_badge: boolean;
+  };
+  distance_km: number;
+}
+export interface GetProfessionalsResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  user_location: { lat: number; lng: number };
+  data: ProfessionalResult[];
+}
