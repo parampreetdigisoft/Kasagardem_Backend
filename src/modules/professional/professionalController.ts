@@ -4,7 +4,11 @@ import { AuthUserPayload } from "../../interface/user";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import { errorResponse, successResponse } from "../../core/utils/responseFormatter";
 import { findUserByEmail } from "../auth/authRepository";
-import {  createProfessionalsService, fetchSortedProfessionals, getAllProfessionalProfilesDb, getProfessionalDataById, registerProfessionalService} from "./professionalRepositry";
+import { createProfessionalsService, fetchSortedProfessionals, getAllProfessionalProfilesDb, getProfessionalDataById, professionalProfileById, registerProfessionalService } from "./professionalRepositry";
+import { getProfessionalProfileById } from "../userProfile/userProfileModel";
+import { deleteFileFromS3, uploadBase64ToS3 } from "../../core/services/s3UploadService";
+import { error, warn } from "../../core/utils/logger";
+import { getDB } from "../../core/config/db";
 
 
 /**
@@ -197,7 +201,7 @@ export const registerProfessionals = async (
   req: AuthRequest,
   res: Response
 ): Promise<void> => {
-  
+
   // ─── 1. Auth guard ─────────────────────────────────────────────────────────
   const userPayload = req.user as AuthUserPayload | undefined;
 
@@ -284,7 +288,7 @@ export const registerProfessionals = async (
   } catch (error) {
     // console.error("Unexpected error in registerProfessionals:", error);
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
-      errorResponse("An unexpected error occurred while registering the professional.",error instanceof Error ? { message: error.message } : undefined) 
+      errorResponse("An unexpected error occurred while registering the professional.", error instanceof Error ? { message: error.message } : undefined)
     );
   }
 };
@@ -360,5 +364,246 @@ export async function getSortedProfessionals(
     } else {
       res.status(500).json({ error: "Unknown server error." });
     }
+  }
+}
+
+/**
+ * Retrieves the authenticated professional's profile.
+ *
+ * This endpoint:
+ * 1. Extracts the authenticated user's email from the request.
+ * 2. Validates the user exists in the system.
+ * 3. Fetches the professional profile associated with the user's ID.
+ * 4. Returns the professional profile details if found.
+ *
+ * Authentication:
+ * - Requires a valid JWT token.
+ * - The token must contain `userEmail`.
+ *
+ * @async
+ * @function getprofessionalsProfile
+ * @param {AuthRequest} req - Express request object containing authenticated user payload.
+ * @param {Response} res - Express response object used to send the response.
+ *
+ * @returns {Promise<void>} Sends:
+ * - 200: Professional profile retrieved successfully.
+ * - 401: Unauthorized (missing/invalid user).
+ * - 404: Professional profile not found.
+ * - 500: Internal server error.
+ *
+ * @throws {Error} Logs unexpected errors and returns a 500 response.
+ */
+export async function getprofessionalsProfile(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const userPayload = req.user as AuthUserPayload | undefined;
+    if (!userPayload?.userEmail) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    }
+
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+      return;
+    }
+    if (!user.id) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Invalid user ID"));
+      return;
+    }
+
+    const professionalProfile = await professionalProfileById(user.id);
+    if (!professionalProfile) {
+      res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Professional profile not found"));
+      return;
+    }
+
+    res.status(HTTP_STATUS.OK).json(successResponse(professionalProfile, "Professional profile retrieved successfully"));
+  } catch (error) {
+    console.error("Error in professionalsProfile:", error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse(
+        "Failed to retrieve professional profile",
+        {
+          message: error instanceof Error ? error.message : String(error),
+        }
+      )
+    );
+  }
+}
+
+// eslint-disable-next-line
+/**
+ * @function updateProfessionalProfile
+ * @description
+ * Updates the authenticated professional user's profile information.
+ * 
+ * This API performs the following operations:
+ * 1. Validates the authenticated user.
+ * 2. Verifies that the user exists in the database.
+ * 3. Uploads a new profile image to S3 (if provided as base64).
+ * 4. Deletes the previous profile image from S3 (if exists).
+ * 5. Updates basic user details (name, email) in the `users` table.
+ * 6. Updates profile image in the `professional_accounts` table.
+ * 
+ * @async
+ * @param {AuthRequest} req - Express request object containing authenticated user info and profile update data.
+ * @param {Response} res - Express response object used to send API responses.
+ * 
+ * @body
+ * @property {string} [name] - Updated name of the professional.
+ * @property {string} [email] - Updated email (must be unique).
+ * @property {string} [profileImage] - Base64 encoded image string or existing image key.
+ * 
+ * @returns {Promise<void>} Sends a JSON response:
+ * - 200: Professional profile updated successfully.
+ * - 400: Email already in use.
+ * - 401: Unauthorized / Invalid user.
+ * - 404: User profile not found.
+ * - 500: Internal server error.
+ * 
+ * @throws Will log errors internally and return 500 response if any unexpected failure occurs.
+ */
+export async function updateProfessionalProfile(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const userPayload = req.user as AuthUserPayload | undefined;
+    if (!userPayload?.userEmail) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    }
+
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+      return;
+    }
+
+    if (!user.id) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Invalid user ID"));
+      return;
+    }
+    const client = getDB();
+     const { rows: existingProfileRows } = await client.query(
+      `SELECT id FROM users WHERE id = $1`,
+      [user.id]
+    );
+
+    if (existingProfileRows.length === 0) {
+      await warn("Profile update failed - Profile not found", {
+        email: userPayload.userEmail,
+        userId: user.id,
+        action: "updateUserProfile",
+        req,
+      });
+      res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .json(errorResponse("User profile not found"));
+      return;
+    }
+
+    const profileId = existingProfileRows[0].id;
+
+    
+
+    if (req.body.profileImage && typeof req.body.profileImage === "string") {
+      const isBase64 = /^data:image\/[a-zA-Z]+;base64,/.test(
+        req.body.profileImage
+      );
+      if (isBase64) {
+        try {
+          const plantName = `${Date.now()}.jpg`; // or `${user.id}_${Date.now()}.jpg`
+          const folder = "professional/ProfileImages"; // or any folder name you prefer
+          // Fetch old profile image from DB
+          const profile_image_url = await getProfessionalProfileById(profileId);
+          const oldFileKey = profile_image_url || null;
+
+          // Upload new image
+          const uploadedFileKey = await uploadBase64ToS3(
+            req.body.profileImage,
+            plantName,
+            folder
+          );
+
+          // Delete old image (if exists)
+          if (oldFileKey) {
+            await deleteFileFromS3(oldFileKey);
+          }
+
+          // Assign new file key to request body
+          req.body.profileImage = uploadedFileKey;
+        } catch (uploadErr: unknown) {
+          await error("Image upload to S3 Bucket failed", {
+            email: userPayload.userEmail,
+            userId: user.id,
+            error: (uploadErr as Error).message,
+            req,
+          });
+          res
+            .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+            .json(errorResponse("Failed to upload profile image"));
+          return;
+        }
+      }
+    }
+    if (req.body.name || req.body.email) {
+
+      if (req.body.email) {
+        const { rows: emailCheck } = await client.query(
+          `SELECT id FROM users WHERE email = $1 AND id != $2`,
+          [req.body.email, user.id]
+        );
+
+        if (emailCheck.length > 0) {
+          await client.query("ROLLBACK");
+          res
+            .status(HTTP_STATUS.BAD_REQUEST)
+            .json(errorResponse("Email already in use"));
+          return;
+        }
+      }
+
+      await client.query(
+        `
+        UPDATE users
+        SET
+          name = COALESCE($1, name),
+          email = COALESCE($2, email),
+          updated_at = NOW()
+        WHERE id = $3
+        `,
+        [
+          req.body.name ?? null,
+          req.body.email ?? null,
+          user.id,
+        ]
+      );
+    }
+
+    // 4️ Update userprofiles table (only if image provided)
+    if (req.body.profileImage) {
+      await client.query(
+        `
+        UPDATE professional_accounts
+        SET
+          profile_image = $1,
+          updated_at = NOW()
+        WHERE user_id = $2
+        `,
+        [req.body.profileImage, profileId]
+      );
+    }
+
+    await client.query("COMMIT");
+   
+    res.status(HTTP_STATUS.OK).json(successResponse(null, "Professional profile updated successfully"));
+  } catch (error) {
+    console.error("Error in updateProfessionalProfile:", error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse(
+        "Failed to update professional profile",
+        {
+          message: error instanceof Error ? error.message : String(error),
+        }
+      )
+    );
   }
 }

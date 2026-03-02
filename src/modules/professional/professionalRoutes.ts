@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import { uploadCsv } from "../../core/middleware/uploadCsv";
 import { extractUsersFromCsv } from "../../core/middleware/extractUserFromCsv";
-import { createProfessionlals, getAllProfessionalProfiles, getSortedProfessionals, registerProfessionals  } from "./professionalController";
+import { createProfessionlals, getAllProfessionalProfiles, getprofessionalsProfile, getSortedProfessionals,  registerProfessionals, updateProfessionalProfile  } from "./professionalController";
 const router: Router = express.Router();
 
 /**
@@ -287,4 +287,115 @@ router.post("/register", auth, registerProfessionals);
  *         description: Internal server error
  */
 router.get("/getSortedProfessionals",auth, getSortedProfessionals);
+
+/**
+ * @swagger
+ * /api/v1/professional/ProfessionalsProfile:
+ *   get:
+ *     summary: Get authenticated professional profile
+ *     description: Retrieves the professional profile details of the currently authenticated user.
+ *     tags:
+ *       - Professionals
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Professional profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Professional profile retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   description: Professional profile object
+ *       401:
+ *         description: Unauthorized (Invalid token, user not found, or invalid user ID)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Unauthorized
+ *       404:
+ *         description: Professional profile not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Professional profile not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/ProfessionalsProfile", auth, getprofessionalsProfile);
+
+
+/**
+ * @swagger
+ * /api/v1/professional/update:
+ *   patch:
+ *     summary: Update professional profile
+ *     description: Allows an authenticated professional to update their name, email, and profile image. Any field can be updated individually.
+ *     tags: [Professionals]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: John Doe
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: johndoe@example.com
+ *               profileImage:
+ *                 type: string
+ *                 description: Base64 encoded image string (data:image/...;base64,...)
+ *                 example: data:image/jpeg;base64,/9j/4AAQSkZJRgABAQE...
+ *     responses:
+ *       200:
+ *         description: Professional profile updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Professional profile updated successfully
+ *       400:
+ *         description: Invalid input or email already exists
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User or profile not found
+ *       500:
+ *         description: Internal server error
+ */
+router.patch("/update", auth,  updateProfessionalProfile);
 export default router;

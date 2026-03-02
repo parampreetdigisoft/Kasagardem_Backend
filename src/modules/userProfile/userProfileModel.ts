@@ -106,3 +106,30 @@ export async function updateValidatedUserProfile(
     throw err;
   }
 }
+// eslint-disable-next-line
+/**
+ * @function getProfessionalProfileById
+ * @description
+ * Retrieves the stored profile image key for a professional user
+ * from the `professional_accounts` table using the user ID.
+ *
+ * @async
+ * @param {string} profileId - The user ID associated with the professional account.
+ *
+ * @returns {Promise<string | null>}
+ * Returns:
+ * - `string` → The profile image key stored in the database.
+ * - `null` → If no professional account or profile image is found.
+ *
+ * @throws {Error} If the database query fails.
+ */
+export async function getProfessionalProfileById(
+  profileId: string
+): Promise<string | null> {
+  const client = await getDB();
+  const result = await client.query(
+    "SELECT profile_image FROM professional_accounts WHERE user_id = $1",
+    [profileId]
+  );
+  return result.rows[0] || null;
+}

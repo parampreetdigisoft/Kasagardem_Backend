@@ -99,3 +99,14 @@ export interface GetProfessionalsResponse {
   user_location: { lat: number; lng: number };
   data: ProfessionalResult[];
 }
+
+
+
+export interface professionalProfileResponse{
+    name: string;
+    email: string;
+    imageUrl: string | null;
+    subscriptionPlan: string;
+    trialStartDate: Date | null;
+    trialEndDate: Date | null;
+}

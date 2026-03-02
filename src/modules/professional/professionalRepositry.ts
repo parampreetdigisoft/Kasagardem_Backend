@@ -2,8 +2,9 @@
 import { connectDB, getDB } from "../../core/config/db";
 import { sendProfessionalWelcomeEmail } from "../../core/services/emailService";
 import { csvUser } from "../../interface/auth";
-import { GetProfessionalsParams, GetProfessionalsResponse, InsertResult, ProfessionalProfileResponse } from "../../interface/professional";
+import { GetProfessionalsParams, GetProfessionalsResponse, InsertResult, professionalProfileResponse, ProfessionalProfileResponse } from "../../interface/professional";
 import bcrypt from "bcryptjs";
+import { getSignedFileUrl } from "../../core/services/s3UploadService";
 
 /**
  * Bulk registers professionals from CSV data.
@@ -1213,3 +1214,77 @@ export async function fetchSortedProfessionals(
         })),
     };
 }
+
+// eslint-disable-next-line
+/**
+ * @function professionalProfileById
+ * Retrieves a professional user's complete profile details by user ID.
+ * 
+ * This function:
+ * 1. Fetches basic user information (name, email) from the `users` table.
+ * 2. Retrieves professional account details from the `professional_accounts` table.
+ * 3. Fetches the subscription plan name (if available).
+ * 4. Generates a signed URL for the stored profile image.
+ * 
+ * @async
+ * @param {string} id - The unique identifier of the user.
+ * 
+ * @returns {Promise<professionalProfileResponse>} 
+ * Returns a structured professional profile response object containing:
+ * - `name` (string): User's full name
+ * - `email` (string): User's email address
+ * - `imageUrl` (string | null): Signed URL of profile image (if exists)
+ * - `subscriptionPlan` (string): Name of the subscription plan or "trial"
+ * - `trialStartDate` (Date | null): Trial start date
+ * - `trialEndDate` (Date | null): Trial end date
+ * 
+ * @throws {Error} 
+ * - Throws an error if the user does not exist.
+ * - Throws an error if the professional profile does not exist.
+ * - Throws an error if any database operation fails.
+ */
+export const professionalProfileById = async (id: string): Promise< professionalProfileResponse> => {
+    const client = await getDB();
+
+    const usertableResult = await client.query(
+        `SELECT name,email from users where id = $1`,
+        [id]
+    );
+
+    if (usertableResult.rows.length === 0) {
+        throw new Error("User not found for ID: " + id);
+    }
+
+    const result = await client.query(
+        `SELECT  profile_image, subscription_plan_id,trial_start_date,trial_end_date from professional_accounts where user_id = $1`,
+        [id]
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+        throw new Error("Professional profile not found for user ID: " + id);
+    }
+
+
+    const subscriptionPlanResult = await client.query(
+        `SELECT plan_name from subscrptionPlans where id = $1`,
+        [row.subscription_plan_id]
+    );
+    const subscriptionPlanRow = subscriptionPlanResult.rows[0];
+    const profile_image = await getSignedFileUrl(row.profile_image) || null;
+
+    return {
+        name: usertableResult.rows[0].name,
+        email: usertableResult.rows[0].email,
+        imageUrl: profile_image,
+        subscriptionPlan: subscriptionPlanRow ? subscriptionPlanRow.plan_name : "trial",
+        trialStartDate: row.trial_start_date,
+        trialEndDate: row.trial_end_date,
+    }; 
+
+}
+
+
+
+
+
