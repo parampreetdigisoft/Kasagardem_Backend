@@ -492,6 +492,7 @@ export const getAllProfessionalProfilesDb = async (
         companyName: row.company_name,
         email: row.email,
         category: row.category,
+        image_url:row.image_url,
         description: row.description,
 
         location: {
@@ -1136,6 +1137,7 @@ export async function fetchSortedProfessionals(
       pp.assessment           AS rating,
       pp.num_avaliacoes,
       pp.verified_source,
+      pp.image_url,
 
       pa.plan                 AS plan_name,
 
@@ -1193,6 +1195,7 @@ export async function fetchSortedProfessionals(
             company_name: pro.company_name,
             category: pro.category,
             description: pro.description,
+            image_url: pro.image_url,
             city: pro.city,
             state: pro.state,
             address: pro.address,
