@@ -27,14 +27,16 @@ export async function createSubscriptionPlans(): Promise<void> {
         const query = `
       CREATE TABLE IF NOT EXISTS subscrptionPlans (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        plan_name VARCHAR(100) NOT NULL,
+        plan_name VARCHAR(100) NOT NULL, -- to_speak, gold, diamante
         description TEXT,
-        monthly_price NUMERIC(10, 2) NOT NULL,
-        annual_price NUMERIC(10, 2),
-        lead_limit_per_month INTEGER,
-        number_of_regions INTEGER,
-        highlight_in_result BOOLEAN DEFAULT FALSE,
-        verification_badge BOOLEAN DEFAULT FALSE,
+        name VARCHAR(50) UNIQUE NOT NULL, 
+        cities_coverage INTEGER NOT NULL,  -- e.g. 1, 5, 20
+        price_monthly NUMERIC(10,2) NOT NULL,
+        price_annual NUMERIC(10,2) NOT NULL,
+        appear_in_search BOOLEAN DEFAULT FALSE,
+        leads_limit INTEGER,  -- NULL = unlimited
+        premium_profile_badge BOOLEAN DEFAULT FALSE,
+        priority_customer_support BOOLEAN DEFAULT FALSE,
         status VARCHAR(10) DEFAULT 'active'
         CHECK (status IN ('active', 'inactive')),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -43,7 +45,7 @@ export async function createSubscriptionPlans(): Promise<void> {
     `;
 
         await client.query(query);
-        console.error("subsscrption_Plans Table created successfully!");                                                                                                
+        console.error("subsscrption_Plans Table created successfully!");
     } catch (error: unknown) {
         if (error instanceof Error) {
             console.error("Error creating Subscription_pans table:", error.message);

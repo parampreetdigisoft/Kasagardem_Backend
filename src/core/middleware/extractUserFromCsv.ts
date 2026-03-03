@@ -41,6 +41,7 @@ export const extractUsersFromCsv = async (
 
         req.professional = rows.map((row, index) => ({
             company_name: row.company_name?.trim() || undefined,
+            region: row.region?.trim() || undefined,
             email: row.email?.toLowerCase().trim() || undefined,
             category: row.category?.trim() || undefined,
             description: row.description?.trim() || undefined,

@@ -334,11 +334,13 @@ export const createProfessionalsService = async (
         $${b + 1},  $${b + 2},  $${b + 3},  $${b + 4},
         $${b + 5},  $${b + 6},  $${b + 7},  $${b + 8},
         $${b + 9},  $${b + 10}, $${b + 11}, $${b + 12},
-        $${b + 13}, $${b + 14}, $${b + 15}, $${b + 16}
+        $${b + 13}, $${b + 14}, $${b + 15}, $${b + 16},
+        $${b + 17}
       )`);
 
             values.push(
                 p.company_name ?? null,
+                p.region ?? null,
                 p.email ?? null,
                 p.category ?? null,
                 p.description ?? null,
@@ -372,7 +374,7 @@ export const createProfessionalsService = async (
 
         const result = await client.query(
             `INSERT INTO professional_profiles (
-        id, company_name, email, category, description,
+        id, company_name,region, email, category, description,
         city, state, telefone, whatsapp, website,
         instagram, address, assessment, num_avaliacoes,
         verified_source, latitude, longitude
@@ -1142,8 +1144,8 @@ export async function fetchSortedProfessionals(
       pa.plan                 AS plan_name,
 
       sp.plan_name            AS subscription_plan_name,
-      sp.highlight_in_result,
-      sp.verification_badge
+      sp.appear_in_search,
+      sp.premium_profile_badge
     FROM professional_profiles pp
     LEFT JOIN professional_accounts pa
       ON pa.professional_profile_id = pp.id

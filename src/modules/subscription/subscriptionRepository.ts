@@ -29,28 +29,30 @@ export async function createSubscriptionPlan(
     INSERT INTO subscrptionPlans (
       plan_name,
       description,
-      monthly_price,
-      annual_price,
-      lead_limit_per_month,
-      number_of_regions,
-      highlight_in_result,
-      verification_badge,
+      price_monthly,
+      price_annual,
+      appear_in_search,
+      leads_limit,
+      cities_coverage,
+      premium_profile_badge,
+      priority_customer_support,
       status
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
     RETURNING *;
   `;
 
   const values = [
     plan.plan_name,
     plan.description,
-    plan.monthly_price,
-    plan.annual_price,
-    plan.lead_limit_per_month,
-    plan.number_of_regions,
-    plan.highlight_in_result,
-    plan.verification_badge,
-    plan.status,
+    plan.price_monthly,
+    plan.price_annual,
+    plan.appear_in_search,
+    plan.leads_limit,
+    plan.cities_coverage,
+    plan.premium_profile_badge,
+    plan.priority_customer_support,
+    plan.status
   ];
 
   const result = await client.query<ISubscriptionPlan>(query, values);
@@ -127,12 +129,12 @@ export const updateSubscriptionPlan = async (
   const values = [
     updates.plan_name,
     updates.description,
-    updates.monthly_price,
-    updates.annual_price,
-    updates.lead_limit_per_month,
-    updates.number_of_regions,
-    updates.highlight_in_result,
-    updates.verification_badge,
+    updates.price_monthly,
+    updates.price_annual,
+    updates.leads_limit,
+    updates.cities_coverage,
+    updates.appear_in_search,
+    updates.premium_profile_badge,
     updates.status,
     planId,
   ];
@@ -164,12 +166,13 @@ export const getSubscriptionPlanById = async (
       id,
       plan_name,
       description,
-      monthly_price,
-      annual_price,
-      lead_limit_per_month,
-      number_of_regions,
-      highlight_in_result,
-      verification_badge,
+      price_monthly,
+      price_annual,
+      appear_in_search,
+      leads_limit,
+      cities_coverage,
+      premium_profile_badge,
+      priority_customer_support,
       status,
       created_at,
       updated_at

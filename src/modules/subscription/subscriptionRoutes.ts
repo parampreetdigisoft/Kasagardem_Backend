@@ -25,11 +25,12 @@ const router: Router = express.Router();
  *       ⚠️ Business rules:
  *       - Only 3 plans are allowed: **Talk, Gold, Diamante**
  *       - Plan names are immutable after creation
- *       - Annual price must be `monthly_price × 12`
+ *       - Annual price must be monthly_price × 12
  *       - Maximum of 3 plans can exist in the system
  *       - Subscriptions are for professionals only (customers are free)
  *       - Billing is annual (monthly price is display-only)
- *     tags: [Subscription]
+ *     tags:
+ *       - Subscription
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -41,43 +42,53 @@ const router: Router = express.Router();
  *             required:
  *               - plan_name
  *               - description
- *               - monthly_price
- *               - annual_price
- *               - lead_limit_per_month
- *               - number_of_regions
- *               - highlight_in_result
- *               - verification_badge
+ *               - price_monthly
+ *               - price_annual
+ *               - leads_limit
+ *               - cities_coverage
+ *               - appear_in_search
+ *               - premium_profile_badge
+ *               - priority_customer_support
  *               - status
  *             properties:
  *               plan_name:
  *                 type: string
- *                 enum: [Talk, Gold, Diamante]
+ *                 enum:
+ *                   - Talk
+ *                   - Gold
+ *                   - Diamante
  *                 example: Talk
  *               description:
  *                 type: string
  *                 example: Entry-level plan for professionals
- *               monthly_price:
+ *               price_monthly:
  *                 type: number
  *                 example: 49
- *               annual_price:
+ *               price_annual:
  *                 type: number
  *                 example: 588
- *               lead_limit_per_month:
+ *               leads_limit:
  *                 type: integer
- *                 description: "0 means unlimited leads"
+ *                 nullable: true
+ *                 description: null means unlimited leads
  *                 example: 0
- *               number_of_regions:
+ *               cities_coverage:
  *                 type: integer
  *                 example: 1
- *               highlight_in_result:
+ *               appear_in_search:
  *                 type: boolean
  *                 example: false
- *               verification_badge:
+ *               premium_profile_badge:
+ *                 type: boolean
+ *                 example: false
+ *               priority_customer_support:
  *                 type: boolean
  *                 example: false
  *               status:
  *                 type: string
- *                 enum: [active, inactive]
+ *                 enum:
+ *                   - active
+ *                   - inactive
  *                 example: active
  *     responses:
  *       201:
@@ -115,7 +126,8 @@ router.get("/", auth, getPlans);
  *   put:
  *     summary: Update subscription plan
  *     description: Admin only. Updates an existing subscription plan by ID. Plan name cannot be modified.
- *     tags: [Subscription]
+ *     tags:
+ *       - Subscription
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -133,38 +145,44 @@ router.get("/", auth, getPlans);
  *             type: object
  *             required:
  *               - description
- *               - monthly_price
- *               - annual_price
- *               - lead_limit_per_month
- *               - number_of_regions
- *               - highlight_in_result
- *               - verification_badge
+ *               - price_monthly
+ *               - price_annual
+ *               - leads_limit
+ *               - cities_coverage
+ *               - appear_in_search
+ *               - premium_profile_badge
+ *               - priority_customer_support
  *               - status
  *             properties:
  *               description:
  *                 type: string
  *                 example: Updated description for professionals
- *               monthly_price:
+ *               price_monthly:
  *                 type: number
  *                 example: 59.99
- *               annual_price:
+ *               price_annual:
  *                 type: number
  *                 example: 599.99
- *               lead_limit_per_month:
+ *               leads_limit:
  *                 type: integer
  *                 example: 300
- *               number_of_regions:
+ *               cities_coverage:
  *                 type: integer
  *                 example: 8
- *               highlight_in_result:
+ *               appear_in_search:
  *                 type: boolean
  *                 example: true
- *               verification_badge:
+ *               premium_profile_badge:
+ *                 type: boolean
+ *                 example: true
+ *               priority_customer_support:
  *                 type: boolean
  *                 example: true
  *               status:
  *                 type: string
- *                 enum: [active, inactive]
+ *                 enum:
+ *                   - active
+ *                   - inactive
  *     responses:
  *       200:
  *         description: Subscription plan updated successfully

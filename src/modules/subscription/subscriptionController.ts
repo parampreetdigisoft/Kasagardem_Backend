@@ -78,18 +78,22 @@ export const CreatePlan = async (
         const requiredFields = [
             "plan_name",
             "description",
-            "monthly_price",
-            "annual_price",
-            "lead_limit_per_month",
-            "number_of_regions",
-            "highlight_in_result",
-            "verification_badge",
-            "status",
+            "price_monthly",
+            "price_annual",
+            "leads_limit",
+            "cities_coverage",
+            "appear_in_search",
+            "premium_profile_badge",
+            "priority_customer_support",
+            "status"
         ];
 
-        const missingFields = requiredFields.filter(
-            (field) => req.body[field] === undefined || req.body[field] === null
-        );
+        const missingFields = requiredFields.filter((field) => {
+            if (field === "leads_limit") {
+                return req.body[field] === undefined; // allow null
+            }
+            return req.body[field] === undefined || req.body[field] === null;
+        });
 
         if (missingFields.length > 0) {
             res.status(HTTP_STATUS.BAD_REQUEST).json(
@@ -100,7 +104,7 @@ export const CreatePlan = async (
 
         const plan: SubscriptionPlanInput = req.body;
 
-       
+
 
         // 1️Allowed plan names only
         if (!ALLOWED_PLAN_NAMES.includes(plan.plan_name)) {
@@ -224,7 +228,7 @@ export const getPlans = async (
         if (cachedPlans) {
             res.status(HTTP_STATUS.OK).json(
                 successResponse(
-                    {plans:cachedPlans},
+                    { plans: cachedPlans },
                     "Subscription plans fetched successfully (cached)"
                 )
             );
@@ -238,7 +242,7 @@ export const getPlans = async (
         appCache.set(CACHE_KEYS.SUBSCRIPTION_PLANS, plans);
 
         res.status(HTTP_STATUS.OK).json(
-            successResponse({plans:plans}, "Subscription plans fetched successfully")
+            successResponse({ plans: plans }, "Subscription plans fetched successfully")
         );
     } catch (err: unknown) {
         // Handle unknown errors
@@ -318,13 +322,15 @@ export const updatePlan = async (
         }
 
         const requiredFields: (keyof SubscriptionPlanInput)[] = [
+            "plan_name",
             "description",
-            "monthly_price",
-            "annual_price",
-            "lead_limit_per_month",
-            "number_of_regions",
-            "highlight_in_result",
-            "verification_badge",
+            "price_monthly",
+            "price_annual",
+            "leads_limit",
+            "cities_coverage",
+            "appear_in_search",
+            "premium_profile_badge",
+            "priority_customer_support",
             "status",
         ];
 
@@ -383,65 +389,65 @@ export const updatePlan = async (
  * @param next NextFunction
  */
 export const updateSubscriptionStatusById = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  const planId = req.params.id as string | undefined;
-  const { status } = req.body;
+    const planId = req.params.id as string | undefined;
+    const { status } = req.body;
 
-  try {
-    // Auth & Role Check
-    const userPayload = req.user as AuthUserPayload | undefined;
-    if (!userPayload?.userEmail) {
-      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized request"));
-      return;
+    try {
+        // Auth & Role Check
+        const userPayload = req.user as AuthUserPayload | undefined;
+        if (!userPayload?.userEmail) {
+            res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized request"));
+            return;
+        }
+
+        const user = await findUserByEmail(userPayload.userEmail);
+        if (!user || userPayload.role !== "Admin") {
+            res.status(HTTP_STATUS.FORBIDDEN).json(errorResponse("Unauthorized Role"));
+            return;
+        }
+
+        //  Input validation
+        if (!planId) {
+            res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Subscription plan ID is required"));
+            return;
+        }
+
+        if (!status || !["active", "inactive"].includes(status)) {
+            res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Status must be 'active' or 'inactive'"));
+            return;
+        }
+
+        //  Fetch existing plan
+        const existingPlan = await getSubscriptionPlanById(planId);
+        if (!existingPlan) {
+            res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Subscription plan not found"));
+            return;
+        }
+
+        //  Update only the status
+        const updatedPlan = await updateSubscriptionPlanStatusById(planId, {
+            ...existingPlan,
+            status,
+        });
+
+        if (!updatedPlan) {
+            res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Failed to update subscription plan"));
+            return;
+        }
+
+        //  Clear cache
+        appCache.del(CACHE_KEYS.SUBSCRIPTION_PLANS);
+
+        // Return success
+        res.status(HTTP_STATUS.OK).json(
+            successResponse(updatedPlan, "Subscription plan status updated successfully")
+        );
+    } catch (error: unknown) {
+        console.error("Failed to update subscription plan status:", error);
+        next(error);
     }
-
-    const user = await findUserByEmail(userPayload.userEmail);
-    if (!user || userPayload.role !== "Admin") {
-      res.status(HTTP_STATUS.FORBIDDEN).json(errorResponse("Unauthorized Role"));
-      return;
-    }
-
-    //  Input validation
-    if (!planId) {
-      res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Subscription plan ID is required"));
-      return;
-    }
-
-    if (!status || !["active", "inactive"].includes(status)) {
-      res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Status must be 'active' or 'inactive'"));
-      return;
-    }
-
-    //  Fetch existing plan
-    const existingPlan = await getSubscriptionPlanById(planId);
-    if (!existingPlan) {
-      res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Subscription plan not found"));
-      return;
-    }
-
-    //  Update only the status
-    const updatedPlan = await updateSubscriptionPlanStatusById(planId, {
-      ...existingPlan,
-      status,
-    });
-
-    if (!updatedPlan) {
-      res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Failed to update subscription plan"));
-      return;
-    }
-
-    //  Clear cache
-    appCache.del(CACHE_KEYS.SUBSCRIPTION_PLANS);
-
-    // Return success
-    res.status(HTTP_STATUS.OK).json(
-      successResponse(updatedPlan, "Subscription plan status updated successfully")
-    );
-  } catch (error: unknown) {
-    console.error("Failed to update subscription plan status:", error);
-    next(error);
-  }
 };

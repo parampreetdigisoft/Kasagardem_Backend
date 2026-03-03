@@ -6,6 +6,9 @@ export interface csvUser {
   /** Legal or trade name of the business. */
   company_name?: string;
 
+  /** Geographic region or neighborhood (e.g. "Downtown", "Zona Sul"). */
+  region?: string;
+
   /** Primary contact email. Required — used as a unique identifier during import. */
   email: string;
 
