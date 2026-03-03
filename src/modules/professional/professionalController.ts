@@ -4,7 +4,7 @@ import { AuthUserPayload } from "../../interface/user";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import { errorResponse, successResponse } from "../../core/utils/responseFormatter";
 import { findUserByEmail } from "../auth/authRepository";
-import { createProfessionalsService, fetchSortedProfessionals, getAllProfessionalProfilesDb, getProfessionalDataById, professionalProfileById, registerProfessionalService } from "./professionalRepositry";
+import { createProfessionalsService, fetchSortedProfessionals, getAllProfessionalProfilesDb, getProfessionalDataById, leadCreatedByProfessionalService, professionalProfileById, registerProfessionalService } from "./professionalRepositry";
 import { getProfessionalProfileById } from "../userProfile/userProfileModel";
 import { deleteFileFromS3, uploadBase64ToS3 } from "../../core/services/s3UploadService";
 import { error, warn } from "../../core/utils/logger";
@@ -482,7 +482,7 @@ export async function updateProfessionalProfile(req: AuthRequest, res: Response)
       return;
     }
     const client = getDB();
-     const { rows: existingProfileRows } = await client.query(
+    const { rows: existingProfileRows } = await client.query(
       `SELECT id FROM users WHERE id = $1`,
       [user.id]
     );
@@ -502,7 +502,7 @@ export async function updateProfessionalProfile(req: AuthRequest, res: Response)
 
     const profileId = existingProfileRows[0].id;
 
-    
+
 
     if (req.body.profileImage && typeof req.body.profileImage === "string") {
       const isBase64 = /^data:image\/[a-zA-Z]+;base64,/.test(
@@ -593,13 +593,76 @@ export async function updateProfessionalProfile(req: AuthRequest, res: Response)
     }
 
     await client.query("COMMIT");
-   
+
     res.status(HTTP_STATUS.OK).json(successResponse(null, "Professional profile updated successfully"));
   } catch (error) {
     console.error("Error in updateProfessionalProfile:", error);
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
       errorResponse(
         "Failed to update professional profile",
+        {
+          message: error instanceof Error ? error.message : String(error),
+        }
+      )
+    );
+  }
+}
+
+/**
+ * Creates a new lead for a professional by the authenticated user.
+ *
+ * This controller:
+ * - Validates the authenticated user from JWT payload
+ * - Fetches the user from database using email
+ * - Validates user ID
+ * - Calls service layer to create a lead entry
+ *
+ * @async
+ * @function leadCreatedByProfessional
+ * @param {AuthRequest} req - Express request object containing authenticated user and request body.
+ * @param {Response} res - Express response object used to send HTTP responses.
+ *
+ * @returns {Promise<void>} Sends JSON response with:
+ * - 201: If lead is created successfully
+ * - 401: If user is unauthorized, not found, or has invalid ID
+ * - 500: If an internal server error occurs
+ *
+ * @throws {Error} Returns 500 status if lead creation fails.
+ */
+export async function leadCreatedByProfessional(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const userPayload = req.user as AuthUserPayload | undefined;
+    if (!userPayload?.userEmail) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    }
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+      return;
+    }
+    if (!user.id) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Invalid user ID"));
+      return;
+    }
+
+    const { professionalIds } = req.body;
+
+    if (!Array.isArray(professionalIds) || professionalIds.length === 0) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse("professionalIds must be a non-empty array")
+      );
+      return;
+    }
+
+    await leadCreatedByProfessionalService(req.body.professionalIds, user.id);
+
+    res.status(HTTP_STATUS.CREATED).json(successResponse(null, "Lead created successfully"));
+  } catch (error) {
+    console.error("Error in leadCreatedByProfessional:", error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse(
+        "Failed to create lead",
         {
           message: error instanceof Error ? error.message : String(error),
         }

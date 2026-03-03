@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import { uploadCsv } from "../../core/middleware/uploadCsv";
 import { extractUsersFromCsv } from "../../core/middleware/extractUserFromCsv";
-import { createProfessionlals, getAllProfessionalProfiles, getprofessionalsProfile, getSortedProfessionals,  registerProfessionals, updateProfessionalProfile  } from "./professionalController";
+import { createProfessionlals, getAllProfessionalProfiles, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  registerProfessionals, updateProfessionalProfile  } from "./professionalController";
 const router: Router = express.Router();
 
 /**
@@ -398,4 +398,55 @@ router.get("/ProfessionalsProfile", auth, getprofessionalsProfile);
  *         description: Internal server error
  */
 router.patch("/update", auth,  updateProfessionalProfile);
+
+/**
+ * @swagger
+ * /api/v1/professional/createLeads:
+ *   post:
+ *     summary: Create new leads for multiple professionals
+ *     tags:
+ *       - Professionals
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - professionalIds
+ *             properties:
+ *               professionalIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: uuid
+ *                 example:
+ *                   - b3bf7ac3-7724-40ff-b998-c353f231412f
+ *                   - a2cd7ac3-1111-40ff-b998-c353f2314999
+ *     responses:
+ *       201:
+ *         description: Leads created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Leads created successfully
+ *       401:
+ *         description: Unauthorized or User not found
+ *       500:
+ *         description: Failed to create leads
+ */
+router.post("/createLeads", auth , leadCreatedByProfessional);
+
+
+ 
+
 export default router;

@@ -1290,6 +1290,36 @@ export const professionalProfileById = async (id: string): Promise< professional
 }
 
 
+/**
+ * Creates a new lead storing multiple professional IDs
+ * in partner_profile_ids (UUID[] column).
+ *
+ * @param {string[]} professionalIds - Array of professional UUIDs.
+ * @param {string} userId - UUID of the user creating the lead.
+ * @returns {Promise<void>}
+ * @throws {Error} If insertion fails.
+ */
+export const leadCreatedByProfessionalService = async (
+  professionalIds: string[],
+  userId: string
+): Promise<void> => {
+  const client = await getDB();
 
+ try {
+   await client.query(
+      `INSERT INTO leads 
+       (partner_profile_ids, user_id, leads_status, is_deleted)  
+       VALUES ($1::uuid[], $2, 'new', false)`,
+      [professionalIds, userId]
+    );
+  } catch (error: unknown) {
+    console.error("Error creating lead:", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId,
+      professionalIds,
+    });
 
-
+    throw new Error("Failed to create lead.");
+  } 
+};
