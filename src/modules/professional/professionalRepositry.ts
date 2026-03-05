@@ -1311,10 +1311,24 @@ export const leadCreatedByProfessionalService = async (
 
     try {
         for (const professionalId of professionalIds) {
+
+            // Check if lead already exists for this user + professional
+            const existing = await client.query(
+                `SELECT id FROM leads_Schema 
+                 WHERE user_id = $1 
+                 AND partner_profile_ids = $2 
+                 AND is_deleted = false`,
+                [userId, professionalId]
+            );
+
+            if (existing.rows.length > 0) {
+                throw new Error(`Professional ${professionalId} has already been added as a lead`);
+            }
+
             await client.query(
                 `INSERT INTO leads_Schema 
-        (partner_profile_ids, user_id, leads_status, is_deleted)  
-        VALUES ($1, $2, 'new', false)`,
+                 (partner_profile_ids, user_id, leads_status, is_deleted)  
+                 VALUES ($1, $2, 'new', false)`,
                 [professionalId, userId]
             );
         }
@@ -1418,7 +1432,7 @@ export const getAllLeadsForUser = async (userId: string): Promise<PartnerProfile
         const role_id = roleIdMap.get(profileId) ?? null;
         const roleName = role_id ? roleNameMap.get(role_id) : null;
 
-        if (roleName === "professional") {
+        if (roleName === "Professional") {
             const professionalAccount = await client.query(
                 `SELECT professional_profile_id FROM professional_accounts WHERE user_id = $1`,
                 [profileId]
@@ -1449,7 +1463,7 @@ export const getAllLeadsForUser = async (userId: string): Promise<PartnerProfile
                 requestingUser,
             });
 
-        } else if (roleName === "user") {
+        } else if (roleName === "User") {
             const userResult = await client.query(
                 `SELECT name, email FROM users WHERE id = $1`,
                 [profileId]
