@@ -2,7 +2,7 @@
 import { connectDB, getDB } from "../../core/config/db";
 import { sendProfessionalWelcomeEmail } from "../../core/services/emailService";
 import { csvUser } from "../../interface/auth";
-import { GetProfessionalsParams, GetProfessionalsResponse, InsertResult, professionalProfileResponse, ProfessionalProfileResponse } from "../../interface/professional";
+import { GetProfessionalsParams, GetProfessionalsResponse, InsertResult, PartnerProfile, professionalProfileResponse, ProfessionalProfileResponse, RequestingUser } from "../../interface/professional";
 import bcrypt from "bcryptjs";
 import { getSignedFileUrl } from "../../core/services/s3UploadService";
 
@@ -1123,7 +1123,7 @@ export async function fetchSortedProfessionals(
 
     const query = `
     SELECT
-      pp.id                   AS profile_id,
+      pp.id                   AS professional_profile_id,
       pp.company_name,
       pp.category,
       pp.description,
@@ -1142,17 +1142,20 @@ export async function fetchSortedProfessionals(
       pp.image_url,
 
       pa.plan                 AS plan_name,
+      pa.account_status, 
+      pa.user_id     AS userID,                  -- ✅ select it too (optional, for debugging)
 
       sp.plan_name            AS subscription_plan_name,
       sp.appear_in_search,
       sp.premium_profile_badge
     FROM professional_profiles pp
-    LEFT JOIN professional_accounts pa
+    INNER JOIN professional_accounts pa          -- ✅ INNER JOIN: excludes profiles with no account
       ON pa.professional_profile_id = pp.id
+      AND pa.account_status = 'active'             -- ✅ only active accounts
     LEFT JOIN subscrptionPlans sp
       ON sp.id = pa.subscription_plan_id
     ${whereClause}
-  `;
+`;
 
     const result = await client.query(query, values);
 
@@ -1193,7 +1196,7 @@ export async function fetchSortedProfessionals(
         offset,
         user_location: { lat: userLat, lng: userLng },
         data: paginated.map((pro) => ({
-            id: pro.profile_id,
+            id: pro.userid, // ✅ return userID for frontend to fetch profile details
             company_name: pro.company_name,
             category: pro.category,
             description: pro.description,
@@ -1309,10 +1312,10 @@ export const leadCreatedByProfessionalService = async (
     try {
         for (const professionalId of professionalIds) {
             await client.query(
-        `INSERT INTO leads_Schema 
+                `INSERT INTO leads_Schema 
         (partner_profile_ids, user_id, leads_status, is_deleted)  
         VALUES ($1, $2, 'new', false)`,
-        [professionalId, userId]
+                [professionalId, userId]
             );
         }
     } catch (error: unknown) {
@@ -1328,20 +1331,143 @@ export const leadCreatedByProfessionalService = async (
 };
 
 
-// const getAllLeadsForUser = async (userId: string): Promise<void> => {
-//     const client = await getDB();   
-//     const result = await client.query(  
-//         `SELECT id, partner_profile_ids, leads_status, created_at, updated_at
-//          FROM leads_Schema
-//          WHERE user_id = $1 AND is_deleted = false`,
-//         [userId]
-//     );  
-//      result.rows.map((row) => ({
-//         id: row.id,
-//         partnerProfileIds: row.partner_profile_ids,
-//         leadsStatus: row.leads_status,
-//         createdAt: row.created_at,
-//         updatedAt: row.updated_at,
-//     }));  
-// }
+
+
+
+/**
+ * Retrieves all leads associated with a specific user and returns
+ * detailed partner profile information for each lead.
+ *
+ * The function performs the following operations:
+ * 1. Fetches all lead records for the given user from the `leads_Schema` table.
+ * 2. Extracts all `partner_profile_ids` linked to those leads.
+ * 3. Retrieves the roles of those users from the `users` table.
+ * 4. Maps role IDs to role names using the `roles` table.
+ * 5. Retrieves the requesting user's professional profile and description.
+ * 6. For each partner profile:
+ *    - If the role is `professional`, it fetches company and location details
+ *      from the `professional_profiles` table.
+ *    - If the role is `user`, it fetches basic user details from the `users` table.
+ * 7. Constructs a unified `PartnerProfile` response containing the partner details
+ *    and the requesting user's information.
+ *
+ * @async
+ * @function getAllLeadsForUser
+ * @param {string} userId - The unique identifier of the user whose leads are being retrieved.
+ * @returns {Promise<PartnerProfile[]>} A promise that resolves to an array of partner profile objects,
+ * each containing role-specific details and information about the requesting user.
+ *
+ * @throws {Error} Throws an error if any database query fails.
+ */
+export const getAllLeadsForUser = async (userId: string): Promise<PartnerProfile[]> => {
+    const client = await getDB();
+
+    const result = await client.query(
+        `SELECT id, partner_profile_ids, leads_status, created_at, updated_at
+         FROM leads_Schema
+         WHERE user_id = $1 AND is_deleted = false`,
+        [userId]
+    );
+
+    const allPartnerProfileIds: string[] = result.rows.flatMap(
+        (lead) => lead.partner_profile_ids ?? []
+    );
+
+    const rolesResult = await client.query(
+        `SELECT id, role_id FROM users WHERE id = ANY($1)`,
+        [allPartnerProfileIds]
+    );
+
+    const roleIdMap = new Map<string, string>(
+        rolesResult.rows.map((user) => [user.id, user.role_id])
+    );
+
+    const allRoleIds = [...new Set(rolesResult.rows.map((user) => user.role_id))];
+
+    const roleNamesResult = await client.query(
+        `SELECT id, name FROM roles WHERE id = ANY($1)`,
+        [allRoleIds]
+    );
+
+    const roleNameMap = new Map<string, string>(
+        roleNamesResult.rows.map((role) => [role.id, role.name])
+    );
+
+    const requestingUserAccount = await client.query(
+        `SELECT professional_profile_id FROM professional_accounts WHERE user_id = $1`,
+        [userId]
+    );
+
+    const requestingUserProfileId: string | null =
+        requestingUserAccount.rows[0]?.professional_profile_id ?? null;
+
+    const requestingUserDescription = await client.query(
+        `SELECT description FROM professional_profiles WHERE id = $1`,
+        [requestingUserProfileId]
+    );
+
+    const requestingUser: RequestingUser = {
+        userId,
+        professionalProfileId: requestingUserProfileId,
+        description: requestingUserDescription.rows[0]?.description ?? null,
+    };
+
+    const response: PartnerProfile[] = [];
+
+    for (const profileId of allPartnerProfileIds) {
+        const role_id = roleIdMap.get(profileId) ?? null;
+        const roleName = role_id ? roleNameMap.get(role_id) : null;
+
+        if (roleName === "professional") {
+            const professionalAccount = await client.query(
+                `SELECT professional_profile_id FROM professional_accounts WHERE user_id = $1`,
+                [profileId]
+            );
+
+            const professionalProfileId: string | null =
+                professionalAccount.rows[0]?.professional_profile_id ?? null;
+
+            const professionalProfile = await client.query(
+                `SELECT company_name, city, state, address, latitude, longitude 
+                 FROM professional_profiles WHERE id = $1`,
+                [professionalProfileId]
+            );
+
+            const profile = professionalProfile.rows[0];
+
+            response.push({
+                userId: profileId,
+                role: "professional",
+                company_name: profile?.company_name ?? null,
+                location: {
+                    city: profile?.city ?? null,
+                    state: profile?.state ?? null,
+                    address: profile?.address ?? null,
+                    latitude: profile?.latitude ?? null,
+                    longitude: profile?.longitude ?? null,
+                },
+                requestingUser,
+            });
+
+        } else if (roleName === "user") {
+            const userResult = await client.query(
+                `SELECT name, email FROM users WHERE id = $1`,
+                [profileId]
+            );
+
+            const user = userResult.rows[0];
+
+            response.push({
+                userId: profileId,
+                role: "user",
+                name: user?.name ?? null,
+                email: user?.email ?? null,
+                requestingUser,
+            });
+        }
+    }
+
+    return response;
+};
+
 

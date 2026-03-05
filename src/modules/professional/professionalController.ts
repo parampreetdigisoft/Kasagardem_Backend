@@ -4,7 +4,7 @@ import { AuthUserPayload } from "../../interface/user";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import { errorResponse, successResponse } from "../../core/utils/responseFormatter";
 import { findUserByEmail } from "../auth/authRepository";
-import { createProfessionalsService, fetchSortedProfessionals, getAllProfessionalProfilesDb, getProfessionalDataById, leadCreatedByProfessionalService, professionalProfileById, registerProfessionalService } from "./professionalRepositry";
+import { createProfessionalsService, fetchSortedProfessionals, getAllLeadsForUser, getAllProfessionalProfilesDb, getProfessionalDataById, leadCreatedByProfessionalService, professionalProfileById, registerProfessionalService } from "./professionalRepositry";
 import { getProfessionalProfileById } from "../userProfile/userProfileModel";
 import { deleteFileFromS3, uploadBase64ToS3 } from "../../core/services/s3UploadService";
 import { error, warn } from "../../core/utils/logger";
@@ -671,35 +671,57 @@ export async function leadCreatedByProfessional(req: AuthRequest, res: Response)
   }
 }
 
-// export async function getAllLeads(req: AuthRequest, res: Response): Promise<void> {
-//   try {
-//     const userPayload = req.user as AuthUserPayload | undefined;
-//     if (!userPayload?.userEmail) {
-//       res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
-//       return;
-//     }
-//     const user = await findUserByEmail(userPayload.userEmail);
-//     if (!user) {
-//       res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
-//       return;
-//     }
-//     if (!user.id) {
-//       res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Invalid user ID"));
-//       return;
-//     }
 
-//     // const leads = await getAllLeadsForUser(user.id);
+/**
+ * Retrieves all leads associated with the authenticated user.
+ *
+ * This endpoint performs the following steps:
+ * 1. Extracts the authenticated user's email from the request payload.
+ * 2. Verifies that the user exists in the system.
+ * 3. Fetches all leads associated with the user's ID.
+ * 4. Returns the leads in a standardized success response.
+ *
+ * If authentication fails or the user is not found, an `UNAUTHORIZED` response is returned.
+ * If an unexpected error occurs, an `INTERNAL_SERVER_ERROR` response is returned.
+ *
+ * @async
+ * @function getAllLeads
+ * @param {AuthRequest} req - Express request object containing the authenticated user payload.
+ * @param {Response} res - Express response object used to return the API response.
+ * @returns {Promise<void>} Resolves when the response is sent.
+ *
+ * @throws Will return a 401 status if the user is not authenticated or not found.
+ * @throws Will return a 500 status if an internal error occurs while retrieving leads.
+ */
+export async function getAllLeads(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const userPayload = req.user as AuthUserPayload | undefined;
+    if (!userPayload?.userEmail) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    }
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+      return;
+    }
+    if (!user.id) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Invalid user ID"));
+      return;
+    }
 
-//     // res.status(HTTP_STATUS.OK).json(successResponse(leads, "Leads retrieved successfully"));
-//   } catch (error) {
-//     console.error("Error in getAllLeads:", error);
-//     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
-//       errorResponse(
-//         "Failed to retrieve leads",
-//         {
-//           message: error instanceof Error ? error.message : String(error),
-//         }
-//       )
-//     );
-//   }
-// }
+    const leads = await getAllLeadsForUser(user.id);
+
+    res.status(HTTP_STATUS.OK).json(successResponse(leads, "Leads retrieved successfully"));
+  } catch (error) {
+    console.error("Error in getAllLeads:", error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse(
+        "Failed to retrieve leads",
+        {
+          message: error instanceof Error ? error.message : String(error),
+        }
+      )
+    );
+  }
+}
