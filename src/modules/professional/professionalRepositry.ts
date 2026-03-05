@@ -494,7 +494,7 @@ export const getAllProfessionalProfilesDb = async (
         companyName: row.company_name,
         email: row.email,
         category: row.category,
-        image_url:row.image_url,
+        image_url: row.image_url,
         description: row.description,
 
         location: {
@@ -1032,7 +1032,7 @@ function haversineDistance(
  * const radians = toRad(180);
  * console.log(radians); // 3.141592653589793 (π)
  */
-    const toRad = (deg: number):number  => (deg * Math.PI) / 180;
+    const toRad = (deg: number): number => (deg * Math.PI) / 180;
 
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
@@ -1248,7 +1248,7 @@ export async function fetchSortedProfessionals(
  * - Throws an error if the professional profile does not exist.
  * - Throws an error if any database operation fails.
  */
-export const professionalProfileById = async (id: string): Promise< professionalProfileResponse> => {
+export const professionalProfileById = async (id: string): Promise<professionalProfileResponse> => {
     const client = await getDB();
 
     const usertableResult = await client.query(
@@ -1261,7 +1261,7 @@ export const professionalProfileById = async (id: string): Promise< professional
     }
 
     const result = await client.query(
-        `SELECT  profile_image, subscription_plan_id,trial_start_date,trial_end_date from professional_accounts where user_id = $1`,
+        `SELECT  profile_image, subscription_plan_id,trial_start_date ,trial_end_date ,account_status from professional_accounts where user_id = $1`,
         [id]
     );
 
@@ -1283,9 +1283,10 @@ export const professionalProfileById = async (id: string): Promise< professional
         email: usertableResult.rows[0].email,
         imageUrl: profile_image,
         subscriptionPlan: subscriptionPlanRow ? subscriptionPlanRow.plan_name : "trial",
-        trialStartDate: row.trial_start_date,
-        trialEndDate: row.trial_end_date,
-    }; 
+        StartDate: row.trial_start_date,
+        EndDate: row.trial_end_date,
+        AccountStatus: row.account_status,
+    };
 
 }
 
@@ -1300,26 +1301,47 @@ export const professionalProfileById = async (id: string): Promise< professional
  * @throws {Error} If insertion fails.
  */
 export const leadCreatedByProfessionalService = async (
-  professionalIds: string[],
-  userId: string
+    professionalIds: string[],
+    userId: string
 ): Promise<void> => {
-  const client = await getDB();
+    const client = await getDB();
 
- try {
-   await client.query(
-      `INSERT INTO leads 
-       (partner_profile_ids, user_id, leads_status, is_deleted)  
-       VALUES ($1::uuid[], $2, 'new', false)`,
-      [professionalIds, userId]
-    );
-  } catch (error: unknown) {
-    console.error("Error creating lead:", {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      userId,
-      professionalIds,
-    });
+    try {
+        for (const professionalId of professionalIds) {
+            await client.query(
+        `INSERT INTO leads_Schema 
+        (partner_profile_ids, user_id, leads_status, is_deleted)  
+        VALUES ($1, $2, 'new', false)`,
+        [professionalId, userId]
+            );
+        }
+    } catch (error: unknown) {
+        console.error("Error creating lead:", {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            userId,
+            professionalIds,
+        });
 
-    throw new Error("Failed to create lead.");
-  } 
+        throw new Error("Failed to create lead.");
+    }
 };
+
+
+// const getAllLeadsForUser = async (userId: string): Promise<void> => {
+//     const client = await getDB();   
+//     const result = await client.query(  
+//         `SELECT id, partner_profile_ids, leads_status, created_at, updated_at
+//          FROM leads_Schema
+//          WHERE user_id = $1 AND is_deleted = false`,
+//         [userId]
+//     );  
+//      result.rows.map((row) => ({
+//         id: row.id,
+//         partnerProfileIds: row.partner_profile_ids,
+//         leadsStatus: row.leads_status,
+//         createdAt: row.created_at,
+//         updatedAt: row.updated_at,
+//     }));  
+// }
+

@@ -21,6 +21,7 @@ import myPlantRoutes from "./modules/myPlants/myPlantRoute";
 import professionalRoutes from "./modules/professional/professionalRoutes";
 import translationMiddleware from "./core/middleware/translationMiddleware";
 import { connectDB } from "./core/config/db";
+// import { createLeadsTable } from "./db/createLeadSchemaTables";
 const app = express();
 setupSwagger(app);
 
@@ -44,6 +45,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(translationMiddleware()); // enable translation globally
 // User Authentication Routes
 // createSubscriptionPlans();
+// createLeadsTable();
 // plan_addons();
 app.use("/api/v1/auth", authRoutes);
 // User Role Routes

@@ -670,3 +670,36 @@ export async function leadCreatedByProfessional(req: AuthRequest, res: Response)
     );
   }
 }
+
+// export async function getAllLeads(req: AuthRequest, res: Response): Promise<void> {
+//   try {
+//     const userPayload = req.user as AuthUserPayload | undefined;
+//     if (!userPayload?.userEmail) {
+//       res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+//       return;
+//     }
+//     const user = await findUserByEmail(userPayload.userEmail);
+//     if (!user) {
+//       res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+//       return;
+//     }
+//     if (!user.id) {
+//       res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Invalid user ID"));
+//       return;
+//     }
+
+//     // const leads = await getAllLeadsForUser(user.id);
+
+//     // res.status(HTTP_STATUS.OK).json(successResponse(leads, "Leads retrieved successfully"));
+//   } catch (error) {
+//     console.error("Error in getAllLeads:", error);
+//     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+//       errorResponse(
+//         "Failed to retrieve leads",
+//         {
+//           message: error instanceof Error ? error.message : String(error),
+//         }
+//       )
+//     );
+//   }
+// }

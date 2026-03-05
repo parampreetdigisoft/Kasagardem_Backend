@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import { uploadCsv } from "../../core/middleware/uploadCsv";
 import { extractUsersFromCsv } from "../../core/middleware/extractUserFromCsv";
-import { createProfessionlals, getAllProfessionalProfiles, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  registerProfessionals, updateProfessionalProfile  } from "./professionalController";
+import { createProfessionlals, getAllLeads, getAllProfessionalProfiles, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  registerProfessionals, updateProfessionalProfile  } from "./professionalController";
 const router: Router = express.Router();
 
 /**
@@ -445,6 +445,9 @@ router.patch("/update", auth,  updateProfessionalProfile);
  *         description: Failed to create leads
  */
 router.post("/createLeads", auth , leadCreatedByProfessional);
+
+
+router.get("/getLeads",auth, getAllLeads);
 
 
  

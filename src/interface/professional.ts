@@ -107,6 +107,7 @@ export interface professionalProfileResponse{
     email: string;
     imageUrl: string | null;
     subscriptionPlan: string;
-    trialStartDate: Date | null;
-    trialEndDate: Date | null;
+    StartDate: Date | null;
+    EndDate: Date | null;
+    AccountStatus: string;
 }
