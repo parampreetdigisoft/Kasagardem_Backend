@@ -111,3 +111,37 @@ export interface professionalProfileResponse{
     EndDate: Date | null;
     AccountStatus: string;
 }
+
+
+
+export interface Location {
+    city: string | null;
+    state: string | null;
+    address: string | null;
+    latitude: number | null;
+    longitude: number | null;
+}
+
+export interface RequestingUser {
+    userId: string;
+    professionalProfileId: string | null;
+    description: string | null;
+}
+
+export interface ProfessionalPartner {
+    userId: string;
+    role: "professional";
+    company_name: string | null;
+    location: Location;
+    requestingUser: RequestingUser;
+}
+
+export interface UserPartner {
+    userId: string;
+    role: "user";
+    name: string | null;
+    email: string | null;
+    requestingUser: RequestingUser;
+}
+
+export type PartnerProfile = ProfessionalPartner | UserPartner;
