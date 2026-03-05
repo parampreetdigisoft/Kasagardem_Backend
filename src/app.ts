@@ -19,6 +19,7 @@ import subscriptionRoutes from "./modules/subscription/subscriptionRoutes";
 import externalLinksRoutes from "./modules/admin/externalLinks/externalLinksRoutes";
 import myPlantRoutes from "./modules/myPlants/myPlantRoute";
 import professionalRoutes from "./modules/professional/professionalRoutes";
+import suppliersRoutes from "./modules/suppliers/suppliersRoutes";
 import translationMiddleware from "./core/middleware/translationMiddleware";
 import { connectDB } from "./core/config/db";
 // import { createLeadsTable } from "./db/createLeadSchemaTables";
@@ -44,9 +45,7 @@ app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(translationMiddleware()); // enable translation globally
 // User Authentication Routes
-// createSubscriptionPlans();
-// createLeadsTable();
-// plan_addons();
+// createSuppliersProfilesTable();
 app.use("/api/v1/auth", authRoutes);
 // User Role Routes
 app.use("/api/v1/roles", roleRoutes);
@@ -76,6 +75,8 @@ app.use("/api/v1/externalLinks",externalLinksRoutes);
 app.use("/api/v1/professional", professionalRoutes);  
 // Error handler (must be last middleware)
 app.use("/api/v1/allplants", myPlantRoutes);
+
+app.use("/api/v1/suppliers",suppliersRoutes);
 // registerBlockExpiredTrialsCron();
 app.use(errorHandler);
 

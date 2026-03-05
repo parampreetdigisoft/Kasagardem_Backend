@@ -59,6 +59,7 @@ const options = {
     "./src/modules/admin/externalLinks/*.ts",
     "./src/modules/myPlants/*.ts",
     "./src/modules/professional/*.ts",
+    "./src/modules/suppliers/*.ts",
   ],
 };
 
