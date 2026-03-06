@@ -1494,3 +1494,109 @@ export const getAllLeadsForUser = async (userId: string): Promise<PartnerProfile
 };
 
 
+
+/**
+ * Retrieves a professional profile from the database by its ID.
+ *
+ * Queries the `professional_profiles` table for the row matching the given `id`.
+ * Returns a structured `ProfessionalProfileResponse` object including company info,
+ * location, contact details, ratings, and verification status.
+ *
+ * @async
+ * @function getProfessionalProfileByIdService
+ * @param {string} id - The unique identifier of the professional profile to retrieve.
+ *
+ * @throws {Error} Throws an error if no professional profile is found with the given ID.
+ *
+ * @returns {Promise<ProfessionalProfileResponse>} - A promise that resolves to an object containing:
+ *   - id: string
+ *   - companyName: string | null
+ *   - email: string | null
+ *   - category: string | null
+ *   - description: string | null
+ *   - location: {
+ *       city: string | null,
+ *       state: string | null,
+ *       address: string | null,
+ *       latitude: number | null,
+ *       longitude: number | null
+ *     }
+ *   - contact: {
+ *       telefone: string | null,
+ *       whatsapp: string | null,
+ *       website: string | null,
+ *       instagram: string | null
+ *     }
+ *   - ratings: {
+ *       assessment: number | null,
+ *       numAvaliacoes: number
+ *     }
+ *   - verifiedSource: string | null
+ *   - createdAt: Date
+ *   - updatedAt: Date
+ *
+ * @example
+ * const profile = await getProfessionalProfileByIdService("12345");
+ * console.log(profile.companyName);
+ */
+export const getProfessionalProfileByIdService = async (id: string): Promise<ProfessionalProfileResponse> => {
+    const client = await getDB();
+    const result = await client.query(
+        `SELECT pp.id,
+         pp.company_name,
+          pp.category,
+          pp.description,
+          pp.city,
+           pp.state,
+            pp.address,
+             pp.latitude,
+              pp.longitude,
+               pp.telefone,
+                pp.whatsapp,
+                 pp.website,
+                  pp.instagram,
+                   pp.assessment,
+                    pp.num_avaliacoes,
+                     pp.verified_source,
+                      pp.image_url
+
+         FROM professional_profiles pp
+         WHERE pp.id = $1`,
+        [id]
+    );
+    const row = result.rows[0];
+    if (!row) {
+        throw new Error("Professional profile not found for ID: " + id);
+    }
+    return {
+        id: row.id,
+        companyName: row.company_name,
+        email: row.email ?? null,
+        category: row.category ?? null,
+        description: row.description ?? null,
+
+        location: {
+            city: row.city ?? null,
+            state: row.state ?? null,
+            address: row.address ?? null,
+            latitude: row.latitude ?? null,
+            longitude: row.longitude ?? null,
+        },
+
+        contact: {
+            telefone: row.telefone ?? null,
+            whatsapp: row.whatsapp ?? null,
+            website: row.website ?? null,
+            instagram: row.instagram ?? null,
+        },
+
+        ratings: {
+            assessment: row.assessment ?? null,
+            numAvaliacoes: row.num_avaliacoes ?? 0,
+        },
+
+        verifiedSource: row.verified_source ?? null,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}

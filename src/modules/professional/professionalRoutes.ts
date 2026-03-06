@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import { uploadCsv } from "../../core/middleware/uploadCsv";
 import { extractUsersFromCsv } from "../../core/middleware/extractUserFromCsv";
-import { createProfessionlals,  getAllLeads,  getAllProfessionalProfiles, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  registerProfessionals, updateProfessionalProfile  } from "./professionalController";
+import { createProfessionlals,  getAllLeads,  getAllProfessionalProfiles, getprofessionalsById, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  registerProfessionals, updateProfessionalProfile  } from "./professionalController";
 const router: Router = express.Router();
 
 /**
@@ -523,6 +523,49 @@ router.post("/createLeads", auth , leadCreatedByProfessional);
 router.get("/getLeads",auth, getAllLeads);
 
 
+/**
+ * @swagger
+ * /getProfessionalsById/{id}:
+ *   get:
+ *     summary: Get a professional by ID
+ *     description: Retrieves the details of a professional using their unique ID. Authentication is required.
+ *     tags:
+ *       - Professionals
+ *     security:
+ *       - bearerAuth: [] 
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Unique identifier of the professional
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Professional details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                 name:
+ *                   type: string
+ *                 profession:
+ *                   type: string
+ *                 email:
+ *                   type: string
+ *                 phone:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized – missing or invalid token
+ *       404:
+ *         description: Professional not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/getProfessionalsById/:id", auth, getprofessionalsById);
  
 
 export default router;

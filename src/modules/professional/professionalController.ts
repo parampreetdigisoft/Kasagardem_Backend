@@ -4,7 +4,7 @@ import { AuthUserPayload } from "../../interface/user";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import { errorResponse, successResponse } from "../../core/utils/responseFormatter";
 import { findUserByEmail } from "../auth/authRepository";
-import { createProfessionalsService, fetchSortedProfessionals, getAllLeadsForUser, getAllProfessionalProfilesDb, getProfessionalDataById, leadCreatedByProfessionalService, professionalProfileById, registerProfessionalService } from "./professionalRepositry";
+import { createProfessionalsService, fetchSortedProfessionals, getAllLeadsForUser, getAllProfessionalProfilesDb, getProfessionalDataById, getProfessionalProfileByIdService, leadCreatedByProfessionalService, professionalProfileById, registerProfessionalService } from "./professionalRepositry";
 import { getProfessionalProfileById } from "../userProfile/userProfileModel";
 import { deleteFileFromS3, uploadBase64ToS3 } from "../../core/services/s3UploadService";
 import { error, warn } from "../../core/utils/logger";
@@ -718,6 +718,71 @@ export async function getAllLeads(req: AuthRequest, res: Response): Promise<void
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
       errorResponse(
         "Failed to retrieve leads",
+        {
+          message: error instanceof Error ? error.message : String(error),
+        }
+      )
+    );
+  }
+}
+
+/**
+ * Retrieves a professional profile by its ID.
+ *
+ * This function expects the request to be authenticated. It will:
+ *   1. Check if the user is authenticated via `req.user`.
+ *   2. Verify the authenticated user exists in the database.
+ *   3. Retrieve the professional profile corresponding to the `id` parameter.
+ *
+ * @async
+ * @function getprofessionalsById
+ * @param {AuthRequest} req - The request object containing user info and route parameters.
+ * @param {Response} res - The response object used to send the API response.
+ *
+ * @returns {Promise<void>} - Sends a JSON response with either:
+ *   - 200 OK: the professional profile if found.
+ *   - 400 Bad Request: if `id` is missing.
+ *   - 401 Unauthorized: if user is not authenticated or not found.
+ *   - 404 Not Found: if professional profile is not found.
+ *   - 500 Internal Server Error: if any unexpected error occurs.
+ *
+ * @example
+ * // Example usage in Express
+ * router.get("/getProfessionalsById/:id", auth, getprofessionalsById);
+ */
+export async function getprofessionalsById(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const userPayload = req.user as AuthUserPayload | undefined;
+
+    if (!userPayload?.userEmail) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    }
+
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+      return;
+    }
+
+    const professionalId = req.params.id;
+    if (!professionalId) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Professional ID is required"));
+      return;
+    }
+
+    const professionalProfile = await getProfessionalProfileByIdService(professionalId);
+    if (!professionalProfile) {
+      res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Professional profile not found"));
+      return;
+    }
+
+    res.status(HTTP_STATUS.OK).json(successResponse(professionalProfile, "Professional profile retrieved successfully"));
+  } catch (error) {
+    console.error("Error in getprofessionalsById:", error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse(
+        "Failed to retrieve professional profile",
         {
           message: error instanceof Error ? error.message : String(error),
         }
