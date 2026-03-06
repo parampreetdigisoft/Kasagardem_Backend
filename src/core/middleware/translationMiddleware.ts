@@ -9,6 +9,7 @@ import {
 
 export const translationCache = new NodeCache({ stdTTL: 86400 }); // Cache for 24 hours
 
+
 /**
  * Check if a key should be excluded from translation
  * @param {string} key - The key to check
@@ -58,7 +59,9 @@ function shouldSkipKey(key: string): boolean {
     "next_pruned_at",
     "next_generic_care_at",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "startdate",
+    "enddate",
   ];
  
   if (skipFields.some((field) => lowerKey.includes(field))) {
@@ -268,7 +271,6 @@ function translationMiddleware(defaultLang: string = "pt") {
           const langCode = primaryLang?.split("-")[0]?.toLowerCase();
           targetLang = langCode || defaultLang;
         }
-
         if (targetLang !== "en" && typeof body === "object" && body !== null) {
           const translatedBody = await translateObject(
             body as TranslatableValue,
