@@ -62,6 +62,11 @@ function shouldSkipKey(key: string): boolean {
     "updated_at",
     "startdate",
     "enddate",
+    "appear_in_search",
+    "premium_profile_badge",
+    "priority_customer_support",
+    "highlight_in_result",
+    "verification_badge",
   ];
  
   if (skipFields.some((field) => lowerKey.includes(field))) {

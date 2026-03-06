@@ -457,38 +457,45 @@ export const getAllProfessionalProfilesDb = async (
 }> => {
     const client = await getDB();
 
+    // Fetch professionals with pagination
     const result = await client.query(
         `SELECT
-            id,
-            company_name,
-            email,
-            category,
-            description,
-            city,
-            state,
-            address,
-            latitude,
-            longitude,
-            telefone,
-            whatsapp,
-            website,
-            instagram,
-            assessment,
-            num_avaliacoes,
-            verified_source,
-            created_at,
-            updated_at
-        FROM professional_profiles
-        ORDER BY created_at ASC
+            p.id,
+            p.company_name,
+            p.email,
+            p.category,
+            p.description,
+            p.image_url,
+            p.city,
+            p.state,
+            p.address,
+            p.latitude,
+            p.longitude,
+            p.telefone,
+            p.whatsapp,
+            p.website,
+            p.instagram,
+            p.assessment,
+            p.num_avaliacoes,
+            p.verified_source,
+            p.created_at,
+            p.updated_at,
+            pa.id AS professional_account_id
+        FROM professional_profiles p
+        LEFT JOIN professional_accounts pa
+        ON p.id = pa.professional_profile_id
+        ORDER BY p.created_at ASC
         LIMIT $1 OFFSET $2`,
         [limit, offset]
     );
 
+    // Get total count
     const countResult = await client.query(
         `SELECT COUNT(*) FROM professional_profiles`
     );
     const totalCount = parseInt(countResult.rows[0].count, 10);
 
+    // Map rows to response
     const professionals = result.rows.map((row) => ({
         id: row.id,
         companyName: row.company_name,
@@ -520,11 +527,13 @@ export const getAllProfessionalProfilesDb = async (
         verifiedSource: row.verified_source,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
+
+        // Add the registered flag based on whether a professional account exists
+        registered: !!row.professional_account_id, // true if exists, false otherwise
     }));
 
     return { professionals, totalCount };
 };
-
 /**
  * Retrieves a professional profile by its unique ID.
  *

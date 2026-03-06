@@ -93,9 +93,7 @@ export const createPlanValidation: ObjectSchema = Joi.object({
 // Update Plan Validation (same as create)
 export const updatePlanValidation: ObjectSchema = Joi.object({
   //  Explicitly forbid plan_name
-  plan_name: Joi.forbidden().messages({
-    "any.unknown": "Plan name cannot be updated",
-  }),
+  
   id: Joi.string().required().messages({
     "string.base": "Plan ID must be a string",
     "any.required": "Plan ID is required",
@@ -107,34 +105,34 @@ export const updatePlanValidation: ObjectSchema = Joi.object({
     "any.required": "Description is required",
   }),
 
-  monthly_price: Joi.number().required().messages({
+  price_monthly: Joi.number().required().messages({
     "number.base": "Monthly price must be a number",
     "any.required": "Monthly price is required",
   }),
 
-  annual_price: Joi.number().required().messages({
+  price_annual: Joi.number().required().messages({
     "number.base": "Annual price must be a number",
     "any.required": "Annual price is required",
   }),
 
-  lead_limit_per_month: Joi.number().integer().required().messages({
-    "number.base": "Lead limit must be a number",
-    "number.integer": "Lead limit must be an integer",
-    "any.required": "Lead limit per month is required",
-  }),
+  // leads_limit: Joi.number().integer().min(0).required().messages({
+  //   "number.base": "Lead limit must be a number",
+  //   "number.integer": "Lead limit must be an integer",
+  //   "any.required": "Lead limit per month is required",
+  // }),
 
-  number_of_regions: Joi.number().integer().required().messages({
+  cities_coverage: Joi.number().integer().required().messages({
     "number.base": "Number of regions must be a number",
     "number.integer": "Number of regions must be an integer",
     "any.required": "Number of regions is required",
   }),
 
-  highlight_in_result: Joi.boolean().required().messages({
+  appear_in_search: Joi.boolean().required().messages({
     "boolean.base": "Highlight in result must be true or false",
     "any.required": "Highlight in result is required",
   }),
 
-  verification_badge: Joi.boolean().required().messages({
+  premium_profile_badge: Joi.boolean().required().messages({
     "boolean.base": "Verification badge must be true or false",
     "any.required": "Verification badge is required",
   }),

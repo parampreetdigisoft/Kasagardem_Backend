@@ -114,15 +114,16 @@ export const updateSubscriptionPlan = async (
     SET 
       plan_name = $1,
       description = $2,
-      monthly_price = $3,
-      annual_price = $4,
-      lead_limit_per_month = $5,
-      number_of_regions = $6,
-      highlight_in_result = $7,
-      verification_badge = $8,
-      status = $9,
+      price_monthly = $3,
+      price_annual = $4,
+      leads_limit = $5,
+      cities_coverage = $6,
+      appear_in_search = $7,
+      premium_profile_badge = $8,
+      priority_customer_support=$9,
+      status = $10,
       updated_at = CURRENT_TIMESTAMP
-    WHERE id = $10
+    WHERE id = $11
     RETURNING *;
   `;
 
@@ -135,6 +136,7 @@ export const updateSubscriptionPlan = async (
     updates.cities_coverage,
     updates.appear_in_search,
     updates.premium_profile_badge,
+    updates.priority_customer_support,
     updates.status,
     planId,
   ];

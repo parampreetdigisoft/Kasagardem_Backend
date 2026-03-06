@@ -62,12 +62,27 @@ router.post(
  * @swagger
  * /api/v1/professional:
  *   get:
- *     summary: Get all professional profiles
- *     description: Retrieve a list of all professional profiles. Requires authentication.
+ *     summary: Get all professional profiles (Admin only)
+ *     description: Retrieve a paginated list of all professional profiles. Requires Admin authentication.
  *     tags:
  *       - Professionals
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *         description: Number of professionals per page
  *     responses:
  *       200:
  *         description: Professional profiles retrieved successfully
@@ -76,41 +91,45 @@ router.post(
  *             schema:
  *               type: object
  *               properties:
- *                 message:
- *                   type: string
- *                   example: Professional profiles fetched successfully
- *                 data:
+ *                 currentPage:
+ *                   type: integer
+ *                   example: 1
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 10
+ *                 totalCount:
+ *                   type: integer
+ *                   example: 50
+ *                 limit:
+ *                   type: integer
+ *                   example: 5
+ *                 professionals:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
  *                       id:
  *                         type: string
- *                         example: 64f123abc456def789ghi012
- *                       firstName:
+ *                         example: b3bf7ac3-7724-40ff-b998-c353f231412f
+ *                       companyName:
  *                         type: string
- *                         example: John
- *                       lastName:
- *                         type: string
- *                         example: Doe
+ *                         example: ABC Landscaping
  *                       email:
  *                         type: string
- *                         example: john.doe@example.com
- *                       profession:
+ *                         example: contact@abclandscaping.com
+ *                       category:
  *                         type: string
- *                         example: Software Engineer
- *                       createdAt:
+ *                         example: Gardening
+ *                       image_url:
  *                         type: string
- *                         format: date-time
- *                         example: 2024-01-15T10:30:00Z
- *                       updatedAt:
+ *                         example: https://example.com/profile.jpg
+ *                       description:
  *                         type: string
- *                         format: date-time
- *                         example: 2024-01-20T12:00:00Z
+ *                         example: Professional gardening services
  *       401:
- *         description: Unauthorized - Authentication required
+ *         description: Unauthorized - Authentication required or invalid role
  *       500:
- *         description: Server error
+ *         description: Internal server error
  */
 router.get("/", auth, getAllProfessionalProfiles);
 

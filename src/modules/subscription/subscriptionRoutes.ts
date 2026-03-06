@@ -1,7 +1,7 @@
 import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import validateRequest from "../../core/middleware/validateRequest";
-import { createPlanValidation, updatePlanValidation } from "./subscriptionValidation";
+import { createPlanValidation } from "./subscriptionValidation";
 import { CreatePlan, getPlans, updatePlan, updateSubscriptionStatusById } from "./subscriptionController";
 
 
@@ -193,7 +193,7 @@ router.get("/", auth, getPlans);
  *       404:
  *         description: Plan not found
  */
-router.put("/update", auth, validateRequest(updatePlanValidation), updatePlan);
+router.put("/update", auth,  updatePlan);
 
 /**
  * @swagger
