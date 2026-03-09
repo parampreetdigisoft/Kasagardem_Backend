@@ -4,7 +4,12 @@ import { AuthUserPayload } from "../../interface/user";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import { errorResponse, successResponse } from "../../core/utils/responseFormatter";
 import { findUserByEmail } from "../auth/authRepository";
-import { createProfessionalsService, fetchSortedProfessionals, getAllLeadsForUser, getAllProfessionalProfilesDb, getProfessionalDataById, getProfessionalProfileByIdService, leadCreatedByProfessionalService, professionalProfileById, registerProfessionalService } from "./professionalRepositry";
+import { createProfessionalsService,
+   fetchSortedProfessionals,
+    getAllLeadsForUser,
+     getAllProfessionalProfilesDb,
+   getProfessionalDataById, getProfessionalProfileByIdService, 
+  leadCreatedByProfessionalService,  leadForwholesalerService, professionalProfileById, registerProfessionalService } from "./professionalRepositry";
 import { getProfessionalProfileById } from "../userProfile/userProfileModel";
 import { deleteFileFromS3, uploadBase64ToS3 } from "../../core/services/s3UploadService";
 import { error, warn } from "../../core/utils/logger";
@@ -660,12 +665,11 @@ export async function leadCreatedByProfessional(req: AuthRequest, res: Response)
     res.status(HTTP_STATUS.CREATED).json(successResponse(null, "Lead created successfully"));
   } catch (error) {
     console.error("Error in leadCreatedByProfessional:", error);
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+    console.error("Error in leadCreatedByProfessional:", error);
+
+    res.status(HTTP_STATUS.BAD_REQUEST).json(
       errorResponse(
-        "Failed to create lead",
-        {
-          message: error instanceof Error ? error.message : String(error),
-        }
+        error instanceof Error ? error.message : "Failed to create lead"
       )
     );
   }
@@ -709,8 +713,8 @@ export async function getAllLeads(req: AuthRequest, res: Response): Promise<void
       res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Invalid user ID"));
       return;
     }
-
-    const leads = await getAllLeadsForUser(user.id);
+    const searchQuery = req.query.search as string | undefined;
+    const leads = await getAllLeadsForUser(user.id, searchQuery);
 
     res.status(HTTP_STATUS.OK).json(successResponse(leads, "Leads retrieved successfully"));
   } catch (error) {
@@ -789,4 +793,58 @@ export async function getprofessionalsById(req: AuthRequest, res: Response): Pro
       )
     );
   }
+}
+
+
+/**
+ * Handles the process of sending leads to wholesalers for a user.
+ * 
+ * This function verifies the user's authentication, checks for valid input, 
+ * and then passes the lead data to the `leadForwholesalerService` to send to 
+ * the specified wholesalers.
+ * 
+ * @param {AuthRequest} req - The request object containing the user's info and lead data.
+ * @param {Response} res - The response object used to send the response to the client.
+ * @returns {Promise<void>} A promise that resolves to nothing.
+ * 
+ * @throws {Error} Will return a `400` status with an error message if the request is invalid.
+ * Will return a `401` status if the user is not authorized.
+ */
+export async function leadForWholesaler(req:AuthRequest, res:Response):Promise<void>{
+  try {
+    const userPayload = req.user as AuthUserPayload | undefined;
+    if (!userPayload?.userEmail) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    }
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+      return;
+    }
+    if (!user.id) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Invalid user ID"));
+      return;
+    }
+    const { wholesalerIds } = req.body;
+
+    if (!Array.isArray(wholesalerIds) || wholesalerIds.length === 0) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse("professionalIds must be a non-empty array")
+      );
+      return;
+    }
+
+    await leadForwholesalerService(user.id, wholesalerIds);
+
+    res.status(HTTP_STATUS.CREATED).json(successResponse(null, "Leads sent to wholesalers successfully"));
+  } catch (error) {
+    console.error("Error in leadForWholesaler:", error);
+    res.status(HTTP_STATUS.BAD_REQUEST).json(
+      errorResponse(
+        error instanceof Error ? error.message : "Failed to create lead for wholesaler"
+      )
+    );
+  }
+
 }

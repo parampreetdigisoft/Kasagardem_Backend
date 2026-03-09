@@ -1,6 +1,6 @@
 
 import { connectDB, getDB } from "../../core/config/db";
-import { sendProfessionalWelcomeEmail } from "../../core/services/emailService";
+import { sendLeadsEmailToSuppliers, sendProfessionalWelcomeEmail } from "../../core/services/emailService";
 import { csvUser } from "../../interface/auth";
 import { GetProfessionalsParams, GetProfessionalsResponse, InsertResult, PartnerProfile, professionalProfileResponse, ProfessionalProfileResponse, RequestingUser } from "../../interface/professional";
 import bcrypt from "bcryptjs";
@@ -1331,7 +1331,7 @@ export const leadCreatedByProfessionalService = async (
             );
 
             if (existing.rows.length > 0) {
-                throw new Error(`Professional ${professionalId} has already been added as a lead`);
+                throw new Error("Professional already added to the lead schema");
             }
 
             await client.query(
@@ -1349,7 +1349,7 @@ export const leadCreatedByProfessionalService = async (
             professionalIds,
         });
 
-        throw new Error("Failed to create lead.");
+        throw error instanceof Error ? error : new Error("Failed to create lead");
     }
 };
 
@@ -1643,3 +1643,48 @@ export const getProfessionalProfileByIdService = async (id: string): Promise<Pro
         updatedAt: row.updated_at,
     };
 }
+
+/**
+ * Service function that sends leads to wholesalers by fetching the user and wholesaler details 
+ * from the database and sending an email to the wholesalers.
+ * 
+ * @param {string} userId - The ID of the user who is sending the leads.
+ * @param {string[]} wholesalerIds - A list of wholesaler IDs to whom the leads will be sent.
+ * @returns {Promise<void>} A promise that resolves when the leads email has been successfully sent.
+ * 
+ * @throws {Error} Will throw an error if the user is not found or if there's an issue during the email sending process.
+ */
+export const leadForwholesalerService = async (userId: string, wholesalerIds: string[]): Promise<void> => {
+    try {
+        const client = await getDB();
+        const userResult = await client.query(
+            `SELECT name, email FROM users WHERE id = $1`,
+            [userId]
+        );
+
+        if (userResult.rows.length === 0) {
+            throw new Error("User not found");
+        }
+
+        const user = userResult.rows[0];
+
+        // Fetch wholesaler emails
+        const wholesalerResult = await client.query(
+            `SELECT id, company_name, email FROM suppliers_table WHERE id = ANY($1::uuid[])`,
+            [wholesalerIds]
+        );
+
+        await sendLeadsEmailToSuppliers(user, wholesalerResult.rows);
+        return;
+    } catch (error) {
+        console.error("Error sending leads email to wholesalers:", {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            userId,
+            wholesalerIds,
+        });
+
+        throw error instanceof Error ? error : new Error("Failed to send leads email to wholesalers");
+
+    }   
+};

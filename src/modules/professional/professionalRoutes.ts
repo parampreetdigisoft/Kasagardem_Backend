@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import { uploadCsv } from "../../core/middleware/uploadCsv";
 import { extractUsersFromCsv } from "../../core/middleware/extractUserFromCsv";
-import { createProfessionlals,  getAllLeads,  getAllProfessionalProfiles, getprofessionalsById, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  registerProfessionals, updateProfessionalProfile  } from "./professionalController";
+import { createProfessionlals,  getAllLeads,  getAllProfessionalProfiles, getprofessionalsById, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  leadForWholesaler,  registerProfessionals, updateProfessionalProfile  } from "./professionalController";
 const router: Router = express.Router();
 
 /**
@@ -567,7 +567,7 @@ router.get("/getLeads",auth, getAllLeads);
 
 /**
  * @swagger
- * /getProfessionalsById/{id}:
+ * api/v1/professional/getProfessionalsById/{id}:
  *   get:
  *     summary: Get a professional by ID
  *     description: Retrieves the details of a professional using their unique ID. Authentication is required.
@@ -608,6 +608,57 @@ router.get("/getLeads",auth, getAllLeads);
  *         description: Internal server error
  */
 router.get("/getProfessionalsById/:id", auth, getprofessionalsById);
+
+
+/**
+ * @swagger
+ * /api/v1/professional/createLeadsForWholesaler:
+ *   post:
+ *     summary: Create new leads for multiple wholesalers
+ *     description: This endpoint allows a user to create leads for multiple wholesalers and send them emails.
+ *     tags:
+ *       - Professionals
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - wholesalerIds
+ *             properties:
+ *               wholesalerIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: uuid
+ *                 example:
+ *                   - 8a92f4a1-11b2-4d2e-b6e1-dff05ef84ef8
+ *                   - 9bda7f52-07a4-49f8-9233-38bb64b51da2
+ *     responses:
+ *       201:
+ *         description: Leads created successfully and emails sent to wholesalers
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Leads created successfully and emails sent to wholesalers."
+ *       400:
+ *         description: Bad request, invalid or missing wholesalerIds
+ *       401:
+ *         description: Unauthorized, user not authenticated or invalid token
+ *       500:
+ *         description: Internal server error, failed to create leads
+ */
+router.post("/createLeadsForWholesaler",auth, leadForWholesaler);
  
 
 export default router;

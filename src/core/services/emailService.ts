@@ -7,6 +7,7 @@ import {
   leadSuccessEmailTemplateForUser,
 } from "../../templates/leadsGeneratedEmail";
 import { professionalWelcomeEmailTemplate } from "../../templates/sendWelcomeEmail";
+import { leadTemplateForSuppliers } from "../../templates/leademalForSupplier";
 
 /**
  * Creates and configures an email transporter using Nodemailer.
@@ -197,3 +198,42 @@ export const sendProfessionalWelcomeEmail = async (
   await transporter.sendMail(mailOptions);
 };
 
+/**
+ * Sends a lead email to multiple suppliers.
+ * 
+ * This function takes the user and supplier data, formats the email for each supplier,
+ * and sends the email using the configured transporter.
+ * 
+ * @param {Object} userData - The data of the user sending the lead.
+ * @param {string} userData.email - The email of the user.
+ * @param {string} userData.name - The name of the user.
+ * @param {Array<Object>} suppliersData - A list of suppliers to send the lead email to.
+ * @param {string} suppliersData[].email - The email address of the supplier.
+ * @param {string} suppliersData[].name - The name of the supplier.
+ * 
+ * @returns {Promise<void>} A promise that resolves when all supplier emails have been sent.
+ * 
+ * @throws {Error} If there's an issue with sending emails, an error will be thrown.
+ */
+export const sendLeadsEmailToSuppliers = async (
+  userData: {
+    email: string;
+    name: string; 
+  },
+  suppliersData: Array<{
+    email: string;
+    name: string;
+  }>,               
+): Promise<void> => {
+  const transporter = createTransporter();
+const supplierMailPromises = suppliersData.map((supplier) =>
+    transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: supplier.email,
+      subject: `New Lead Alert - ${userData.name} | Kasagardem`,
+      html: leadTemplateForSuppliers(supplier.name, userData.name, userData.email),
+    })
+  );
+
+  await Promise.all(supplierMailPromises);
+  };
