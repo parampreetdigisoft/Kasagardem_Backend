@@ -129,19 +129,23 @@ export interface RequestingUser {
 }
 
 export interface ProfessionalPartner {
+    leads_status: string | null;
     userId: string;
     role: "professional";
     company_name: string | null;
     location: Location;
     requestingUser: RequestingUser;
+    created_at: string | null;
 }
 
 export interface UserPartner {
+    leads_status: string | null;
     userId: string;
     role: "user";
     name: string | null;
     email: string | null;
     requestingUser: RequestingUser;
+    created_at: string | null;
 }
 
 export type PartnerProfile = ProfessionalPartner | UserPartner;

@@ -464,20 +464,26 @@ router.patch("/update", auth,  updateProfessionalProfile);
  *         description: Failed to create leads
  */
 router.post("/createLeads", auth , leadCreatedByProfessional);
-
 /**
  * @swagger
  * /api/v1/professional/getLeads:
  *   get:
- *     summary: Get all leads
- *     description: Fetch all leads for the authenticated user.
+ *     summary: Get all leads for the authenticated user
+ *     description: Fetch all leads associated with the logged-in user including professional or user details.
  *     tags:
  *       - Professionals
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Search leads by company name, city, state, address, name, or email.
  *     responses:
  *       200:
- *         description: Leads fetched successfully
+ *         description: Leads retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -486,35 +492,71 @@ router.post("/createLeads", auth , leadCreatedByProfessional);
  *                 success:
  *                   type: boolean
  *                   example: true
- *                 total:
- *                   type: integer
- *                   example: 10
+ *                 message:
+ *                   type: string
+ *                   example: Leads retrieved successfully
  *                 data:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       id:
+ *                       userId:
  *                         type: string
  *                         format: uuid
- *                       partner_profile_ids:
+ *                       role:
  *                         type: string
- *                         format: uuid
- *                       user_id:
+ *                         example: professional
+ *                       company_name:
  *                         type: string
- *                         format: uuid
+ *                         nullable: true
+ *                         example: ABC Construction
+ *                       name:
+ *                         type: string
+ *                         nullable: true
+ *                         example: John Doe
+ *                       email:
+ *                         type: string
+ *                         nullable: true
+ *                         example: john@example.com
  *                       leads_status:
  *                         type: string
  *                         example: new
- *                       is_deleted:
- *                         type: boolean
- *                         example: false
  *                       created_at:
  *                         type: string
  *                         format: date-time
- *                       updated_at:
- *                         type: string
- *                         format: date-time
+ *                       location:
+ *                         type: object
+ *                         nullable: true
+ *                         properties:
+ *                           city:
+ *                             type: string
+ *                             example: New York
+ *                           state:
+ *                             type: string
+ *                             example: NY
+ *                           address:
+ *                             type: string
+ *                             example: 123 Main Street
+ *                           latitude:
+ *                             type: number
+ *                             example: 40.7128
+ *                           longitude:
+ *                             type: number
+ *                             example: -74.0060
+ *                       requestingUser:
+ *                         type: object
+ *                         properties:
+ *                           userId:
+ *                             type: string
+ *                             format: uuid
+ *                           professionalProfileId:
+ *                             type: string
+ *                             format: uuid
+ *                             nullable: true
+ *                           description:
+ *                             type: string
+ *                             nullable: true
+ *                             example: Experienced contractor
  *       401:
  *         description: Unauthorized – Invalid or missing token
  *       500:

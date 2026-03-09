@@ -1375,6 +1375,7 @@ export const leadCreatedByProfessionalService = async (
  *    and the requesting user's information.
  *
  * @async
+ * @param searchQuery
  * @function getAllLeadsForUser
  * @param {string} userId - The unique identifier of the user whose leads are being retrieved.
  * @returns {Promise<PartnerProfile[]>} A promise that resolves to an array of partner profile objects,
@@ -1382,31 +1383,47 @@ export const leadCreatedByProfessionalService = async (
  *
  * @throws {Error} Throws an error if any database query fails.
  */
-export const getAllLeadsForUser = async (userId: string): Promise<PartnerProfile[]> => {
+export const getAllLeadsForUser = async (
+    userId: string,
+    searchQuery?: string
+): Promise<PartnerProfile[]> => {
     const client = await getDB();
 
+    // Fetch all leads for this user
     const result = await client.query(
         `SELECT id, partner_profile_ids, leads_status, created_at, updated_at
-         FROM leads_Schema
+         FROM leads_schema
          WHERE user_id = $1 AND is_deleted = false`,
         [userId]
     );
 
-    const allPartnerProfileIds: string[] = result.rows.flatMap(
-        (lead) => lead.partner_profile_ids ?? []
-    );
+    // ✅ Build a map: profileId -> { leads_status, created_at } from leads_schema
+    const leadsMetaMap = new Map<string, { leads_status: string; created_at: string }>();
+    for (const lead of result.rows) {
+        if (lead.partner_profile_ids) {
+            leadsMetaMap.set(lead.partner_profile_ids, {
+                leads_status: lead.leads_status,
+                created_at: lead.created_at,
+            });
+        }
+    }
 
+    const allPartnerProfileIds: string[] = [...leadsMetaMap.keys()];
+    if (allPartnerProfileIds.length === 0) return [];
+
+    // Get role_id for each partner profile (user)
     const rolesResult = await client.query(
         `SELECT id, role_id FROM users WHERE id = ANY($1)`,
         [allPartnerProfileIds]
     );
 
     const roleIdMap = new Map<string, string>(
-        rolesResult.rows.map((user) => [user.id, user.role_id])
+        rolesResult.rows.map((u) => [u.id, u.role_id])
     );
 
-    const allRoleIds = [...new Set(rolesResult.rows.map((user) => user.role_id))];
+    const allRoleIds = [...new Set(rolesResult.rows.map((u) => u.role_id))];
 
+    // Get role names
     const roleNamesResult = await client.query(
         `SELECT id, name FROM roles WHERE id = ANY($1)`,
         [allRoleIds]
@@ -1416,6 +1433,7 @@ export const getAllLeadsForUser = async (userId: string): Promise<PartnerProfile
         roleNamesResult.rows.map((role) => [role.id, role.name])
     );
 
+    // Get requesting user's professional profile
     const requestingUserAccount = await client.query(
         `SELECT professional_profile_id FROM professional_accounts WHERE user_id = $1`,
         [userId]
@@ -1435,9 +1453,16 @@ export const getAllLeadsForUser = async (userId: string): Promise<PartnerProfile
         description: requestingUserDescription.rows[0]?.description ?? null,
     };
 
+    // Build search filter
+    const search = searchQuery?.trim().toLowerCase() ?? "";
+
     const response: PartnerProfile[] = [];
 
     for (const profileId of allPartnerProfileIds) {
+        // ✅ Pull leads_status and created_at from leadsMetaMap
+        const leads_status = leadsMetaMap.get(profileId)?.leads_status ?? null;
+        const created_at = leadsMetaMap.get(profileId)?.created_at ?? null;
+
         const role_id = roleIdMap.get(profileId) ?? null;
         const roleName = role_id ? roleNameMap.get(role_id) : null;
 
@@ -1451,17 +1476,27 @@ export const getAllLeadsForUser = async (userId: string): Promise<PartnerProfile
                 professionalAccount.rows[0]?.professional_profile_id ?? null;
 
             const professionalProfile = await client.query(
-                `SELECT company_name, city, state, address, latitude, longitude 
+                `SELECT company_name, city, state, address, latitude, longitude
                  FROM professional_profiles WHERE id = $1`,
                 [professionalProfileId]
             );
 
             const profile = professionalProfile.rows[0];
 
+            if (search) {
+                const searchableText = [profile?.company_name, profile?.city, profile?.state, profile?.address]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase();
+                if (!searchableText.includes(search)) continue;
+            }
+
             response.push({
                 userId: profileId,
                 role: "professional",
                 company_name: profile?.company_name ?? null,
+                leads_status,   // ✅ from leads_schema
+                created_at,     // ✅ from leads_schema
                 location: {
                     city: profile?.city ?? null,
                     state: profile?.state ?? null,
@@ -1480,11 +1515,21 @@ export const getAllLeadsForUser = async (userId: string): Promise<PartnerProfile
 
             const user = userResult.rows[0];
 
+            if (search) {
+                const searchableText = [user?.name, user?.email]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase();
+                if (!searchableText.includes(search)) continue;
+            }
+
             response.push({
                 userId: profileId,
                 role: "user",
                 name: user?.name ?? null,
                 email: user?.email ?? null,
+                leads_status,   // ✅ from leads_schema
+                created_at,     // ✅ from leads_schema
                 requestingUser,
             });
         }
@@ -1492,8 +1537,6 @@ export const getAllLeadsForUser = async (userId: string): Promise<PartnerProfile
 
     return response;
 };
-
-
 
 /**
  * Retrieves a professional profile from the database by its ID.
