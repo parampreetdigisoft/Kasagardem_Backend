@@ -134,6 +134,10 @@ export interface ProfessionalPartner {
     role: "professional";
     company_name: string | null;
     location: Location;
+    telefone: string | null;
+    whatsapp: string | null;
+    website: string | null;
+    // instagram: string | null;
     requestingUser: RequestingUser;
     created_at: string | null;
 }
@@ -144,6 +148,7 @@ export interface UserPartner {
     role: "user";
     name: string | null;
     email: string | null;
+    phone_number: string | null;
     requestingUser: RequestingUser;
     created_at: string | null;
 }

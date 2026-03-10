@@ -1477,7 +1477,7 @@ export const getAllLeadsForUser = async (
                 professionalAccount.rows[0]?.professional_profile_id ?? null;
 
             const professionalProfile = await client.query(
-                `SELECT company_name, city, state, address, latitude, longitude
+                `SELECT company_name, city, state, address,telefone,whatsapp,website, latitude, longitude
                  FROM professional_profiles WHERE id = $1`,
                 [professionalProfileId]
             );
@@ -1497,7 +1497,8 @@ export const getAllLeadsForUser = async (
                 role: "professional",
                 company_name: profile?.company_name ?? null,
                 leads_status,   // ✅ from leads_schema
-                created_at,     // ✅ from leads_schema
+                created_at,
+                     // ✅ from leads_schema
                 location: {
                     city: profile?.city ?? null,
                     state: profile?.state ?? null,
@@ -1505,12 +1506,15 @@ export const getAllLeadsForUser = async (
                     latitude: profile?.latitude ?? null,
                     longitude: profile?.longitude ?? null,
                 },
+                telefone: profile?.telefone ?? null,
+                whatsapp: profile?.whatsapp ?? null,
+                website: profile?.website ?? null,
                 requestingUser,
             });
 
         } else if (roleName === "User") {
             const userResult = await client.query(
-                `SELECT name, email FROM users WHERE id = $1`,
+                `SELECT name, email,phone_number FROM users WHERE id = $1`,
                 [profileId]
             );
 
@@ -1529,6 +1533,7 @@ export const getAllLeadsForUser = async (
                 role: "user",
                 name: user?.name ?? null,
                 email: user?.email ?? null,
+                phone_number: user?.phone_number ?? null,
                 leads_status,   // ✅ from leads_schema
                 created_at,     // ✅ from leads_schema
                 requestingUser,
@@ -1707,87 +1712,87 @@ export const leadForwholesalerService = async (userId: string, wholesalerIds: st
  * @throws {Error} - Throws an error if no fields are provided for the update, if the professional profile cannot be found, or if any unexpected error occurs during the update process.
  */
 export const updateProfessionalByAdminService = async (
-  professionalId: string,
-  updateData: UpdateProfessionalProfileRequest
+    professionalId: string,
+    updateData: UpdateProfessionalProfileRequest
 ): Promise<void> => {
-  const client = await getDB();
+    const client = await getDB();
 
-  try {
-    const fields: string[] = [];
-    const values: unknown[] = [];
-    let index = 1;
-/**
- * Adds a field and its value to the SQL query's `SET` clause.
- * 
- * This helper function constructs the part of the SQL query that assigns a value to a column,
- * and it manages the placeholder (`$index`) for parameterized queries. The column name and its
- * corresponding value are pushed into the `fields` and `values` arrays, respectively, and the
- * index for the placeholder is incremented.
- * 
- * @param {string} column - The name of the column to update in the SQL query.
- * @param {unknown} value - The value to assign to the column in the SQL query.
- * 
- * @returns {void} - This function doesn't return a value. It modifies the `fields` and `values` arrays.
- */
-    const addField = (column: string, value: unknown):void=> {
-      fields.push(`${column} = $${index}`);
-      values.push(value);
-      index++;
-    };
+    try {
+        const fields: string[] = [];
+        const values: unknown[] = [];
+        let index = 1;
+        /**
+         * Adds a field and its value to the SQL query's `SET` clause.
+         * 
+         * This helper function constructs the part of the SQL query that assigns a value to a column,
+         * and it manages the placeholder (`$index`) for parameterized queries. The column name and its
+         * corresponding value are pushed into the `fields` and `values` arrays, respectively, and the
+         * index for the placeholder is incremented.
+         * 
+         * @param {string} column - The name of the column to update in the SQL query.
+         * @param {unknown} value - The value to assign to the column in the SQL query.
+         * 
+         * @returns {void} - This function doesn't return a value. It modifies the `fields` and `values` arrays.
+         */
+        const addField = (column: string, value: unknown): void => {
+            fields.push(`${column} = $${index}`);
+            values.push(value);
+            index++;
+        };
 
-    // Basic Info
-    if (updateData.company_name !== undefined) addField("company_name", updateData.company_name);
-    if (updateData.email !== undefined) addField("email", updateData.email);
-    if (updateData.category !== undefined) addField("category", updateData.category);
-    if (updateData.description !== undefined) addField("description", updateData.description);
+        // Basic Info
+        if (updateData.company_name !== undefined) addField("company_name", updateData.company_name);
+        if (updateData.email !== undefined) addField("email", updateData.email);
+        if (updateData.category !== undefined) addField("category", updateData.category);
+        if (updateData.description !== undefined) addField("description", updateData.description);
 
-    // Location
-    if (updateData.city !== undefined) addField("city", updateData.city);
-    if (updateData.state !== undefined) addField("state", updateData.state);
-    if (updateData.address !== undefined) addField("address", updateData.address);
+        // Location
+        if (updateData.city !== undefined) addField("city", updateData.city);
+        if (updateData.state !== undefined) addField("state", updateData.state);
+        if (updateData.address !== undefined) addField("address", updateData.address);
 
-    // Contact
-    if (updateData.telefone !== undefined) addField("telefone", updateData.telefone);
-    if (updateData.whatsapp !== undefined) addField("whatsapp", updateData.whatsapp);
-    if (updateData.website !== undefined) addField("website", updateData.website);
-    if (updateData.instagram !== undefined) addField("instagram", updateData.instagram);
+        // Contact
+        if (updateData.telefone !== undefined) addField("telefone", updateData.telefone);
+        if (updateData.whatsapp !== undefined) addField("whatsapp", updateData.whatsapp);
+        if (updateData.website !== undefined) addField("website", updateData.website);
+        if (updateData.instagram !== undefined) addField("instagram", updateData.instagram);
 
-    // Ratings
-    if (updateData.assessment !== undefined) addField("assessment", updateData.assessment);
-    if (updateData.num_avaliacoes !== undefined) addField("num_avaliacoes", updateData.num_avaliacoes);
-    if (updateData.verified_source !== undefined) addField("verified_source", updateData.verified_source);
+        // Ratings
+        if (updateData.assessment !== undefined) addField("assessment", updateData.assessment);
+        if (updateData.num_avaliacoes !== undefined) addField("num_avaliacoes", updateData.num_avaliacoes);
+        if (updateData.verified_source !== undefined) addField("verified_source", updateData.verified_source);
 
-    // Always update timestamp
-    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+        // Always update timestamp
+        fields.push(`updated_at = CURRENT_TIMESTAMP`);
 
-    if (fields.length === 1) {
-      throw new Error("No fields provided for update");
-    }
+        if (fields.length === 1) {
+            throw new Error("No fields provided for update");
+        }
 
-    const query = `
+        const query = `
       UPDATE professional_profiles
       SET ${fields.join(", ")}
       WHERE id = $${index}
       RETURNING id
     `;
 
-    values.push(professionalId);
+        values.push(professionalId);
 
-    const result = await client.query(query, values);
+        const result = await client.query(query, values);
 
-    if (result.rowCount === 0) {
-      throw new Error("Professional profile not found");
+        if (result.rowCount === 0) {
+            throw new Error("Professional profile not found");
+        }
+
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error("Error updating professional profile:", error.message);
+            throw new Error(error.message);
+        }
+
+        console.error("Unknown error updating professional profile:", error);
+        throw new Error("Failed to update professional profile");
     }
-
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error("Error updating professional profile:", error.message);
-      throw new Error(error.message);
-    }
-
-    console.error("Unknown error updating professional profile:", error);
-    throw new Error("Failed to update professional profile");
-  }
 };
 
 /**
@@ -1804,19 +1809,19 @@ export const updateProfessionalByAdminService = async (
  * 
  * @throws {Error} - Throws an error if the professional profile cannot be found or if any unexpected error occurs.
  */
-export  const updateRatingByAdminService = async (
-  professionalId: string,
-  assessment: number,
-  
+export const updateRatingByAdminService = async (
+    professionalId: string,
+    assessment: number,
+
 ): Promise<void> => {
-  const client = await getDB();
+    const client = await getDB();
     try {
         const result = await client.query(
             `UPDATE professional_profiles
                 SET assessment = $1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2
                 RETURNING id`,
-            [assessment,  professionalId]
+            [assessment, professionalId]
         );
         if (result.rowCount === 0) {
             throw new Error("Professional profile not found");
