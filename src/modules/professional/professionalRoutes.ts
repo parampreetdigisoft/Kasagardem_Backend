@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import { uploadCsv } from "../../core/middleware/uploadCsv";
 import { extractUsersFromCsv } from "../../core/middleware/extractUserFromCsv";
-import { createProfessionlals,  getAllLeads,  getAllProfessionalProfiles, getprofessionalsById, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  leadForWholesaler,  registerProfessionals, updateProfessionalProfile  } from "./professionalController";
+import { createProfessionlals,  getAllLeads,  getAllProfessionalProfiles, getprofessionalsById, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  leadForWholesaler,  registerProfessionals, updateProfessionalByAdmin, updateProfessionalProfile, updateRatingByAdmin  } from "./professionalController";
 const router: Router = express.Router();
 
 /**
@@ -567,7 +567,7 @@ router.get("/getLeads",auth, getAllLeads);
 
 /**
  * @swagger
- * api/v1/professional/getProfessionalsById/{id}:
+ * /api/v1/professional/getProfessionalsById/{id}:
  *   get:
  *     summary: Get a professional by ID
  *     description: Retrieves the details of a professional using their unique ID. Authentication is required.
@@ -608,6 +608,92 @@ router.get("/getLeads",auth, getAllLeads);
  *         description: Internal server error
  */
 router.get("/getProfessionalsById/:id", auth, getprofessionalsById);
+
+/**
+ * @swagger
+ * /api/v1/professional/updateProfessionalProfile/{id}:
+ *   put:
+ *     summary: Update professional profile by admin
+ *     tags: [Professional Profiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: Professional profile ID
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               company_name:
+ *                 type: string
+ *                 example: "ABC Plumbing Services"
+ *               email:
+ *                 type: string
+ *                 example: "contact@abcplumbing.com"
+ *               category:
+ *                 type: string
+ *                 example: "Plumber"
+ *               description:
+ *                 type: string
+ *                 example: "Professional plumbing services for homes and businesses"
+ *               city:
+ *                 type: string
+ *                 example: "São Paulo"
+ *               state:
+ *                 type: string
+ *                 example: "SP"
+ *               address:
+ *                 type: string
+ *                 example: "123 Main Street"
+ *               latitude:
+ *                 type: number
+ *                 example: -23.5505
+ *               longitude:
+ *                 type: number
+ *                 example: -46.6333
+ *               telefone:
+ *                 type: string
+ *                 example: "+5511999999999"
+ *               whatsapp:
+ *                 type: string
+ *                 example: "+5511999999999"
+ *               website:
+ *                 type: string
+ *                 example: "https://abcplumbing.com"
+ *               instagram:
+ *                 type: string
+ *                 example: "abcplumbing"
+ *               assessment:
+ *                 type: number
+ *                 format: float
+ *                 example: 4.75
+ *               num_avaliacoes:
+ *                 type: integer
+ *                 example: 120
+ *               verified_source:
+ *                 type: string
+ *                 example: "Google Reviews"
+ *     responses:
+ *       200:
+ *         description: Professional profile updated successfully
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Professional profile not found
+ *       500:
+ *         description: Internal server error
+ */
+router.put("/updateProfessionalProfile/:id", auth, updateProfessionalByAdmin);
 
 
 /**
@@ -659,6 +745,106 @@ router.get("/getProfessionalsById/:id", auth, getprofessionalsById);
  *         description: Internal server error, failed to create leads
  */
 router.post("/createLeadsForWholesaler",auth, leadForWholesaler);
+
+/**
+ * @swagger
+ * /api/v1/professional/updateRating:
+ *   patch:
+ *     summary: Update the professional rating by admin
+ *     description: This endpoint allows an admin to update the rating of a professional.
+ *     tags:
+ *       - Professionals
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               professionalId:
+ *                 type: string
+ *                 description: The ID of the professional whose rating is being updated.
+ *                 example: "12345"
+ *               rating:
+ *                 type: number
+ *                 description: The rating to assign to the professional (should be a number between 0 and 5).
+ *                 example: 4.5
+ *     responses:
+ *       200:
+ *         description: Professional rating updated successfully by admin
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Professional rating updated successfully by admin"
+ *       400:
+ *         description: Bad request, invalid data in request body
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Rating must be a number between 0 and 5"
+ *       401:
+ *         description: Unauthorized, user is not logged in or token is missing
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Unauthorized"
+ *       403:
+ *         description: Forbidden, user is not an admin
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Access denied: Admins only"
+ *       500:
+ *         description: Internal server error, failed to update professional rating
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Failed to update professional rating"
+ *       404:
+ *         description: Not found, the professional ID does not exist
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Professional profile not found"
+ *     operationId: updateRatingByAdmin
+ */
+
+/**
+ * @swagger
+ * components:
+ *   securitySchemes:
+ *     bearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
+ */
+router.patch("/updateRating", auth, updateRatingByAdmin);
  
 
 export default router;

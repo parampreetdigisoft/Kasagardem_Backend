@@ -70,13 +70,13 @@ app.use("/api/v1/admin", dashboardRoutes);
 // Subscription Plans
 app.use("/api/v1/subscription", subscriptionRoutes);
 //external Links Routes
-app.use("/api/v1/externalLinks",externalLinksRoutes);
+app.use("/api/v1/externalLinks", externalLinksRoutes);
 // Professional Routes
-app.use("/api/v1/professional", professionalRoutes);  
+app.use("/api/v1/professional", professionalRoutes);
 // Error handler (must be last middleware)
 app.use("/api/v1/allplants", myPlantRoutes);
-
-app.use("/api/v1/suppliers",suppliersRoutes);
+// Suppliers Routes
+app.use("/api/v1/suppliers", suppliersRoutes);
 // registerBlockExpiredTrialsCron();
 app.use(errorHandler);
 

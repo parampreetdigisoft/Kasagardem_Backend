@@ -67,6 +67,7 @@ function shouldSkipKey(key: string): boolean {
     "priority_customer_support",
     "highlight_in_result",
     "verification_badge",
+    "rating",
   ];
  
   if (skipFields.some((field) => lowerKey.includes(field))) {

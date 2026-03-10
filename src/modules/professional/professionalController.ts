@@ -9,7 +9,9 @@ import { createProfessionalsService,
     getAllLeadsForUser,
      getAllProfessionalProfilesDb,
    getProfessionalDataById, getProfessionalProfileByIdService, 
-  leadCreatedByProfessionalService,  leadForwholesalerService, professionalProfileById, registerProfessionalService } from "./professionalRepositry";
+  leadCreatedByProfessionalService,  leadForwholesalerService, professionalProfileById, registerProfessionalService, 
+  updateProfessionalByAdminService,
+  updateRatingByAdminService} from "./professionalRepositry";
 import { getProfessionalProfileById } from "../userProfile/userProfileModel";
 import { deleteFileFromS3, uploadBase64ToS3 } from "../../core/services/s3UploadService";
 import { error, warn } from "../../core/utils/logger";
@@ -848,3 +850,110 @@ export async function leadForWholesaler(req:AuthRequest, res:Response):Promise<v
   }
 
 }
+
+/**
+ * Updates the professional profile by an admin.
+ * 
+ * This function is responsible for allowing an admin to update a professional's profile.
+ * It first verifies the user's authentication and authorization status, then checks 
+ * if the professional ID is provided, and finally updates the professional profile 
+ * using the `updateProfessionalByAdminService`.
+ * 
+ * @param {AuthRequest} req - The request object that contains user information in the `req.user` payload.
+ * @param {Response} res - The response object used to send the HTTP response.
+ * 
+ * @returns {Promise<void>} - Resolves to void, but sends a response back to the client indicating success or failure.
+ * 
+ * @throws {Error} - If an unexpected error occurs during the process, an internal server error is sent.
+ */
+export async function updateProfessionalByAdmin(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const userPayload = req.user as AuthUserPayload | undefined;
+    if (!userPayload?.userEmail) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    } 
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+      return;
+    }
+    if (userPayload.role !== "Admin") {
+      res.status(HTTP_STATUS.FORBIDDEN).json(errorResponse("Access denied: Admins only"));
+      return;
+    }
+    const professionalId = req.params.id;
+    if (!professionalId) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Professional ID is required"));
+      return;
+    }
+
+   await updateProfessionalByAdminService(professionalId, req.body);
+   
+    res.status(HTTP_STATUS.OK).json(successResponse(null, "Professional profile updated successfully by admin"));
+  } catch (error) {
+    console.error("Error in updateProfessionalByAdmin:", error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse(
+        "Failed to update professional profile",
+        {
+          message: error instanceof Error ? error.message : String(error),
+        }
+      )
+    );
+  }
+};
+/**
+ * Updates the professional rating by an admin.
+ * 
+ * This function allows an admin to update the rating of a professional. It first ensures 
+ * that the user is authenticated and has an admin role. It then validates the provided 
+ * professional ID and rating before calling the service to update the professional's rating.
+ * 
+ * @param {AuthRequest} req - The request object containing user information (in `req.user`) and the rating data in `req.body`.
+ * @param {Response} res - The response object used to send the HTTP response back to the client.
+ * 
+ * @returns {Promise<void>} - Resolves to void but sends an appropriate response to the client indicating success or failure.
+ * 
+ * @throws {Error} - If an unexpected error occurs, an internal server error is returned to the client.
+ */
+export async function updateRatingByAdmin(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const userPayload = req.user as AuthUserPayload | undefined;
+    if (!userPayload?.userEmail) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    }
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+      return;
+    }
+    if (userPayload.role !== "Admin") {
+      res.status(HTTP_STATUS.FORBIDDEN).json(errorResponse("Access denied: Admins only"));
+      return;
+    }
+    const { professionalId, rating  } = req.body;                                                        
+    if (!professionalId) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Professional ID is required"));
+      return;
+    }
+    if (typeof rating !== "number" || rating < 0 || rating > 5) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Rating must be a number between 0 and 5"));
+      return;
+    }
+    
+    await updateRatingByAdminService(professionalId,  rating );
+    res.status(HTTP_STATUS.OK).json(successResponse(null, "Professional rating updated successfully by admin"));
+  } catch (error) {
+    console.error("Error in updateRatingByAdmin:", error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse(
+        "Failed to update professional rating",
+        {
+          message: error instanceof Error ? error.message : String(error),
+        }
+      )
+    );
+  }
+};
