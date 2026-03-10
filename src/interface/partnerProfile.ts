@@ -51,3 +51,30 @@ export interface PartnerData {
   name: string;
   logoUrl: string;
 }
+
+
+export interface UpdateProfessionalProfileRequest {
+  // Basic Info
+  company_name?: string;
+  email?: string;
+  category?: string;
+  description?: string;
+
+  // Location
+  city?: string;
+  state?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+
+  // Contact
+  telefone?: string;
+  whatsapp?: string;
+  website?: string;
+  instagram?: string;
+
+  // Ratings
+  assessment?: number;
+  num_avaliacoes?: number;
+  verified_source?: string;
+}

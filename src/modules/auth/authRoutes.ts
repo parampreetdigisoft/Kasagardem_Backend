@@ -91,13 +91,19 @@ router.post("/register", validateRequest(registerValidation), register);
  *             required:
  *               - email
  *               - password
+ *               - loginType
  *             properties:
  *               email:
  *                 type: string
+ *                 format: email
  *                 example: john@example.com
  *               password:
  *                 type: string
  *                 example: secret123
+ *               loginType:
+ *                 type: string
+ *                 description: Type of login (e.g., 'user', 'professional', 'admin')
+ *                 example: professional
  *     responses:
  *       200:
  *         description: Login successful

@@ -6,6 +6,8 @@ import {
   leadSuccessEmailTemplateForPartner,
   leadSuccessEmailTemplateForUser,
 } from "../../templates/leadsGeneratedEmail";
+import { professionalWelcomeEmailTemplate } from "../../templates/sendWelcomeEmail";
+import { leadTemplateForSuppliers } from "../../templates/leademalForSupplier";
 
 /**
  * Creates and configures an email transporter using Nodemailer.
@@ -21,6 +23,7 @@ export const createTransporter = (): Transporter => {
       user: config.EMAIL_USER,
       pass: config.EMAIL_PASS, // Use app password for Gmail
     },
+   
   });
 };
 
@@ -145,3 +148,92 @@ export const sendLeadEmails = async (
     transporter.sendMail(adminMailOptions),
   ]);
 };
+
+interface WelcomeEmailData {
+    email: string;
+    name: string;
+    password: string;
+    trialEndDate: string;
+}
+/**
+ * Sends a welcome email to a newly registered professional user.
+ *
+ * The email contains:
+ * - Login email
+ * - Generated password
+ * - Trial expiration date
+ *
+ * @param {WelcomeEmailData} data - Professional user email details.
+ * @param {string} data.email - Recipient email address.
+ * @param {string} data.name - Professional's full name.
+ * @param {string} data.password - Generated temporary password.
+ * @param {Date} data.trialEndDate - Trial expiration date.
+ *
+ * @returns {Promise<void>} Resolves when the email is successfully sent.
+ */
+export const sendProfessionalWelcomeEmail = async (
+  data: WelcomeEmailData
+): Promise<void> => {
+  const transporter = createTransporter();
+
+  // Format the trial end date
+  // const formattedTrialEndDate = data.trialEndDate.toLocaleDateString('en-US', {
+  //   year: 'numeric',
+  //   month: 'long',
+  //   day: 'numeric'
+  // });
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: data.email,
+    subject: "Welcome to Kasagardem Professional - Your Account is Ready!",
+    html: professionalWelcomeEmailTemplate(
+      data.name,
+      data.email,
+      data.password,
+      data.trialEndDate
+    ),
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+/**
+ * Sends a lead email to multiple suppliers.
+ * 
+ * This function takes the user and supplier data, formats the email for each supplier,
+ * and sends the email using the configured transporter.
+ * 
+ * @param {Object} userData - The data of the user sending the lead.
+ * @param {string} userData.email - The email of the user.
+ * @param {string} userData.name - The name of the user.
+ * @param {Array<Object>} suppliersData - A list of suppliers to send the lead email to.
+ * @param {string} suppliersData[].email - The email address of the supplier.
+ * @param {string} suppliersData[].name - The name of the supplier.
+ * 
+ * @returns {Promise<void>} A promise that resolves when all supplier emails have been sent.
+ * 
+ * @throws {Error} If there's an issue with sending emails, an error will be thrown.
+ */
+export const sendLeadsEmailToSuppliers = async (
+  userData: {
+    email: string;
+    name: string; 
+  },
+  suppliersData: Array<{
+    email: string;
+    company_name: string;
+  }>,               
+): Promise<void> => {
+  const transporter = createTransporter();
+const supplierMailPromises = suppliersData.map((supplier) =>
+    transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: supplier.email,
+      subject: `New Lead Alert - ${userData.name} | Kasagardem`,
+      html: leadTemplateForSuppliers(supplier.company_name, userData.name, userData.email),
+    })
+  );
+
+  await Promise.all(supplierMailPromises);
+  };
