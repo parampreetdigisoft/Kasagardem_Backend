@@ -222,7 +222,7 @@ export const sendLeadsEmailToSuppliers = async (
   },
   suppliersData: Array<{
     email: string;
-    name: string;
+    company_name: string;
   }>,               
 ): Promise<void> => {
   const transporter = createTransporter();
@@ -231,7 +231,7 @@ const supplierMailPromises = suppliersData.map((supplier) =>
       from: process.env.EMAIL_FROM,
       to: supplier.email,
       subject: `New Lead Alert - ${userData.name} | Kasagardem`,
-      html: leadTemplateForSuppliers(supplier.name, userData.name, userData.email),
+      html: leadTemplateForSuppliers(supplier.company_name, userData.name, userData.email),
     })
   );
 
