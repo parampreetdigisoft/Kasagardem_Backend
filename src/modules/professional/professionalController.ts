@@ -10,6 +10,7 @@ import { createProfessionalsService,
      getAllProfessionalProfilesDb,
    getProfessionalDataById, getProfessionalProfileByIdService, 
   leadCreatedByProfessionalService,  leadForwholesalerService, professionalProfileById, registerProfessionalService, 
+  updateLeadStatusService, 
   updateProfessionalByAdminService,
   updateRatingByAdminService} from "./professionalRepositry";
 import { getProfessionalProfileById } from "../userProfile/userProfileModel";
@@ -956,4 +957,44 @@ export async function updateRatingByAdmin(req: AuthRequest, res: Response): Prom
       )
     );
   }
+};
+
+
+/**
+ * Controller to update the status of a lead based on the provided ID.
+ * It first verifies the user's authentication and finds the user by email,
+ * then calls the service to update the lead's status.
+ * 
+ * @param {AuthRequest} req - The request object, which contains the user and lead ID.
+ * @param {Response} res - The response object to send the result back to the client.
+ * @param {NextFunction} next - The next middleware function to handle any errors.
+ * @returns {Promise<Response | void>} A promise that resolves to a response, or void if an error occurs.
+ */
+export const updateStatusOfLeadsController = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<Response | void> => {
+  const userPayload = req.user as AuthUserPayload | undefined;
+  if (!userPayload?.userEmail) {
+    return res.status(401).json(errorResponse("Unauthorized"));
+  }
+
+  const user = await findUserByEmail(userPayload.userEmail);
+  if (!user) {
+    return res.status(401).json(errorResponse("User not found"));
+  }
+
+  try {
+    const { id } = req.params;
+      await updateLeadStatusService(id!);
+    
+      res.status(200).json(successResponse(null, "Lead status updated successfully"));
+   
+  } catch (error) {       
+    const err = error as Error;   
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Something went wrong",
+    });
+  }       
 };

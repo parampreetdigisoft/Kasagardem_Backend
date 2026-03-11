@@ -6,7 +6,7 @@ import {
   successResponse,
 } from "../../../core/utils/responseFormatter";
 import { error } from "../../../core/utils/logger";
-import { createLead, findAllLeads, updateLeadStatus } from "./leadsModule";
+import { createLead, findAllLeads, findAllLeadsForMonths, updateLeadStatus } from "./leadsModule";
 import { sendLeadEmails } from "../../../core/services/emailService";
 import config from "../../../core/config/env";
 import { getDB } from "../../../core/config/db";
@@ -278,3 +278,46 @@ export const updateLeadStatusController = async (
     });
   }
 };
+
+/**
+ * Fetches leads for the current month for a user, based on their email.
+ * The function first checks for a valid user email, finds the user in the database,
+ * and fetches the lead data for that user. Returns an error if the user is not authenticated 
+ * or the leads cannot be fetched.
+ * 
+ * @param {AuthRequest} req - The request object, containing the user information in the payload.
+ * @param {Response} res - The response object to send the result back to the client.
+ * @param {NextFunction} next - The next middleware function to handle errors.
+ * @returns {Promise<Response | void>} A promise that resolves to a response or void if an error occurs.
+ */
+export const getAllLeadsForMonths = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<Response | void> => {
+  const userPayload = req.user as AuthUserPayload | undefined;
+  
+  if (!userPayload?.userEmail) {
+    return res.status(401).json(errorResponse("Unauthorized"));
+  }
+
+  const user = await findUserByEmail(userPayload.userEmail);
+  if (!user) {
+    return res.status(401).json(errorResponse("User not found"));
+  }
+
+  try {
+    const leadsData = await findAllLeadsForMonths(user.id!);
+    return res.status(HTTP_STATUS.OK).json(
+      successResponse(leadsData, "Leads for the month fetched successfully")
+    );
+  } catch (err: unknown) {
+    if (err instanceof ZodError) {
+      return res.status(400).json({ errors: err.issues });
+    } 
+    return next(err);
+  }
+} 
+
+
+

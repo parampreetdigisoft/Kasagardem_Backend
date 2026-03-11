@@ -130,6 +130,7 @@ export interface RequestingUser {
 
 export interface ProfessionalPartner {
     leads_status: string | null;
+    lead_id:string | null;  // ✅ from leads_schema
     userId: string;
     role: "professional";
     company_name: string | null;
@@ -144,6 +145,7 @@ export interface ProfessionalPartner {
 
 export interface UserPartner {
     leads_status: string | null;
+    lead_id:string | null;  // ✅ from leads_schema
     userId: string;
     role: "user";
     name: string | null;

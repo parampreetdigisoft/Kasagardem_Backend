@@ -1399,12 +1399,13 @@ export const getAllLeadsForUser = async (
     );
 
     // ✅ Build a map: profileId -> { leads_status, created_at } from leads_schema
-    const leadsMetaMap = new Map<string, { leads_status: string; created_at: string }>();
+    const leadsMetaMap = new Map<string, { leads_status: string; created_at: string; lead_id: string }>();
     for (const lead of result.rows) {
         if (lead.partner_profile_ids) {
             leadsMetaMap.set(lead.partner_profile_ids, {
                 leads_status: lead.leads_status,
                 created_at: lead.created_at,
+                lead_id: lead.id,  // ✅ store the lead id
             });
         }
     }
@@ -1463,7 +1464,7 @@ export const getAllLeadsForUser = async (
         // ✅ Pull leads_status and created_at from leadsMetaMap
         const leads_status = leadsMetaMap.get(profileId)?.leads_status ?? null;
         const created_at = leadsMetaMap.get(profileId)?.created_at ?? null;
-
+        const lead_id = leadsMetaMap.get(profileId)?.lead_id ?? null;
         const role_id = roleIdMap.get(profileId) ?? null;
         const roleName = role_id ? roleNameMap.get(role_id) : null;
 
@@ -1496,9 +1497,10 @@ export const getAllLeadsForUser = async (
                 userId: profileId,
                 role: "professional",
                 company_name: profile?.company_name ?? null,
-                leads_status,   // ✅ from leads_schema
+                leads_status, 
+                lead_id,  // ✅ from leads_schema
                 created_at,
-                     // ✅ from leads_schema
+                // ✅ from leads_schema
                 location: {
                     city: profile?.city ?? null,
                     state: profile?.state ?? null,
@@ -1534,7 +1536,8 @@ export const getAllLeadsForUser = async (
                 name: user?.name ?? null,
                 email: user?.email ?? null,
                 phone_number: user?.phone_number ?? null,
-                leads_status,   // ✅ from leads_schema
+                leads_status,
+                lead_id,   // ✅ from leads_schema
                 created_at,     // ✅ from leads_schema
                 requestingUser,
             });
@@ -1835,3 +1838,40 @@ export const updateRatingByAdminService = async (
         throw new Error("Failed to update professional rating");
     }
 };
+
+
+/**
+ * Updates the status of a lead based on its current status.
+ * The status cycles through the following values:
+ * - 'new' -> 'contacted'
+ * - 'contacted' -> 'closed'
+ * - 'closed' -> 'new'
+ * 
+ * If the lead is not found, an error is thrown.
+ * 
+ * @param {string} id - The ID of the lead whose status needs to be updated.
+ * @returns {Promise<void>} A promise that resolves when the lead's status is updated successfully.
+ * @throws {Error} Throws an error if the lead is not found or the update fails.
+ */
+export async function updateLeadStatusService(id: string): Promise<void> {
+  const client = await getDB();
+
+  const query = `
+    UPDATE leads_schema
+    SET leads_status = CASE
+        WHEN leads_status = 'new' THEN 'contacted'
+        WHEN leads_status = 'contacted' THEN 'closed'
+        WHEN leads_status = 'closed' THEN 'new'
+        ELSE leads_status
+    END,
+    updated_at = NOW()
+    WHERE id = $1
+    RETURNING *;
+  `;
+
+  const result = await client.query(query, [id]);
+
+  if (result.rowCount === 0) {
+    throw new Error("Lead not found");
+  }
+}

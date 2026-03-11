@@ -4,8 +4,8 @@ import validateRequest from "../../../core/middleware/validateRequest";
 import {
   createLeadController,
   getAllLeads,
-  updateLeadStatusController,
-} from "./leadsController";
+  getAllLeadsForMonths,
+  updateLeadStatusController} from "./leadsController";
 import { leadValidation, updateLeadStatus } from "./leadsValidation";
 
 const router: Router = express.Router();
@@ -210,5 +210,44 @@ router.put(
   validateRequest(updateLeadStatus),
   updateLeadStatusController
 );
+
+/**
+ * @swagger
+ * /api/v1/admin/getLeadsForMonth:
+ *   get:
+ *     summary: Fetch leads data for the current month
+ *     description: Retrieves total leads, closed leads, and contacted leads for the current month for a specific user.
+ *     tags:
+ *       - Leads
+ *     security:
+ *       - bearerAuth: [] # Ensure the user is authenticated
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved leads data for the month.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalLeads:
+ *                   type: integer
+ *                   description: Total number of leads for the current month
+ *                 closedLeads:
+ *                   type: integer
+ *                   description: Number of leads marked as closed for the current month
+ *                 contactedLeads:
+ *                   type: integer
+ *                   description: Number of leads marked as contacted for the current month
+ *       401:
+ *         description: Unauthorized, no user or invalid token provided.
+ *       404:
+ *         description: User not found in the database.
+ *       500:
+ *         description: Internal server error.
+ */
+router.get("/getLeadsForMonth", auth, getAllLeadsForMonths);
+
+
+
 
 export default router;

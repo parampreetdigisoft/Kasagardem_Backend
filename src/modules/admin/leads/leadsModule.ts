@@ -227,3 +227,54 @@ export async function updateLeadStatus(
   const { rows } = await client.query<ILead>(query, [status, id]);
   return rows[0] ?? null;
 }
+
+/**
+ * Fetches the number of leads for the current month, including total, new, contacted, and closed leads.
+ * 
+ * @param {string} userId - The ID of the user whose lead data needs to be fetched.
+ * @returns {Promise<{ totalLeads: number; newLeads: number; contactedLeads: number; closedLeads: number; }>} 
+ * A promise that resolves to an object containing counts for the total, new, contacted, and closed leads.
+ */
+export async function findAllLeadsForMonths(
+  userId: string
+): Promise<{
+  totalLeads: number;
+  newLeads: number;
+  contactedLeads: number;
+  closedLeads: number;
+}> {
+  const client = await getDB();
+
+  const query = `
+    SELECT
+      COUNT(*) AS total_leads,
+      SUM(CASE WHEN leads_status = 'new' THEN 1 ELSE 0 END) AS new_leads,
+      SUM(CASE WHEN leads_status = 'contacted' THEN 1 ELSE 0 END) AS contacted_leads,
+      SUM(CASE WHEN leads_status = 'closed' THEN 1 ELSE 0 END) AS closed_leads
+    FROM leads_schema
+    WHERE partner_profile_ids = $1 
+      AND created_at >= date_trunc('month', CURRENT_DATE)
+      AND created_at < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month';
+  `;
+
+  try {
+    const { rows } = await client.query(query, [userId]);
+
+    return {
+      totalLeads: parseInt(rows[0].total_leads, 10) || 0,
+      newLeads: parseInt(rows[0].new_leads, 10) || 0,
+      contactedLeads: parseInt(rows[0].contacted_leads, 10) || 0,
+      closedLeads: parseInt(rows[0].closed_leads, 10) || 0,
+    };
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Error fetching leads data:", error.message);
+    } else {
+      console.error("Unknown error:", error);
+    }
+
+    throw error;
+  }
+}
+
+

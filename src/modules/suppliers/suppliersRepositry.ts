@@ -43,7 +43,7 @@ export const createSuppliersService = async (
 
     for (let i = 0; i < suppliers.length; i++) {
 
-        const p =suppliers[i];
+        const p = suppliers[i];
         if (!p) continue;
         try {
             /** 
@@ -311,8 +311,8 @@ export async function fetchSortedSuppliers(
     let categoryClause = "";
 
     if (category) {
-        values.push(category);
-        categoryClause = `WHERE category = $${values.length}`;
+        values.push(`%${category}%`);
+        categoryClause = `WHERE category ILIKE $${values.length}`;
     }
 
     const query = `

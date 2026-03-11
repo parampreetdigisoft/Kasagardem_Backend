@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import { uploadCsv } from "../../core/middleware/uploadCsv";
 import { extractUsersFromCsv } from "../../core/middleware/extractUserFromCsv";
-import { createProfessionlals,  getAllLeads,  getAllProfessionalProfiles, getprofessionalsById, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  leadForWholesaler,  registerProfessionals, updateProfessionalByAdmin, updateProfessionalProfile, updateRatingByAdmin  } from "./professionalController";
+import { createProfessionlals,  getAllLeads,  getAllProfessionalProfiles, getprofessionalsById, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  leadForWholesaler,  registerProfessionals, updateProfessionalByAdmin, updateProfessionalProfile, updateRatingByAdmin, updateStatusOfLeadsController  } from "./professionalController";
 const router: Router = express.Router();
 
 /**
@@ -846,5 +846,48 @@ router.post("/createLeadsForWholesaler",auth, leadForWholesaler);
  */
 router.patch("/updateRating", auth, updateRatingByAdmin);
  
+
+/**
+ * @swagger
+ * /api/v1/professional/updateStatus/{id}:
+ *   patch:
+ *     summary: Update lead status cycle
+ *     description: Updates the lead status based on the given lead ID. Status cycles as **new → contacted → closed → new**.
+ *     tags:
+ *       - Professionals
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Lead ID
+ *         schema:
+ *           type: string
+ *           example: "9d379091-776e-40c3-ab6c-47444944970d"
+ *     responses:
+ *       200:
+ *         description: Lead status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Lead status updated successfully
+ *                 data:
+ *                   type: object
+ *                   nullable: true
+ *                   example: null
+ *       401:
+ *         description: Unauthorized or user not found
+ *       500:
+ *         description: Internal server error
+ */
+router.patch("/updateStatus/:id", auth, updateStatusOfLeadsController);
 
 export default router;
