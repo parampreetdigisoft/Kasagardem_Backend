@@ -598,7 +598,7 @@ export async function updateProfessionalProfile(req: AuthRequest, res: Response)
       if (!professional_profile_id) {
         // No linked profile yet — create one and link it
         const { rows: newProfile } = await client.query(
-          `INSERT INTO professional_profiles (description, category, city, updated_at)
+          `INSERT INTO professional_profiles (description, category, region , updated_at)
            VALUES ($1, $2, $3, NOW())
            RETURNING id`,
           [description ?? null, category ?? null, region ?? null]
@@ -617,7 +617,7 @@ export async function updateProfessionalProfile(req: AuthRequest, res: Response)
           `UPDATE professional_profiles
            SET description = COALESCE($1, description),
                category    = COALESCE($2, category),
-               city        = COALESCE($3, city),
+               region        = COALESCE($3, region),
                updated_at  = NOW()
            WHERE id = $4`,
           [description ?? null, category ?? null, region ?? null, professional_profile_id]

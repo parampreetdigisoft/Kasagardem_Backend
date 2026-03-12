@@ -4,7 +4,7 @@ const base64ImageRegex = /^data:image\/(jpeg|jpg|png|webp|gif);base64,/;
 const MAX_IMAGE_SIZE_MB = 5;
 
 export const updateProfessionalProfileValidation: ObjectSchema = Joi.object({
-  name: Joi.string().trim().min(2).max(100).optional().messages({
+  name: Joi.string().min(2).max(100).optional().messages({
     "string.base": "Name must be a string",
     "string.empty": "Name must not be empty",
     "string.min": "Name must be at least 2 characters",
@@ -12,7 +12,6 @@ export const updateProfessionalProfileValidation: ObjectSchema = Joi.object({
   }),
 
   email: Joi.string()
-    .trim()
     .email({ tlds: { allow: false } })
     .max(150)
     .optional()
@@ -41,21 +40,21 @@ export const updateProfessionalProfileValidation: ObjectSchema = Joi.object({
       "image.size": `Profile image must not exceed ${MAX_IMAGE_SIZE_MB}MB`,
     }),
 
-  description: Joi.string().trim().min(1).max(1000).optional().messages({
+  description: Joi.string().min(1).max(1000).optional().messages({
     "string.base": "Description must be a string",
     "string.empty": "Description must not be empty",
     "string.min": "Description must be at least 1 character",
     "string.max": "Description must not exceed 1000 characters",
   }),
 
-  category: Joi.string().trim().min(1).max(100).optional().messages({
+  category: Joi.string().min(1).max(100).optional().messages({
     "string.base": "Category must be a string",
     "string.empty": "Category must not be empty",
     "string.min": "Category must be at least 1 character",
     "string.max": "Category must not exceed 100 characters",
   }),
 
-  region: Joi.string().trim().min(1).max(100).optional().messages({
+  region: Joi.string().min(1).max(100).optional().messages({
     "string.base": "Region must be a string",
     "string.empty": "Region must not be empty",
     "string.min": "Region must be at least 1 character",
