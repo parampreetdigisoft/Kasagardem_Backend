@@ -41,7 +41,13 @@ export async function createAllPlantTables():Promise<void> {
                 image_url varchar(255),
                 common_names varchar(255),
                 distributions varchar(255),
-
+                growth_rate_pt varchar(255),
+                gowth_habit_pt varchar(255),
+                edible_pt varchar(255),
+                vegetable_pt varchar(255),
+                flower_color_pt varchar(255),
+                foliage_color_pt varchar(255),
+                foliage_texture_pt varchar(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );

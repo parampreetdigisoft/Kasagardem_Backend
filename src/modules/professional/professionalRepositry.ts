@@ -1274,7 +1274,7 @@ export const professionalProfileById = async (id: string): Promise<professionalP
     }
 
     const result = await client.query(
-        `SELECT  profile_image, subscription_plan_id,trial_start_date ,trial_end_date ,account_status from professional_accounts where user_id = $1`,
+        `SELECT  profile_image, subscription_plan_id,trial_start_date ,trial_end_date ,account_status, professional_profile_id from professional_accounts where user_id = $1`,
         [id]
     );
 
@@ -1288,9 +1288,15 @@ export const professionalProfileById = async (id: string): Promise<professionalP
         `SELECT plan_name from subscrptionPlans where id = $1`,
         [row.subscription_plan_id]
     );
+
+
     const subscriptionPlanRow = subscriptionPlanResult.rows[0];
     const profile_image = await getSignedFileUrl(row.profile_image) || null;
-
+    const professsionalProfileData = await client.query(
+        `select description, region, category from professional_profiles where id = $1`,
+        [row.professional_profile_id]
+    );
+    const professionalProfileRow = professsionalProfileData.rows[0];
     return {
         name: usertableResult.rows[0].name,
         email: usertableResult.rows[0].email,
@@ -1299,6 +1305,9 @@ export const professionalProfileById = async (id: string): Promise<professionalP
         StartDate: row.trial_start_date,
         EndDate: row.trial_end_date,
         AccountStatus: row.account_status,
+        description: professionalProfileRow ? professionalProfileRow.description : null,
+        region: professionalProfileRow ? professionalProfileRow.region : null,
+        category: professionalProfileRow ? professionalProfileRow.category : null,
     };
 
 }
@@ -1395,7 +1404,8 @@ export const getAllLeadsForUser = async (
     const result = await client.query(
         `SELECT id, user_id, leads_status, created_at, updated_at
          FROM leads_schema
-         WHERE partner_profile_ids = $1 AND is_deleted = false`,
+         WHERE partner_profile_ids = $1 AND is_deleted = false 
+         ORDER BY created_at DESC`,
         [userId]
     );
 

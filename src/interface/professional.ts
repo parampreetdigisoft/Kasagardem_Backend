@@ -110,6 +110,9 @@ export interface professionalProfileResponse{
     StartDate: Date | null;
     EndDate: Date | null;
     AccountStatus: string;
+    description: string | null;
+    region: string | null;
+    category: string | null;
 }
 
 

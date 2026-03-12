@@ -3,6 +3,8 @@ import auth from "../../core/middleware/authMiddleware";
 import { uploadCsv } from "../../core/middleware/uploadCsv";
 import { extractUsersFromCsv } from "../../core/middleware/extractUserFromCsv";
 import { createProfessionlals,  getAllLeads,  getAllProfessionalProfiles, getprofessionalsById, getprofessionalsProfile, getSortedProfessionals,  leadCreatedByProfessional,  leadForWholesaler,  registerProfessionals, updateProfessionalByAdmin, updateProfessionalProfile, updateRatingByAdmin, updateStatusOfLeadsController  } from "./professionalController";
+import validateRequest from "../../core/middleware/validateRequest";
+import { updateProfessionalProfileValidation } from "./professionalValidation";
 const router: Router = express.Router();
 
 /**
@@ -306,7 +308,6 @@ router.post("/register", auth, registerProfessionals);
  *         description: Internal server error
  */
 router.get("/getSortedProfessionals",auth, getSortedProfessionals);
-
 /**
  * @swagger
  * /api/v1/professional/ProfessionalsProfile:
@@ -333,7 +334,42 @@ router.get("/getSortedProfessionals",auth, getSortedProfessionals);
  *                   example: Professional profile retrieved successfully
  *                 data:
  *                   type: object
- *                   description: Professional profile object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                       example: John Doe
+ *                     email:
+ *                       type: string
+ *                       example: johndoe@example.com
+ *                     imageUrl:
+ *                       type: string
+ *                       example: https://example.com/profile.jpg
+ *                     subscriptionPlan:
+ *                       type: string
+ *                       example: trial
+ *                     StartDate:
+ *                       type: string
+ *                       format: date
+ *                       example: 2026-01-01
+ *                     EndDate:
+ *                       type: string
+ *                       format: date
+ *                       example: 2026-01-31
+ *                     AccountStatus:
+ *                       type: string
+ *                       example: active
+ *                     description:
+ *                       type: string
+ *                       nullable: true
+ *                       example: Experienced web developer specializing in Node.js
+ *                     region:
+ *                       type: string
+ *                       nullable: true
+ *                       example: North America
+ *                     category:
+ *                       type: string
+ *                       nullable: true
+ *                       example: Software Development
  *       401:
  *         description: Unauthorized (Invalid token, user not found, or invalid user ID)
  *         content:
@@ -371,7 +407,7 @@ router.get("/ProfessionalsProfile", auth, getprofessionalsProfile);
  * /api/v1/professional/update:
  *   patch:
  *     summary: Update professional profile
- *     description: Allows an authenticated professional to update their name, email, and profile image. Any field can be updated individually.
+ *     description: Allows an authenticated professional to update their name, email, profile image, description, category, and region. Any field can be updated individually.
  *     tags: [Professionals]
  *     security:
  *       - bearerAuth: []
@@ -393,6 +429,18 @@ router.get("/ProfessionalsProfile", auth, getprofessionalsProfile);
  *                 type: string
  *                 description: Base64 encoded image string (data:image/...;base64,...)
  *                 example: data:image/jpeg;base64,/9j/4AAQSkZJRgABAQE...
+ *               description:
+ *                 type: string
+ *                 maxLength: 1000
+ *                 example: Experienced software engineer specializing in full-stack development.
+ *               category:
+ *                 type: string
+ *                 maxLength: 100
+ *                 example: Technology
+ *               region:
+ *                 type: string
+ *                 maxLength: 100
+ *                 example: São Paulo
  *     responses:
  *       200:
  *         description: Professional profile updated successfully
@@ -409,6 +457,28 @@ router.get("/ProfessionalsProfile", auth, getprofessionalsProfile);
  *                   example: Professional profile updated successfully
  *       400:
  *         description: Invalid input or email already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Email already in use
+ *                 errors:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       field:
+ *                         type: string
+ *                         example: email
+ *                       message:
+ *                         type: string
+ *                         example: Must be a valid email address
  *       401:
  *         description: Unauthorized
  *       404:
@@ -416,7 +486,7 @@ router.get("/ProfessionalsProfile", auth, getprofessionalsProfile);
  *       500:
  *         description: Internal server error
  */
-router.patch("/update", auth,  updateProfessionalProfile);
+router.patch("/update",validateRequest(updateProfessionalProfileValidation), auth,  updateProfessionalProfile);
 
 /**
  * @swagger

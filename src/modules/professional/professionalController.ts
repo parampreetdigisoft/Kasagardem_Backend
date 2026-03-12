@@ -491,7 +491,15 @@ export async function updateProfessionalProfile(req: AuthRequest, res: Response)
     }
     const client = getDB();
     const { rows: existingProfileRows } = await client.query(
-      `SELECT id FROM users WHERE id = $1`,
+      `SELECT 
+         u.id AS user_id,
+         pa.id AS account_id,
+         pa.professional_profile_id,
+         pa.profile_image
+       FROM users u
+       LEFT JOIN professional_accounts pa ON pa.user_id = u.id
+       LEFT JOIN professional_profiles pp ON pp.id = pa.professional_profile_id
+       WHERE u.id = $1`,
       [user.id]
     );
 
@@ -502,14 +510,11 @@ export async function updateProfessionalProfile(req: AuthRequest, res: Response)
         action: "updateUserProfile",
         req,
       });
-      res
-        .status(HTTP_STATUS.NOT_FOUND)
-        .json(errorResponse("User profile not found"));
+      res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("User profile not found"));
       return;
     }
 
-    const profileId = existingProfileRows[0].id;
-
+    const { account_id, professional_profile_id } = existingProfileRows[0];
 
 
     if (req.body.profileImage && typeof req.body.profileImage === "string") {
@@ -521,7 +526,7 @@ export async function updateProfessionalProfile(req: AuthRequest, res: Response)
           const plantName = `${Date.now()}.jpg`; // or `${user.id}_${Date.now()}.jpg`
           const folder = "professional/ProfileImages"; // or any folder name you prefer
           // Fetch old profile image from DB
-          const profile_image_url = await getProfessionalProfileById(profileId);
+          const profile_image_url = await getProfessionalProfileById(account_id);
           const oldFileKey = profile_image_url || null;
 
           // Upload new image
@@ -552,8 +557,7 @@ export async function updateProfessionalProfile(req: AuthRequest, res: Response)
         }
       }
     }
-    if (req.body.name || req.body.email) {
-
+     if (req.body.name || req.body.email) {
       if (req.body.email) {
         const { rows: emailCheck } = await client.query(
           `SELECT id FROM users WHERE email = $1 AND id != $2`,
@@ -561,48 +565,69 @@ export async function updateProfessionalProfile(req: AuthRequest, res: Response)
         );
 
         if (emailCheck.length > 0) {
-          await client.query("ROLLBACK");
-          res
-            .status(HTTP_STATUS.BAD_REQUEST)
-            .json(errorResponse("Email already in use"));
+          res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Email already in use"));
           return;
         }
       }
 
       await client.query(
-        `
-        UPDATE users
-        SET
-          name = COALESCE($1, name),
-          email = COALESCE($2, email),
-          updated_at = NOW()
-        WHERE id = $3
-        `,
-        [
-          req.body.name ?? null,
-          req.body.email ?? null,
-          user.id,
-        ]
+        `UPDATE users
+         SET name       = COALESCE($1, name),
+             email      = COALESCE($2, email),
+             updated_at = NOW()
+         WHERE id = $3`,
+        [req.body.name ?? null, req.body.email ?? null, user.id]
       );
     }
 
-    // 4️ Update userprofiles table (only if image provided)
+    // ── 3. Update professional_accounts (profile image) ──────────────────────
     if (req.body.profileImage) {
       await client.query(
-        `
-        UPDATE professional_accounts
-        SET
-          profile_image = $1,
-          updated_at = NOW()
-        WHERE user_id = $2
-        `,
-        [req.body.profileImage, profileId]
+        `UPDATE professional_accounts
+         SET profile_image = $1,
+             updated_at    = NOW()
+         WHERE id = $2`,
+        [req.body.profileImage, account_id]
       );
     }
 
-    await client.query("COMMIT");
+    // ── 4. Update professional_profiles (description / category / region) ────
+    const { description, category, region } = req.body;
 
-    res.status(HTTP_STATUS.OK).json(successResponse(null, "Professional profile updated successfully"));
+    if (description || category || region) {
+      if (!professional_profile_id) {
+        // No linked profile yet — create one and link it
+        const { rows: newProfile } = await client.query(
+          `INSERT INTO professional_profiles (description, category, city, updated_at)
+           VALUES ($1, $2, $3, NOW())
+           RETURNING id`,
+          [description ?? null, category ?? null, region ?? null]
+        );
+
+        await client.query(
+          `UPDATE professional_accounts
+           SET professional_profile_id = $1,
+               updated_at              = NOW()
+           WHERE id = $2`,
+          [newProfile[0].id, account_id]
+        );
+      } else {
+        // Profile already exists — update it
+        await client.query(
+          `UPDATE professional_profiles
+           SET description = COALESCE($1, description),
+               category    = COALESCE($2, category),
+               city        = COALESCE($3, city),
+               updated_at  = NOW()
+           WHERE id = $4`,
+          [description ?? null, category ?? null, region ?? null, professional_profile_id]
+        );
+      }
+    }
+
+    res
+      .status(HTTP_STATUS.OK)
+      .json(successResponse(null, "Professional profile updated successfully"));
   } catch (error) {
     console.error("Error in updateProfessionalProfile:", error);
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
