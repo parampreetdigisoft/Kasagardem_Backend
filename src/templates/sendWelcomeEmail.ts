@@ -464,7 +464,7 @@ export const professionalWelcomeEmailTemplate = (
                                                                                                                 </td>
                                                                                                             </tr>
                                                                                                             <tr>
-                                                                                                                <td style="font-size: 20px; font-weight: 600; color: #2E3A30; text-align: center; text-transform: uppercase; display: block; margin-top: 10px; border: 1px solid #2E3A303b; border-radius: 10px; background: #fff; padding: 15px 20px; letter-spacing: 2px; word-break: break-all;">
+                                                                                                                <td style="font-size: 20px; font-weight: 600; color: #2E3A30; text-align: center;  display: block; margin-top: 10px; border: 1px solid #2E3A303b; border-radius: 10px; background: #fff; padding: 15px 20px; letter-spacing: 2px; word-break: break-all;">
                                                                                                                     ${password}
                                                                                                                 </td>
                                                                                                             </tr>

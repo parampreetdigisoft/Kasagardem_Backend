@@ -43,7 +43,7 @@ export const createSuppliersService = async (
 
     for (let i = 0; i < suppliers.length; i++) {
 
-        const p =suppliers[i];
+        const p = suppliers[i];
         if (!p) continue;
         try {
             /** 
@@ -310,11 +310,15 @@ export async function fetchSortedSuppliers(
     const values: (number | string)[] = [userLat, userLng, userLat, userLng];
     let categoryClause = "";
 
-    if (category) {
-        values.push(category);
-        categoryClause = `WHERE category = $${values.length}`;
-    }
+   if (category) {
+    const normalized = category
+        .trim()
+        .toLowerCase()
+        .replace(/e?s$/i, ""); // strips plural suffix
 
+    values.push(`%${normalized}%`);
+    categoryClause = `WHERE LOWER(category) ILIKE $${values.length}`;
+}
     const query = `
         SELECT
             id,
