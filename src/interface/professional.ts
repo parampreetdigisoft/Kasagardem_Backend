@@ -70,6 +70,7 @@ export interface GetProfessionalsParams {
 
 export interface ProfessionalResult {
   id: string;
+  userid: string; // ✅ return userID for frontend to fetch profile details
   company_name: string;
   category: string;
   description: string;
@@ -141,6 +142,7 @@ export interface ProfessionalPartner {
     telefone: string | null;
     whatsapp: string | null;
     website: string | null;
+    email: string | null;
     // instagram: string | null;
     requestingUser: RequestingUser;
     created_at: string | null;

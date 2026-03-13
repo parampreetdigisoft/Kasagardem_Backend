@@ -959,5 +959,4 @@ router.patch("/updateRating", auth, updateRatingByAdmin);
  *         description: Internal server error
  */
 router.patch("/updateStatus/:id", auth, updateStatusOfLeadsController);
-
 export default router;

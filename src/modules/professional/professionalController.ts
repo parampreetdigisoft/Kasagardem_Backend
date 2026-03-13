@@ -336,6 +336,19 @@ export async function getSortedProfessionals(
   res: Response
 ): Promise<void> {
   try {
+    const userPayload = req.user as AuthUserPayload | undefined;
+    if (!userPayload?.userEmail) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized"));
+      return;
+    }
+
+    const user = await findUserByEmail(userPayload.userEmail);
+    if (!user) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+      return;
+    }
+
+
     const { lat, lng, category, limit = "50", offset = "0" } = req.query;
 
     // --- Validate required params ---
@@ -363,8 +376,20 @@ export async function getSortedProfessionals(
       limit: pageLimit,
       offset: pageOffset,
     });
-
-    res.status(200).json(successResponse(result, "Professionals retrieved successfully"));
+    // res.status(200).json(successResponse(result, "Professionals retrieved successfully"));
+      const filteredData = result.data.filter((pro) => pro.userid !== user.id);
+    res.status(200).json(
+    successResponse(
+      {
+        total: filteredData.length,
+        limit: result.limit,
+        offset: result.offset,
+        user_location: result.user_location,
+        data: filteredData,
+      },
+      "Professionals retrieved successfully"
+    )
+  );
   } catch (error: unknown) {
     if (error instanceof Error) {
       console.error("getSortedProfessionals error:", error.message);

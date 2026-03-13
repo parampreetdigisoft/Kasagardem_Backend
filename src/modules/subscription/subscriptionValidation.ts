@@ -2,10 +2,10 @@ import Joi, { ObjectSchema } from "joi";
 
 export const createPlanValidation: ObjectSchema = Joi.object({
   plan_name: Joi.string()
-    .valid("Talk", "Gold", "Diamante")
+    .valid("Silver", "Gold", "Diamante")
     .required()
     .messages({
-      "any.only": "Plan name must be Talk, Gold, or Diamante",
+      "any.only": "Plan name must be silver, Gold, or Diamante",
       "any.required": "Plan name is required",
     }),
 

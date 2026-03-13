@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import auth from "../../core/middleware/authMiddleware";
 import validateRequest from "../../core/middleware/validateRequest";
 import { createPlanValidation } from "./subscriptionValidation";
-import { CreatePlan, getPlans, updatePlan, updateSubscriptionStatusById } from "./subscriptionController";
+import { CreatePlan, getActivePlansForProfessionals, getPlans, updatePlan, updateSubscriptionStatusById } from "./subscriptionController";
 
 
 
@@ -242,5 +242,62 @@ router.put("/update", auth,  updatePlan);
  *         description: Subscription plan not found
  */
 router.patch("/status/:id", auth, updateSubscriptionStatusById);
+
+/**
+ * @swagger
+ * /api/v1/subscription/subscription-plans  :
+ *   get:
+ *     summary: "Retrieve the active subscription plans for professionals"
+ *     description: "Fetches all active subscription plans available to professionals, ordered by type (silver, gold, platinum)."
+ *     security:
+ *       - bearerAuth: []  # Assuming you're using Bearer authentication
+ *     tags:
+ *       - Subscription
+ *     responses:
+ *       200:
+ *         description: "Successfully retrieved active subscription plans."
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/SubscriptionPlan'
+ *       401:
+ *         description: "Unauthorized access. Missing or invalid token."
+ *       500:
+ *         description: "Internal server error."
+ */
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     SubscriptionPlan:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *           description: "The unique identifier for the subscription plan."
+ *         name:
+ *           type: string
+ *           description: "The name of the subscription plan (e.g., silver, gold, platinum)."
+ *         price:
+ *           type: number
+ *           format: float
+ *           description: "The price of the subscription plan."
+ *         features:
+ *           type: array
+ *           items:
+ *             type: string
+ *           description: "List of features provided by the subscription plan."
+ *         created_at:
+ *           type: string
+ *           format: date-time
+ *           description: "The timestamp when the subscription plan was created."
+ *         updated_at:
+ *           type: string
+ *           format: date-time
+ *           description: "The timestamp when the subscription plan was last updated."
+ */
+router.get("/subscription-plans", auth, getActivePlansForProfessionals);
 
 export default router;

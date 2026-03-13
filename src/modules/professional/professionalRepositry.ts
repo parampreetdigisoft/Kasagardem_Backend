@@ -1207,6 +1207,7 @@ export async function fetchSortedProfessionals(
         user_location: { lat: userLat, lng: userLng },
         data: paginated.map((pro) => ({
             id: pro.userid, // ✅ return userID for frontend to fetch profile details
+            userid : pro.userid,
             company_name: pro.company_name,
             category: pro.category,
             description: pro.description,
@@ -1487,7 +1488,7 @@ export const getAllLeadsForUser = async (
                 professionalAccount.rows[0]?.professional_profile_id ?? null;
 
             const professionalProfile = await client.query(
-                `SELECT company_name, city, state, address, telefone, whatsapp, website, latitude, longitude
+                `SELECT company_name, city,email, state, address, telefone, whatsapp, website, latitude, longitude
                  FROM professional_profiles WHERE id = $1`,
                 [professionalProfileId]
             );
@@ -1518,6 +1519,7 @@ export const getAllLeadsForUser = async (
                 },
                 telefone: profile?.telefone ?? null,
                 whatsapp: profile?.whatsapp ?? null,
+                email: profile?.email ?? null,
                 website: profile?.website ?? null,
                 requestingUser,
             });
