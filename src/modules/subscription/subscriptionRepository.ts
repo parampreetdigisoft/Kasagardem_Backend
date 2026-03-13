@@ -74,7 +74,13 @@ export const getAllSubscriptionPlans = async (): Promise<ISubscriptionPlan[]> =>
   const query = `
     SELECT *
     FROM subscrptionPlans
-    ORDER BY created_at DESC;
+    ORDER BY 
+      CASE 
+        WHEN plan_name = 'Silver' THEN 1
+        WHEN plan_name = 'Gold' THEN 2
+        WHEN plan_name = 'Diamante' THEN 3
+        ELSE 4
+      END;
   `;
 
   const result = await client.query<ISubscriptionPlan>(query);

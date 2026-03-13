@@ -54,7 +54,7 @@ export const CreatePlan = async (
     res: Response,
     next: NextFunction
 ): Promise<void> => {
-    const ALLOWED_PLAN_NAMES = ["Talk", "Gold", "Diamante"];
+    const ALLOWED_PLAN_NAMES = ["Silver", "Gold", "Diamante"];
 
     const userPayload = req.user as AuthUserPayload | undefined;
 
@@ -223,23 +223,23 @@ export const getPlans = async (
     try {
 
 
-        const cachedPlans = appCache.get(CACHE_KEYS.SUBSCRIPTION_PLANS);
+        // const cachedPlans = appCache.get(CACHE_KEYS.SUBSCRIPTION_PLANS);
 
-        if (cachedPlans) {
-            res.status(HTTP_STATUS.OK).json(
-                successResponse(
-                    { plans: cachedPlans },
-                    "Subscription plans fetched successfully (cached)"
-                )
-            );
-            return;
-        }
+        // if (cachedPlans) {
+        //     res.status(HTTP_STATUS.OK).json(
+        //         successResponse(
+        //             { plans: cachedPlans },
+        //             "Subscription plans fetched successfully (cached)"
+        //         )
+        //     );
+        //     return;
+        // }
 
         //  Fetch from DB
         const plans = await getAllSubscriptionPlans();
 
         // Save to cache
-        appCache.set(CACHE_KEYS.SUBSCRIPTION_PLANS, plans);
+        // appCache.set(CACHE_KEYS.SUBSCRIPTION_PLANS, plans);
 
         res.status(HTTP_STATUS.OK).json(
             successResponse({ plans: plans }, "Subscription plans fetched successfully")
@@ -451,3 +451,49 @@ export const updateSubscriptionStatusById = async (
         next(error);
     }
 };
+
+/**
+ * Controller to fetch all active subscription plans for professionals.
+ * 
+ * This API:
+ * - Validates the authenticated user from the request.
+ * - Fetches the user using the email from the auth payload.
+ * - Retrieves all subscription plans from the database/service.
+ * - Filters only plans with status "active".
+ * - Returns the active plans in the response.
+ *
+ * @param {AuthRequest} req - Express request object containing authenticated user payload.
+ * @param {Response} res - Express response object used to send the response.
+ * @param {NextFunction} next - Express next middleware function for error handling.
+ * 
+ * @returns {Promise<void>} Sends a JSON response with active subscription plans or an error.
+ */
+export const getActivePlansForProfessionals= async(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const userPayload = req.user as AuthUserPayload | undefined;
+        if (!userPayload?.userEmail) {
+            res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized request"));
+            return;
+        }
+        const user = await findUserByEmail(userPayload.userEmail);
+        if (!user) {
+            res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
+            return;
+        }
+
+       const result = await getAllSubscriptionPlans();
+       const activePlans = result.filter(plan => plan.status === "active"); 
+       
+       res.status(HTTP_STATUS.OK).json(
+        successResponse({ plans: activePlans }, "Active subscription plans fetched successfully")
+       );
+    } catch (error: unknown) {
+        console.error("Failed to fetch active subscription plans:", error);
+        
+        next(error);
+    }
+};  
