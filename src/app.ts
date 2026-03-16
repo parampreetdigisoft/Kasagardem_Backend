@@ -22,6 +22,7 @@ import professionalRoutes from "./modules/professional/professionalRoutes";
 import suppliersRoutes from "./modules/suppliers/suppliersRoutes";
 import translationMiddleware from "./core/middleware/translationMiddleware";
 import { connectDB } from "./core/config/db";
+
 // import { createLeadsTable } from "./db/createLeadSchemaTables";
 const app = express();
 setupSwagger(app);
@@ -41,11 +42,11 @@ const corsOptions = {
   credentials: true, // Set to true for cookies or HTTP auth
 };
 app.use(cors(corsOptions));
-app.use(express.json({ limit: "25mb" }));
+app.use(express.json({ limit: "200mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(translationMiddleware()); // enable translation globally
 // User Authentication Routes
-// createSuppliersProfilesTable();
+// createPlantToxicToPetsTable();
 app.use("/api/v1/auth", authRoutes);
 // User Role Routes
 app.use("/api/v1/roles", roleRoutes);

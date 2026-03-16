@@ -3,6 +3,9 @@ import auth from "../../core/middleware/authMiddleware";
 import { AddPlantToUser, getAllPlants, getAllUserPlants, getPlantById, getUserPlantById } from "./myPlantController";
 import validateRequest from "../../core/middleware/validateRequest";
 import { createUserPlantValidation } from "./myPlantValidation";
+import { importAllPlantsHandler } from "./importAllPlnatController";
+import { importPlantCareHandler } from "./importPlantCareController";
+import { importPlantToxicToPetsHandler } from "./importPetToxicPlantController";
 const router = express.Router();
 /**
  * @swagger
@@ -149,7 +152,7 @@ router.get("/",auth, getAllPlants);
  * /api/v1/allplants/{id}:
  *   get:
  *     summary: Get plant by ID
- *     description: Fetch the details of a plant by its unique ID.
+ *     description: Fetch the details of a plant by its unique serial ID.
  *     tags: [My Plants]
  *     security:
  *       - bearerAuth: []
@@ -158,9 +161,9 @@ router.get("/",auth, getAllPlants);
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
- *         description: Unique ID of the plant
+ *           type: integer
+ *           example: 1
+ *         description: Unique serial ID of the plant
  *     responses:
  *       200:
  *         description: Plant details retrieved successfully
@@ -191,7 +194,7 @@ router.get("/",auth, getAllPlants);
  *                   type: string
  *                   example: Plant ID is required
  *       401:
- *         description: Unauthorized - User must be authenticated and have the correct role.
+ *         description: Unauthorized - User must be authenticated.
  *         content:
  *           application/json:
  *             schema:
@@ -239,38 +242,32 @@ router.get("/",auth, getAllPlants);
  *       type: object
  *       properties:
  *         id:
- *           type: string
- *           format: uuid
- *           example: "e1b8f062-1b07-4de9-b6e2-0729a81b4d1e"
+ *           type: integer
+ *           example: 1
  *         name:
  *           type: string
- *           example: "Rose"
+ *           example: Rose
  *         description:
  *           type: string
- *           example: "A beautiful flowering plant."
+ *           example: A beautiful flowering plant.
  *         imageUrl:
  *           type: string
- *           example: "https://example.com/rose.jpg"
+ *           example: https://example.com/rose.jpg
  *         createdAt:
  *           type: string
  *           format: date-time
- *           example: "2023-02-01T10:00:00Z"
+ *           example: 2023-02-01T10:00:00Z
  *         updatedAt:
  *           type: string
  *           format: date-time
- *           example: "2023-02-01T10:00:00Z"
- */
-
-/**
- * @swagger
- * components:
+ *           example: 2023-02-01T10:00:00Z
+ *
  *   securitySchemes:
  *     bearerAuth:
  *       type: http
  *       scheme: bearer
  *       bearerFormat: JWT
  */
-
 router.get("/:id",auth, getPlantById);
 
 /**
@@ -657,6 +654,109 @@ router.get("/user/myplants", auth, getAllUserPlants);
 
 router.get("/user/plants/:id", auth, getUserPlantById);
 
+/**
+ * @swagger
+ * /api/v1/allplants/importAllPlants:
+ *   post:
+ *     summary: Import all plants from an Excel file
+ *     tags:
+ *       - [My Plants] 
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file containing plant data
+ *     responses:
+ *       200:
+ *         description: Plants imported successfully
+ *       400:
+ *         description: Invalid file or data
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.post("/importAllPlants", auth, ...importAllPlantsHandler);
 
+
+/**
+ * @swagger
+ * /api/v1/allplants/importPlantCareData:
+ *   post:
+ *     summary: Import all plants from an Excel file
+ *     tags:
+ *       - [My Plants] 
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file containing plant data
+ *     responses:
+ *       200:
+ *         description: Plants imported successfully
+ *       400:
+ *         description: Invalid file or data
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.post("/importPlantCareData", auth, ...importPlantCareHandler);
+
+
+
+/**
+ * @swagger
+ * /api/v1/allplants/importPlantToxicToPets:
+ *   post:
+ *     summary: Import all plants from an Excel file
+ *     tags:
+ *       - [My Plants] 
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file containing plant data
+ *     responses:
+ *       200:
+ *         description: Plants imported successfully
+ *       400:
+ *         description: Invalid file or data
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.post("/importPlantToxicToPets", auth, ...importPlantToxicToPetsHandler);
 
 export default router;

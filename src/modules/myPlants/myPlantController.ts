@@ -38,7 +38,7 @@ export const getAllPlants = async (
         res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
         return;
     }
-    if (userPayload.role !== "User") {
+    if (userPayload.role !== "User" ) {
         res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized Role"));
         return;
     }

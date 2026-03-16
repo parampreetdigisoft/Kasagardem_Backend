@@ -1,5 +1,5 @@
 import { getDB } from "../../core/config/db";
-import { AddUserPlantInput, PaginatedPlants, PaginatedUserPlants, UserPlant } from "../../interface/myPlants";
+import { AddUserPlantInput, PaginatedPlants, PaginatedUserPlants, PlantDetails, UserPlant } from "../../interface/myPlants";
 
 
 
@@ -44,12 +44,19 @@ export const getAllPlantsService = async (
        id,
        scientific_name,
        common_name,
-       description,
+       family,
+       genus,
+       flower_color,
+       foliage_color,
+       edible,
+       bloom_months,
+       growth_months,
+       fruit_months,
+       vegetable,  
        image_url,
-       generic_options,
        created_at,
        updated_at
-     FROM plant_species
+     FROM all_plants
      ${searchCondition}
      ORDER BY created_at DESC
      LIMIT $${limitParam} OFFSET $${offsetParam}`,
@@ -74,23 +81,74 @@ export const getAllPlantsService = async (
  * @returns {Promise<void>} Plant details object.
  * @throws {Error} If plant is not found or database query fails.
  */
-export const getPlantDetailsByIdService = async (plantId: string): Promise<void> => {
+export const getPlantDetailsByIdService = async (plantId: string): Promise<PlantDetails> => {
     try {
         const pool = await getDB();
 
+        const id = Number(plantId);
+
+    if (isNaN(id)) {
+      throw new Error("Invalid plant ID");
+    }
+
+
         const result = await pool.query(
-            `SELECT *
-       FROM plant_species
-       WHERE id = $1`,
-            [plantId]
+            `SELECT scientific_name
+            FROM all_plants
+            WHERE id = $1`,
+            [id]
         );
 
         if (result.rows.length === 0) {
             throw new Error("Plant not found");
         }
 
-        return result.rows[0];
 
+       const plantDetails = await pool.query(
+            `SELECT
+                id,  
+                common_name,
+                scientific_name,
+                family,
+                genus,
+                watering,
+                sunlight,
+                care_level,
+                growth_rate,
+                indoor,
+                temperature_min,
+                temperature_max,
+                humidity_min,
+                humidity_max,
+                light_min,
+                light_max,
+                soil_moisture_min,
+                soil_moisture_max,
+                poisonous_to_humans,
+                poisonous_to_pets,
+                drought_tolerant,
+                tropical boolean,
+                medical boolean,
+                edible boolean,
+                soil,
+                fertilizer,
+                pruning,
+                cycle,
+                pest,
+                diseases,
+                origin,
+                category,
+                climate,
+                color,
+                blooming,
+                description ,
+                image_url,
+                source
+                FROM plant_care
+                WHERE scientific_name = $1`,
+            [result.rows[0].scientific_name]
+        );
+        return plantDetails.rows[0];
     } catch (err) {
         if (err instanceof Error) {
             throw err; // rethrow original error
