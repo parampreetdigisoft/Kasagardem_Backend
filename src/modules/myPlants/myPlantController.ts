@@ -4,7 +4,7 @@ import { AuthUserPayload } from "../../interface/user";
 import { errorResponse, successResponse } from "../../core/utils/responseFormatter";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import { findUserByEmail } from "../auth/authRepository";
-import { addPlantToUserService, getAllPlantsService, getUserPlantByIdService, getUserPlantsService } from "./myPlantServices";
+import { addPlantToUserService, getAllPlantsService, getUserPlantByIdService, getUserPlantsService, updateUserPlantService } from "./myPlantServices";
 import { ZodError } from "zod";
 import { getPlantDetailsByIdService } from "./myPlantServices";
 
@@ -38,7 +38,7 @@ export const getAllPlants = async (
         res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("User not found"));
         return;
     }
-    if (userPayload.role !== "User" ) {
+    if (userPayload.role !== "User") {
         res.status(HTTP_STATUS.UNAUTHORIZED).json(errorResponse("Unauthorized Role"));
         return;
     }
@@ -49,10 +49,10 @@ export const getAllPlants = async (
         const limit = parseInt(req.query.limit as string) || 10;
         const search = (req.query.search as string)?.trim() || undefined;
 
-        const data = await getAllPlantsService(page, limit,search);
+        const data = await getAllPlantsService(page, limit, search);
 
         res.status(HTTP_STATUS.OK).json(successResponse(
-             data,
+            data,
             "Plants retrieved successfully"
         ));
 
@@ -73,7 +73,7 @@ export const getAllPlants = async (
         next(err);
 
     }
-} 
+}
 
 /**
  * Retrieves detailed information about a plant by its ID.
@@ -122,7 +122,7 @@ export const getPlantById = async (
         );
     }
     catch (err) {
-         if (err instanceof ZodError) {
+        if (err instanceof ZodError) {
             res.status(HTTP_STATUS.BAD_REQUEST).json(
                 errorResponse("Validation failed", { issues: err.issues })
             );
@@ -135,7 +135,7 @@ export const getPlantById = async (
             );
             return;
         }
-        
+
         next(err);
     }
 }
@@ -159,7 +159,7 @@ export const AddPlantToUser = async (
     next: NextFunction
 ): Promise<void> => {
 
-    // ── 1. Auth Checks ────────────────────────────────────────────────────────
+    // ── 1. Auth checks ────────────────────────────────────────────────────────
     const userPayload = req.user as AuthUserPayload | undefined;
 
     if (!userPayload?.userEmail) {
@@ -178,15 +178,15 @@ export const AddPlantToUser = async (
         return;
     }
 
-    // ── 2. Validate Request Body ──────────────────────────────────────────────
-    const { plant_species_id } = req.body;
+    // ── 2. Validate required field ────────────────────────────────────────────
+    const { plant_id } = req.body;
 
-    if (!plant_species_id) {
-        res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("plant_species_id is required"));
+    if (!plant_id) {
+        res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("plant_id is required"));
         return;
     }
 
-    // ── 3. Call Service ───────────────────────────────────────────────────────
+    // ── 3. Call service ───────────────────────────────────────────────────────
     try {
         const data = await addPlantToUserService(user.id!, req.body);
 
@@ -196,14 +196,12 @@ export const AddPlantToUser = async (
 
     } catch (err) {
         if (err instanceof Error) {
-            // Known business logic errors from service
             const knownErrors: Record<string, number> = {
-                "Plant species not found"       : HTTP_STATUS.NOT_FOUND,
-                "Plant already added to user"   : HTTP_STATUS.CONFLICT,
+                "Plant species not found": HTTP_STATUS.NOT_FOUND,
+                "Plant already added to user": HTTP_STATUS.CONFLICT,
             };
 
             const statusCode = knownErrors[err.message] ?? HTTP_STATUS.BAD_REQUEST;
-
             res.status(statusCode).json(errorResponse(err.message));
             return;
         }
@@ -211,7 +209,6 @@ export const AddPlantToUser = async (
         next(err);
     }
 };
-
 /**
  * Retrieves all plants associated with the authenticated user.
  *
@@ -253,7 +250,7 @@ export const getAllUserPlants = async (
         const limit = parseInt(req.query.limit as string) || 10;
         const search = (req.query.search as string)?.trim() || undefined;
 
-        const data = await getUserPlantsService(user.id!, page, limit, search   );
+        const data = await getUserPlantsService(user.id!, page, limit, search);
 
         res.status(HTTP_STATUS.OK).json(
             successResponse(data, "User plants retrieved successfully")
@@ -268,7 +265,7 @@ export const getAllUserPlants = async (
         }
         next(err);
     }
-}; 
+};
 
 
 /**
@@ -302,7 +299,7 @@ export const getUserPlantById = async (
     next: NextFunction
 ): Promise<void> => {
 
-    // ── 1. Auth Checks ────────────────────────────────────────────────────────
+    // ── 1. Auth ───────────────────────────────────────────────────────────────
     const userPayload = req.user as AuthUserPayload | undefined;
 
     if (!userPayload?.userEmail) {
@@ -321,35 +318,135 @@ export const getUserPlantById = async (
         return;
     }
 
-    // ── 2. Validate Param ─────────────────────────────────────────────────────
-    const plantId = req.params.id;
-    if (!plantId) {
+    // ── 2. Param validation ───────────────────────────────────────────────────
+    // ── 2. Param validation ───────────────────────────────────────────────────
+    if (!req.params.id) {
         res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse("Plant ID is required"));
         return;
     }
+    const plantId = parseInt(req.params.id);
 
-    // ── 3. Call Service ───────────────────────────────────────────────────────
+    if (isNaN(plantId)) {
+        res.status(HTTP_STATUS.BAD_REQUEST).json(
+            errorResponse("Invalid plant ID — must be an integer")
+        );
+        return;
+    }
+    // ── 3. Service ────────────────────────────────────────────────────────────
     try {
-        const data = await getUserPlantByIdService(user.id!, plantId);
+        const plant = await getUserPlantByIdService(user.id!, plantId);
 
-        if (!data) {
+        if (!plant) {
             res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("Plant not found"));
             return;
         }
 
         res.status(HTTP_STATUS.OK).json(
-            successResponse(data, "User plant retrieved successfully")
+            successResponse(plant, "Plant retrieved successfully")
         );
-
     } catch (err) {
-        if (err instanceof Error) {
-            res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse(err.message));
-            return;
-        }
         next(err);
     }
 };
 
 
+/**
+ * Controller to update notification settings for a user's plant.
+ *
+ * This endpoint allows partial updates for one or more care types (watering, fertilizer, pruning, generic care)
+ * for a specific user's plant. Only the care types included in the request body are updated. 
+ *
+ * **Behavior:**
+ * - If `notification_enabled` is `true` for a care type, `preferred_time` and `reminder_frequency` are required.
+ * - If `notification_enabled` is `false`, the `reminder_frequency` is preserved, `preferred_time` may be ignored,
+ *   and `next_*_at` is not reset.
+ *
+ * @param {AuthRequest} req - Express request object, must contain:
+ *   - `req.user` with authenticated user's payload
+ *   - `req.params.userPlantId` UUID of the user_plant record
+ *   - `req.body` partial object containing any of the care types to update
+ * @param {Response} res - Express response object
+ * 
+ * @returns {Promise<void>} - Sends JSON response with:
+ *   - 200: Updated plant notification settings
+ *   - 400: Missing userPlantId or invalid payload
+ *   - 401: Unauthorized (no user or invalid token)
+ *   - 404: User not found
+ *   - 500: Internal server error
+ *
+ * @example
+ * // PATCH /updatePlant/123e4567-e89b-12d3-a456-426614174000
+ * // Request body:
+ * {
+ *   "watering": {
+ *     "notification_enabled": true,
+ *     "preferred_time": "08:00:00",
+ *     "reminder_frequency": 3
+ *   },
+ *   "pruning": {
+ *     "notification_enabled": false
+ *   }
+ * }
+ *
+ * // Response (200):
+ * {
+ *   "message": "Plant notifications updated successfully",
+ *   "data": {
+ *     "id": "123e4567-e89b-12d3-a456-426614174000",
+ *     "user_id": "d4e5f6a1-b2c3-4567-89ab-cdef01234567",
+ *     "plant_id": 42,
+ *     "watering_notification_enabled": true,
+ *     "watering_preferred_time": "08:00:00",
+ *     "watering_reminder_frequency": 3,
+ *     "next_watered_at": "2026-03-19T08:00:00.000Z",
+ *     ...
+ *   }
+ * }
+ */
+export const updateUserPlantController = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const userPayload = req.user as AuthUserPayload | undefined;
+        const userPlantId = req.params.userPlantId;
+
+        if(!userPlantId) {
+            res.status(400).json({ message: "Plant ID is required" });
+            return;
+        }
 
 
+        if (!userPayload?.userEmail) {
+
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const user = await findUserByEmail(userPayload.userEmail);
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+
+
+
+        if (!user) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const updated = await updateUserPlantService(user.id!, userPlantId, req.body);
+
+        res.status(200).json({
+            message: "Plant notifications updated successfully",
+            data: updated,
+        });
+    } catch (err) {
+        if (err instanceof Error) {
+            res.status(400).json({ message: err.message });
+        } else {
+            res.status(500).json({ message: "Internal server error" });
+        }
+    }
+};

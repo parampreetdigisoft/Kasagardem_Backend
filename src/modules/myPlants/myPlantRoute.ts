@@ -1,11 +1,11 @@
 import express from "express";
 import auth from "../../core/middleware/authMiddleware";
-import { AddPlantToUser, getAllPlants, getAllUserPlants, getPlantById, getUserPlantById } from "./myPlantController";
+import { AddPlantToUser, getAllPlants, getAllUserPlants, getPlantById, getUserPlantById, updateUserPlantController } from "./myPlantController";
 import validateRequest from "../../core/middleware/validateRequest";
-import { createUserPlantValidation } from "./myPlantValidation";
 import { importAllPlantsHandler } from "./importAllPlnatController";
 import { importPlantCareHandler } from "./importPlantCareController";
 import { importPlantToxicToPetsHandler } from "./importPetToxicPlantController";
+import { reminderValidation } from "./myPlantValidation";
 const router = express.Router();
 /**
  * @swagger
@@ -269,6 +269,282 @@ router.get("/",auth, getAllPlants);
  *       bearerFormat: JWT
  */
 router.get("/:id",auth, getPlantById);
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     CareNotificationInput:
+ *       type: object
+ *       required:
+ *         - notification_enabled
+ *       properties:
+ *         notification_enabled:
+ *           type: boolean
+ *           description: Toggle the notification for this care type
+ *           example: true
+ *         preferred_time:
+ *           type: string
+ *           format: time
+ *           nullable: true
+ *           description: >
+ *             Required when notification_enabled is true for watering and fertilizer.
+ *             Not applicable for pruning and generic.
+ *           example: "08:00:00"
+ *         reminder_frequency:
+ *           type: integer
+ *           nullable: true
+ *           description: Frequency in days. Required and must be > 0 when notification_enabled is true.
+ *           example: 3
+ *
+ *     UpdateUserPlantRequest:
+ *       type: object
+ *       description: At least one care type must be provided. Only supplied care types are updated.
+ *       properties:
+ *         watering:
+ *           $ref: '#/components/schemas/CareNotificationInput'
+ *         fertilizer:
+ *           $ref: '#/components/schemas/CareNotificationInput'
+ *         pruning:
+ *           $ref: '#/components/schemas/CareNotificationInput'
+ *         generic:
+ *           $ref: '#/components/schemas/CareNotificationInput'
+ *       example:
+ *         watering:
+ *           notification_enabled: true
+ *           preferred_time: "08:00:00"
+ *           reminder_frequency: 3
+ *         fertilizer:
+ *           notification_enabled: false
+ *
+ *     UserPlantResponse:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+ *         user_id:
+ *           type: string
+ *           format: uuid
+ *           example: "d4e5f6a1-b2c3-4567-89ab-cdef01234567"
+ *         plant_id:
+ *           type: integer
+ *           example: 42
+ *         watering_notification_enabled:
+ *           type: boolean
+ *           example: true
+ *         watering_preferred_time:
+ *           type: string
+ *           example: "08:00:00"
+ *         watering_reminder_frequency:
+ *           type: integer
+ *           example: 3
+ *         next_watered_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *           example: "2025-03-20T08:00:00.000Z"
+ *         last_watered_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *           example: null
+ *         fertilizer_notification_enabled:
+ *           type: boolean
+ *           example: false
+ *         fertilizer_preferred_time:
+ *           type: string
+ *           nullable: true
+ *           example: null
+ *         fertilizer_reminder_frequency:
+ *           type: integer
+ *           example: 0
+ *         next_fertilized_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *           example: null
+ *         last_fertilized_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *           example: null
+ *         pruning_notification_enabled:
+ *           type: boolean
+ *           example: false
+ *         pruning_reminder_frequency:
+ *           type: integer
+ *           example: 0
+ *         next_pruned_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *           example: null
+ *         last_pruned_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *           example: null
+ *         generic_notification_enabled:
+ *           type: boolean
+ *           example: false
+ *         generic_care_reminder_frequency:
+ *           type: integer
+ *           example: 0
+ *         next_generic_care_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *           example: null
+ *         last_generic_care_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *           example: null
+ *         health_status:
+ *           type: string
+ *           example: "healthy"
+ *         added_at:
+ *           type: string
+ *           format: date-time
+ *           example: "2025-03-17T09:00:00.000Z"
+ *         created_at:
+ *           type: string
+ *           format: date-time
+ *           example: "2025-03-17T09:00:00.000Z"
+ *         updated_at:
+ *           type: string
+ *           format: date-time
+ *           example: "2025-03-17T10:30:00.000Z"
+ */
+
+/**
+ * @swagger
+ * /api/v1/allPlants/updatePlant/{userPlantId}:
+ *   patch:
+ *     summary: Update care notification settings for a user's plant
+ *     description: |
+ *       Partially updates notification settings for one or more care types (watering, fertilizer, pruning, generic).
+ *
+ *       **Rules:**
+ *       - Only care types included in the request body are updated — omitted types are untouched.
+ *       - When `notification_enabled` is `true`: `reminder_frequency` is required and must be > 0.
+ *         `preferred_time` is required only for `watering` and `fertilizer`.
+ *         `next_*_at` is recalculated as `NOW() + reminder_frequency days`.
+ *       - When `notification_enabled` is `false`: `reminder_frequency` is reset to `0`,
+ *         `preferred_time` is set to `null`, and `next_*_at` is **preserved** (not cleared).
+ *       - `pruning` and `generic` do not have a `preferred_time` field.
+ *     tags:
+ *       - My Plants
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userPlantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: UUID of the user_plant record to update
+ *         example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateUserPlantRequest'
+ *           examples:
+ *             toggle_watering_on:
+ *               summary: Toggle watering ON
+ *               value:
+ *                 watering:
+ *                   notification_enabled: true
+ *                   preferred_time: "08:00:00"
+ *                   reminder_frequency: 3
+ *             toggle_fertilizer_off:
+ *               summary: Toggle fertilizer OFF
+ *               value:
+ *                 fertilizer:
+ *                   notification_enabled: false
+ *             update_multiple:
+ *               summary: Update multiple care types at once
+ *               value:
+ *                 watering:
+ *                   notification_enabled: true
+ *                   preferred_time: "07:00:00"
+ *                   reminder_frequency: 2
+ *                 fertilizer:
+ *                   notification_enabled: false
+ *                 pruning:
+ *                   notification_enabled: true
+ *                   reminder_frequency: 14
+ *                 generic:
+ *                   notification_enabled: true
+ *                   reminder_frequency: 7
+ *     responses:
+ *       200:
+ *         description: Notification settings updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Plant notifications updated successfully"
+ *                 data:
+ *                   $ref: '#/components/schemas/UserPlantResponse'
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *             examples:
+ *               missing_frequency:
+ *                 value:
+ *                   message: "watering: reminder_frequency is required and must be > 0 when notification is enabled"
+ *               missing_time:
+ *                 value:
+ *                   message: "watering: preferred_time is required when notification is enabled"
+ *               empty_payload:
+ *                 value:
+ *                   message: "At least one care type must be provided"
+ *       401:
+ *         description: Unauthorized — missing or invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Unauthorized"
+ *       404:
+ *         description: Plant not found for this user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Plant not found for this user"
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Internal server error"
+ */
+router.patch("/updatePlant/:userPlantId", auth, updateUserPlantController);
 
 /**
  * @swagger
@@ -297,99 +573,171 @@ router.get("/:id",auth, getPlantById);
  *     AddUserPlantRequest:
  *       type: object
  *       required:
- *         - plant_species_id
+ *         - plant_id
  *       properties:
- *         plant_species_id:
- *           type: string
- *           format: uuid
- *           example: "c9d4c053-49b6-410c-bc78-2d54a9991870"
- *         water_notification_enabled:
+ *
+ *         plant_id:
+ *           type: integer
+ *           example: 1
+ *           description: ID of the plant species to add
+ *
+ *         # ───────────── WATERING ─────────────
+ *         watering_notification_enabled:
  *           type: boolean
  *           default: false
- *           description: Enable watering notification
- *         water_preferred_time:
+ *           description: Enable watering notifications
+ *
+ *         watering_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
- *           description: Required when watering notification is enabled, defaults to "09:00:00".
+ *           description: Preferred time for watering reminder. Defaults to "09:00:00"
+ *
+ *         watering_reminder_frequency:
+ *           type: integer
+ *           minimum: 0
+ *           example: 3
+ *           description: Watering interval in days. Defaults to 0
+ *
+ *         # ───────────── FERTILIZER ─────────────
  *         fertilizer_notification_enabled:
  *           type: boolean
  *           default: false
- *           description: Enable fertilizer notification
+ *           description: Enable fertilizer notifications
+ *
  *         fertilizer_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
- *           description: Required when fertilizer notification is enabled, defaults to "09:00:00".
+ *           description: Preferred time for fertilizer reminder. Defaults to "09:00:00"
+ *
+ *         fertilizer_reminder_frequency:
+ *           type: integer
+ *           minimum: 0
+ *           example: 15
+ *           description: Fertilizing interval in days. Defaults to 0
+ *
+ *         # ───────────── PRUNING ─────────────
  *         pruning_notification_enabled:
  *           type: boolean
  *           default: false
- *           description: Enable pruning notification
- *         pruning_preferred_time:
- *           $ref: '#/components/schemas/TimeString'
- *           description: Required when pruning notification is enabled, defaults to "09:00:00".
- *         generic_care_notification_enabled:
+ *           description: Enable pruning notifications
+ *
+ *         pruning_reminder_frequency:
+ *           type: integer
+ *           minimum: 0
+ *           example: 30
+ *           description: Pruning interval in days. Defaults to 0
+ *
+ *         # ───────────── GENERIC CARE ─────────────
+ *         generic_notification_enabled:
  *           type: boolean
  *           default: false
- *           description: Enable generic care notification
- *         generic_care_preferred_time:
- *           $ref: '#/components/schemas/TimeString'
- *           description: Required when generic care notification is enabled, defaults to "09:00:00".
- *         watering_frequency_days:
+ *           description: Enable generic care notifications
+ *
+ *         generic_care_reminder_frequency:
  *           type: integer
- *           description: Optional. Defaults to the species default if not provided.
- *         fertilizing_frequency_days:
- *           type: integer
- *           description: Optional. Defaults to the species default if not provided.
- *         pruning_frequency_days:
- *           type: integer
- *           description: Optional. Defaults to the species default if not provided.
- *         generic_frequency_days:
- *           type: integer
- *           description: Optional. Defaults to the species default if not provided.
+ *           minimum: 0
+ *           example: 7
+ *           description: Generic care interval in days. Defaults to 0
  *
  *     UserPlantResponse:
  *       type: object
  *       properties:
+ *
  *         id:
  *           type: string
  *           format: uuid
+ *
  *         user_id:
  *           type: string
  *           format: uuid
- *         plant_species_id:
+ *
+ *         plant_id:
+ *           type: integer
+ *
+ *         added_at:
  *           type: string
- *           format: uuid
- *         water_notification_enabled:
+ *           format: date-time
+ *
+ *         # ───────────── WATERING ─────────────
+ *         watering_notification_enabled:
  *           type: boolean
- *         water_preferred_time:
+ *
+ *         watering_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
+ *
+ *         watering_reminder_frequency:
+ *           type: integer
+ *
+ *         last_watered_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *
  *         next_watered_at:
  *           type: string
  *           format: date-time
+ *           nullable: true
+ *
+ *         # ───────────── FERTILIZER ─────────────
  *         fertilizer_notification_enabled:
  *           type: boolean
+ *
  *         fertilizer_preferred_time:
  *           $ref: '#/components/schemas/TimeString'
+ *
+ *         fertilizer_reminder_frequency:
+ *           type: integer
+ *
+ *         last_fertilized_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *
  *         next_fertilized_at:
  *           type: string
  *           format: date-time
  *           nullable: true
+ *
+ *         # ───────────── PRUNING ─────────────
  *         pruning_notification_enabled:
  *           type: boolean
- *         pruning_preferred_time:
- *           $ref: '#/components/schemas/TimeString'
+ *
+ *         pruning_reminder_frequency:
+ *           type: integer
+ *
+ *         last_pruned_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *
  *         next_pruned_at:
  *           type: string
  *           format: date-time
  *           nullable: true
- *         generic_care_notification_enabled:
+ *
+ *         # ───────────── GENERIC CARE ─────────────
+ *         generic_notification_enabled:
  *           type: boolean
- *         generic_care_preferred_time:
- *           $ref: '#/components/schemas/TimeString'
+ *
+ *         generic_care_reminder_frequency:
+ *           type: integer
+ *
+ *         last_generic_care_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *
  *         next_generic_care_at:
  *           type: string
  *           format: date-time
  *           nullable: true
+ *
+ *         health_status:
+ *           type: string
+ *           example: "healthy"
+ *
  *         created_at:
  *           type: string
  *           format: date-time
+ *
  *         updated_at:
  *           type: string
  *           format: date-time
@@ -410,11 +758,17 @@ router.get("/:id",auth, getPlantById);
  * /api/v1/allPlants/addplant:
  *   post:
  *     summary: Add plant to user's collection
- *     description: >
- *       Adds a plant species to the authenticated user's collection. 
- *       Time fields are required only when their corresponding notification is enabled. 
- *       If no frequency is provided for watering, fertilizing, pruning, or generic care, the species default is used.
+ *     description: |
+ *       Adds a plant to the authenticated user's collection.
+ *
+ *       🔹 Rules:
+ *       - `plant_id` is required
+ *       - If notification is disabled → next_* field will be null
+ *       - Frequency defaults to 0 if not provided
+ *       - Preferred time defaults to "09:00:00" if not provided
+ *
  *     tags: [My Plants]
+ *
  *     security:
  *       - bearerAuth: []
  *
@@ -426,6 +780,7 @@ router.get("/:id",auth, getPlantById);
  *             $ref: '#/components/schemas/AddUserPlantRequest'
  *
  *     responses:
+ *
  *       201:
  *         description: Plant added successfully
  *         content:
@@ -443,14 +798,14 @@ router.get("/:id",auth, getPlantById);
  *                   $ref: '#/components/schemas/UserPlantResponse'
  *
  *       400:
- *         description: Validation failed
+ *         description: Validation failed or missing plant_id
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized — invalid or missing token
  *         content:
  *           application/json:
  *             schema:
@@ -464,7 +819,7 @@ router.get("/:id",auth, getPlantById);
  *               $ref: '#/components/schemas/ErrorResponse'
  *
  *       409:
- *         description: Plant already added
+ *         description: Plant already added to user
  *         content:
  *           application/json:
  *             schema:
@@ -477,7 +832,7 @@ router.get("/:id",auth, getPlantById);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post("/addplant",auth,validateRequest(createUserPlantValidation), AddPlantToUser);
+router.post("/addplant", auth, validateRequest(reminderValidation), AddPlantToUser);
 /**
  * @swagger
  * /api/v1/allPlants/user/myplants:
@@ -570,7 +925,8 @@ router.get("/user/myplants", auth, getAllUserPlants);
  *         required: true
  *         schema:
  *           type: string
- *           format: uuid
+ *           format: integer
+ *           example: 1
  *         description: Unique identifier for the user's plant
  *     responses:
  *       200:

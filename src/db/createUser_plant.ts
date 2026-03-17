@@ -12,84 +12,84 @@ import { connectDB } from "../core/config/db";
  * @throws {Error} If the database query fails.
  */
 export async function userplantTable(): Promise<void> {
-    try {
-        const client = await connectDB();
-        await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
-        const query = `
-        CREATE TABLE IF NOT EXISTS user_plants (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  try {
+    const client = await connectDB();
+    await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
 
-            user_id UUID NOT NULL,
-            plant_species_id UUID NOT NULL,
+    const query = `
+    CREATE TABLE IF NOT EXISTS user_plants (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
-            added_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        user_id UUID NOT NULL,
+        plant_id INTEGER NOT NULL,
 
-            -- ══════════════════════════════════════
-            -- Watering Tracking
-            -- ══════════════════════════════════════
-            watering_frequency_days INTEGER,
-            last_watered_at TIMESTAMPTZ,
-            next_watered_at TIMESTAMPTZ,
-            water_notification_enabled BOOLEAN DEFAULT FALSE,
-            water_preferred_time TIME DEFAULT '09:00:00',
+        added_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
-            -- ══════════════════════════════════════
-            -- Fertilizer Tracking
-            -- ══════════════════════════════════════
-            fertilizing_frequency_days INTEGER,
-            last_fertilized_at TIMESTAMPTZ,
-            next_fertilized_at TIMESTAMPTZ,
-            fertilizer_notification_enabled BOOLEAN DEFAULT FALSE,
-            fertilizer_preferred_time TIME DEFAULT '09:00:00',
+        -- ══════════════════════════════════════
+        -- Watering Reminder
+        -- ══════════════════════════════════════
+        watering_reminder_frequency INTEGER DEFAULT 0,
+        last_watered_at TIMESTAMPTZ,
+        next_watered_at TIMESTAMPTZ,
+        watering_notification_enabled BOOLEAN DEFAULT FALSE,
+        watering_preferred_time TIME DEFAULT '09:00:00',
 
-            -- ══════════════════════════════════════
-            -- Pruning Tracking
-            -- ══════════════════════════════════════
-            pruning_frequency_days INTEGER,
-            last_pruned_at TIMESTAMPTZ,
-            next_pruned_at TIMESTAMPTZ,
-            pruning_notification_enabled BOOLEAN DEFAULT FALSE,
+        -- ══════════════════════════════════════
+        -- Fertilizer Reminder
+        -- ══════════════════════════════════════
+        fertilizer_reminder_frequency INTEGER DEFAULT 0,
+        last_fertilized_at TIMESTAMPTZ,
+        next_fertilized_at TIMESTAMPTZ,
+        fertilizer_notification_enabled BOOLEAN DEFAULT FALSE,
+        fertilizer_preferred_time TIME DEFAULT '09:00:00',
 
-            -- ══════════════════════════════════════
-            -- Generic Options Tracking
-            -- Mirrors generic_options from plant_species
-            -- Each object: { name, last_done_at, next_due_at, custom_frequency, preferred_time, notification_enabled }
-            -- ══════════════════════════════════════
-            generic_frequency_days INTEGER,
-            generic_options_tracking JSONB DEFAULT '[]'::jsonb,
-            last_generic_care_at TIMESTAMPTZ,
-            next_generic_care_at TIMESTAMPTZ,
-            generic_care_notification_enabled BOOLEAN DEFAULT FALSE,
-            
-            health_status VARCHAR(50) DEFAULT 'healthy',
+        -- ══════════════════════════════════════
+        -- Pruning Reminder
+        -- ══════════════════════════════════════
+        pruning_reminder_frequency INTEGER DEFAULT 0,
+        last_pruned_at TIMESTAMPTZ,
+        next_pruned_at TIMESTAMPTZ,
+        pruning_notification_enabled BOOLEAN DEFAULT FALSE,
 
-            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        -- ══════════════════════════════════════
+        -- Generic Care Reminder
+        -- ══════════════════════════════════════
+        generic_care_reminder_frequency INTEGER DEFAULT 0,
+        last_generic_care_at TIMESTAMPTZ,
+        next_generic_care_at TIMESTAMPTZ,
+        generic_notification_enabled BOOLEAN DEFAULT FALSE,
 
-            CONSTRAINT fk_user
-                FOREIGN KEY(user_id)
-                REFERENCES users(id)
-                ON DELETE CASCADE,
+        health_status VARCHAR(50) DEFAULT 'healthy',
 
-            CONSTRAINT fk_plant_species
-                FOREIGN KEY(plant_species_id)
-                REFERENCES plant_species(id)
-                ON DELETE CASCADE,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
-            CONSTRAINT unique_user_plant        
-            UNIQUE (user_id, plant_species_id)
-        );
-        `;
+        -- Foreign Keys
+        CONSTRAINT fk_user
+            FOREIGN KEY(user_id)
+            REFERENCES users(id)
+            ON DELETE CASCADE,
 
-        await client.query(query);
-        console.error("User plants table created successfully!");
+        CONSTRAINT fk_plant
+            FOREIGN KEY(plant_id)
+            REFERENCES All_plants(id)
+            ON DELETE CASCADE,
 
-    } catch (error: unknown) {
-        if (error instanceof Error) {
-            console.error("Error creating user plants table:", error.message);
-        } else {
-            console.error("Unknown error:", error);
-        }
+        -- Unique constraint
+        CONSTRAINT unique_user_plant        
+        UNIQUE (user_id, plant_id)
+    );
+    `;
+
+    await client.query(query);
+    console.error("User plants table created successfully!");
+
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Error creating user plants table:", error.message);
+    } else {
+      console.error("Unknown error:", error);
     }
+  }
 }
 

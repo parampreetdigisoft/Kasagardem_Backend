@@ -40,19 +40,43 @@ export interface PaginatedPlants {
 
 // ─── User's own plant (from /userplants) ─────────────────────────────────────
 export interface UserPlant {
-  user_plant_id: string;
-  name: string;                 // nickname ?? common_name
-  plant_image: string | null;
-  health_status: string;        // "healthy" | "needs_attention" | etc.
+    user_plant_id: string;
+    plant_id: number;
+    common_name: string | null;
+    scientific_name: string;
+    family: string | null;
+    genus: string | null;
+    image_url: string | null;
+    health_status: string;
+    watering_notification_enabled: boolean;
+    watering_preferred_time: string | null;
+    watering_reminder_frequency: number;
+    last_watered_at: string | null;
+    next_watered_at: string | null;
+    fertilizer_notification_enabled: boolean;
+    fertilizer_preferred_time: string | null;
+    fertilizer_reminder_frequency: number;
+    last_fertilized_at: string | null;
+    next_fertilized_at: string | null;
+    pruning_notification_enabled: boolean;
+    pruning_reminder_frequency: number;
+    last_pruned_at: string | null;
+    next_pruned_at: string | null;
+    generic_notification_enabled: boolean;
+    generic_care_reminder_frequency: number;
+    last_generic_care_at: string | null;
+    next_generic_care_at: string | null;
+    added_at: string;
+    created_at: string;
+    updated_at: string;
+}
 
-  water_notification_enabled: boolean;
-  next_watered_at: string;      // ISO date string
-
-  fertilizer_notification_enabled: boolean;
-  next_fertilized_at: string;
-
-  pruning_notification_enabled: boolean;
-  next_pruned_at: string;
+export interface PaginatedUserPlants {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    limit: number;
+    plants: UserPlant[];
 }
 
 // ─── User plants response wrapper (/userplants) ───────────────────────────────
@@ -63,11 +87,11 @@ export interface UserPlantsResult {
 
 // ─── Add plant input ──────────────────────────────────────────────────────────
 export interface AddUserPlantInput {
-  plant_species_id: string;
+  plant_id: number;
  
 
-  water_notification_enabled?: boolean;
-  water_preferred_time?: string; 
+  watering_notification_enabled?: boolean;
+  watering_preferred_time?: string; 
 
   fertilizer_notification_enabled?: boolean;
   fertilizer_preferred_time?: string;
@@ -76,22 +100,22 @@ export interface AddUserPlantInput {
   pruning_preferred_time?: string;
 
   generic_care_preferred_time?:string       // "HH:MM:SS"
-  generic_care_notification_enabled?: boolean;
+  generic_notification_enabled?: boolean;
 
-  watering_frequency_days: number;
-  fertilizing_frequency_days: number;
-  pruning_frequency_days: number;
-  generic_frequency_days: number;
+  watering_reminder_frequency: number;
+  fertilizer_reminder_frequency: number;
+  pruning_reminder_frequency: number;
+  generic_care_reminder_frequency: number;
 }
 
 
-export interface PaginatedUserPlants {
-    currentPage: number;
-    totalPages: number;
-    totalCount: number;
-    limit: number;
-    plants: UserPlant[];
-}
+// export interface PaginatedUserPlants {
+//     currentPage: number;
+//     totalPages: number;
+//     totalCount: number;
+//     limit: number;
+//     plants: UserPlant[];
+// }
 
 
 
@@ -182,4 +206,72 @@ export interface PlantDetails {
   description: string | null;
   image_url: string | null;
   source: string | null;
+  Water_reminder_frequency: number | null;
+  
+}
+
+export interface Reminder{
+  watering_reminder_frequency: number | null;
+  watering_preferred_time: string | null;
+  watering_notification_enabled: boolean | null;
+  fertilizer_reminder_frequency: number | null;
+  fertilizer_preferred_time: string | null;
+  fertilizer_notification_enabled: boolean | null;
+  pruning_reminder_frequency: number | null;
+  puring_notification_enabled: boolean | null;
+  generic_care_reminder_frequency: number | null;
+  generic_notification_enabled: boolean | null;                                                     
+}
+
+export interface PlantResponse{
+  plant: PlantDetails;
+  reminder: Reminder;
+}
+
+
+
+export interface ReminderSettings {
+  frequency?: number;        // days between reminders (0 = disabled)
+  notificationEnabled?: boolean;
+  preferredTime?: string;    // "HH:MM:SS" — only for watering & fertilizer
+  lastDoneAt?: string;       // ISO timestamp — triggers next_*_at recalculation
+}
+
+export interface UpdateUserPlantRemindersInput {
+  // userId: string;
+  plantId: number;
+  watering?: ReminderSettings;
+  fertilizer?: ReminderSettings;
+  pruning?: ReminderSettings;
+  genericCare?: ReminderSettings;
+  healthStatus?: "healthy" | "sick" | "recovering" | "dormant";
+}
+
+export interface UpdateUserPlantRemindersResult {
+  success: boolean;
+  message: string;
+  updatedAt?: string;
+}
+
+export interface CareNotificationInput {
+    notification_enabled: boolean;
+    preferred_time?: string | null;   // required when enabled
+    reminder_frequency?: number | null; // required when enabled
+    // recalculate_next?: boolean; // only used for update, forces next_*_at recalculation based on last_*_at when true
+}
+
+export interface UpdateUserPlantInput {
+    watering?: CareNotificationInput;
+    fertilizer?: CareNotificationInput;
+    pruning?: CareNotificationInput;
+    generic?: CareNotificationInput;
+}
+
+
+export interface CareUpdateFields {
+    notification_enabled: boolean;
+    preferred_time: string | null;
+    reminder_frequency: number;
+    next_at: Date | null;
+    recalculate_next: boolean;
 }
