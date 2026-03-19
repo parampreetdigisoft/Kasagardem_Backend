@@ -253,12 +253,12 @@ export interface UpdateUserPlantRemindersResult {
   updatedAt?: string;
 }
 
-export interface CareNotificationInput {
-    notification_enabled: boolean;
-    preferred_time?: string | null;   // required when enabled
-    reminder_frequency?: number | null; // required when enabled
-    // recalculate_next?: boolean; // only used for update, forces next_*_at recalculation based on last_*_at when true
-}
+// export interface CareNotificationInput {
+//     notification_enabled: boolean;
+//     preferred_time?: string | null;   // required when enabled
+//     reminder_frequency?: number | null; // required when enabled
+//     // recalculate_next?: boolean; // only used for update, forces next_*_at recalculation based on last_*_at when true
+// }
 
 export interface UpdateUserPlantInput {
     watering?: CareNotificationInput;
@@ -274,4 +274,33 @@ export interface CareUpdateFields {
     reminder_frequency: number;
     next_at: Date | null;
     recalculate_next: boolean;
+}
+
+
+export interface FlatUpdateUserPlantInput {
+    plant_id?: number; // ignored by update, but accepted so clients can send same body
+    watering_notification_enabled?: boolean;
+    watering_preferred_time?: string | null;
+    watering_reminder_frequency?: number;
+    fertilizer_notification_enabled?: boolean;
+    fertilizer_preferred_time?: string | null;
+    fertilizer_reminder_frequency?: number;
+    pruning_notification_enabled?: boolean;
+    pruning_reminder_frequency?: number;
+    generic_notification_enabled?: boolean;
+    generic_care_reminder_frequency?: number;
+}
+
+// ── Existing nested shape (keep as-is, service uses this) ────────────────────
+export interface CareNotificationInput {
+    notification_enabled: boolean;
+    preferred_time?: string | null;
+    reminder_frequency?: number;
+}
+
+export interface UpdateUserPlantInput {
+    watering?: CareNotificationInput;
+    fertilizer?: CareNotificationInput;
+    pruning?: CareNotificationInput;
+    generic?: CareNotificationInput;
 }

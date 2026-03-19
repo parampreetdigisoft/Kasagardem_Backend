@@ -1,5 +1,5 @@
 import { getDB } from "../../core/config/db";
-import { AddUserPlantInput, CareNotificationInput, CareUpdateFields, PaginatedUserPlants, PlantResponse, UpdateUserPlantInput,  UserPlant } from "../../interface/myPlants";
+import { AddUserPlantInput, CareNotificationInput, CareUpdateFields, FlatUpdateUserPlantInput, PaginatedUserPlants, PlantResponse, UpdateUserPlantInput,  UserPlant } from "../../interface/myPlants";
 import { PaginatedPlants } from "../../interface/plants";
 
 
@@ -787,3 +787,73 @@ export const updateUserPlantService = async (
     const result = await pool.query(query, values);
     return result.rows[0];
 };
+
+/**
+ * Maps a flat structure of plant care settings to a nested structure.
+ *
+ * The function takes a flat object representing user preferences and settings
+ * for plant care (such as watering, fertilizer, pruning, and generic care), and
+ * converts it into a more nested structure for easier processing or storage.
+ *
+ * @param {FlatUpdateUserPlantInput} flat - The flat structure containing user plant care settings.
+ * @returns {UpdateUserPlantInput} - The nested structure with plant care settings categorized by care type (watering, fertilizer, pruning, generic).
+ *
+ * @example
+ * const flatInput = {
+ *     watering_notification_enabled: true,
+ *     watering_preferred_time: 'morning',
+ *     watering_reminder_frequency: 2,
+ *     fertilizer_notification_enabled: true,
+ *     fertilizer_preferred_time: 'afternoon',
+ *     fertilizer_reminder_frequency: 3,
+ *     pruning_notification_enabled: true,
+ *     pruning_reminder_frequency: 1,
+ *     generic_notification_enabled: false,
+ *     generic_care_reminder_frequency: 5,
+ * };
+ * 
+ * const nestedOutput = mapFlatToNested(flatInput);
+ * // nestedOutput will have a structure like:
+ * // {
+ * //   watering: { notification_enabled: true, preferred_time: 'morning', reminder_frequency: 2 },
+ * //   fertilizer: { notification_enabled: true, preferred_time: 'afternoon', reminder_frequency: 3 },
+ * //   pruning: { notification_enabled: true, reminder_frequency: 1 },
+ * //   generic: { notification_enabled: false, reminder_frequency: 5 },
+ * // }
+ */
+export function mapFlatToNested(flat: FlatUpdateUserPlantInput): UpdateUserPlantInput {
+    const nested: UpdateUserPlantInput = {};
+
+    if (flat.watering_notification_enabled !== undefined) {
+        nested.watering = {
+            notification_enabled: flat.watering_notification_enabled,
+            preferred_time: flat.watering_preferred_time ?? null,
+            reminder_frequency: flat.watering_reminder_frequency ?? 0,
+        };
+    }
+
+    if (flat.fertilizer_notification_enabled !== undefined) {
+        nested.fertilizer = {
+            notification_enabled: flat.fertilizer_notification_enabled,
+            preferred_time: flat.fertilizer_preferred_time ?? null,
+            reminder_frequency: flat.fertilizer_reminder_frequency ?? 0,
+        };
+    }
+
+    if (flat.pruning_notification_enabled !== undefined) {
+        nested.pruning = {
+            notification_enabled: flat.pruning_notification_enabled,
+            reminder_frequency: flat.pruning_reminder_frequency ?? 0,
+        };
+    }
+
+    if (flat.generic_notification_enabled !== undefined) {
+        nested.generic = {
+            notification_enabled: flat.generic_notification_enabled,
+            // Note: your DB column is generic_care_reminder_frequency, not generic_reminder_frequency
+            reminder_frequency: flat.generic_care_reminder_frequency ?? 0,
+        };
+    }
+
+    return nested;
+}

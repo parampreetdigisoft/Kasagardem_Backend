@@ -4,9 +4,10 @@ import { AuthUserPayload } from "../../interface/user";
 import { errorResponse, successResponse } from "../../core/utils/responseFormatter";
 import { HTTP_STATUS } from "../../core/utils/constants";
 import { findUserByEmail } from "../auth/authRepository";
-import { addPlantToUserService, getAllPlantsService, getUserPlantByIdService, getUserPlantsService, updateUserPlantService } from "./myPlantServices";
+import { addPlantToUserService, getAllPlantsService, getUserPlantByIdService, getUserPlantsService, mapFlatToNested, updateUserPlantService } from "./myPlantServices";
 import { ZodError } from "zod";
 import { getPlantDetailsByIdService } from "./myPlantServices";
+import { FlatUpdateUserPlantInput } from "../../interface/myPlants";
 
 /**
  * Retrieves a paginated list of all plants.
@@ -411,14 +412,12 @@ export const updateUserPlantController = async (
         const userPayload = req.user as AuthUserPayload | undefined;
         const userPlantId = req.params.userPlantId;
 
-        if(!userPlantId) {
+        if (!userPlantId) {
             res.status(400).json({ message: "Plant ID is required" });
             return;
         }
 
-
         if (!userPayload?.userEmail) {
-
             res.status(401).json({ message: "Unauthorized" });
             return;
         }
@@ -429,14 +428,10 @@ export const updateUserPlantController = async (
             return;
         }
 
+        // ── Map flat body → nested shape before passing to service ─────────────
+        const nestedPayload = mapFlatToNested(req.body as FlatUpdateUserPlantInput);
 
-
-        if (!user) {
-            res.status(401).json({ message: "Unauthorized" });
-            return;
-        }
-
-        const updated = await updateUserPlantService(user.id!, userPlantId, req.body);
+        const updated = await updateUserPlantService(user.id!, userPlantId, nestedPayload);
 
         res.status(200).json({
             message: "Plant notifications updated successfully",

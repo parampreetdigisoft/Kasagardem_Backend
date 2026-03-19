@@ -273,149 +273,75 @@ router.get("/:id",auth, getPlantById);
  * @swagger
  * components:
  *   schemas:
- *     CareNotificationInput:
- *       type: object
- *       required:
- *         - notification_enabled
- *       properties:
- *         notification_enabled:
- *           type: boolean
- *           description: Toggle the notification for this care type
- *           example: true
- *         preferred_time:
- *           type: string
- *           format: time
- *           nullable: true
- *           description: >
- *             Required when notification_enabled is true for watering and fertilizer.
- *             Not applicable for pruning and generic.
- *           example: "08:00:00"
- *         reminder_frequency:
- *           type: integer
- *           nullable: true
- *           description: Frequency in days. Required and must be > 0 when notification_enabled is true.
- *           example: 3
- *
  *     UpdateUserPlantRequest:
  *       type: object
- *       description: At least one care type must be provided. Only supplied care types are updated.
+ *       description: >
+ *         Flat notification settings payload. Only fields that are provided will be updated.
+ *         At least one `*_notification_enabled` field must be present.
+ *         When a care type's `notification_enabled` is `true`:
+ *           - `reminder_frequency` is required and must be > 0.
+ *           - `preferred_time` is required for `watering` and `fertilizer` only.
+ *         When `notification_enabled` is `false`: frequency resets to 0, preferred_time to null,
+ *         and `next_*_at` is preserved.
+ *         `pruning` and `generic` do not have a `preferred_time` field.
  *       properties:
- *         watering:
- *           $ref: '#/components/schemas/CareNotificationInput'
- *         fertilizer:
- *           $ref: '#/components/schemas/CareNotificationInput'
- *         pruning:
- *           $ref: '#/components/schemas/CareNotificationInput'
- *         generic:
- *           $ref: '#/components/schemas/CareNotificationInput'
- *       example:
- *         watering:
- *           notification_enabled: true
- *           preferred_time: "08:00:00"
- *           reminder_frequency: 3
- *         fertilizer:
- *           notification_enabled: false
- *
- *     UserPlantResponse:
- *       type: object
- *       properties:
- *         id:
- *           type: string
- *           format: uuid
- *           example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
- *         user_id:
- *           type: string
- *           format: uuid
- *           example: "d4e5f6a1-b2c3-4567-89ab-cdef01234567"
  *         plant_id:
  *           type: integer
- *           example: 42
+ *           nullable: true
+ *           description: Ignored by this endpoint. Accepted so clients can reuse the add-plant body.
+ *           example: 1
+ *
  *         watering_notification_enabled:
  *           type: boolean
+ *           description: Toggle watering notifications on or off.
  *           example: true
  *         watering_preferred_time:
  *           type: string
- *           example: "08:00:00"
+ *           format: time
+ *           nullable: true
+ *           description: Required when watering_notification_enabled is true.
+ *           example: "09:00:00"
  *         watering_reminder_frequency:
  *           type: integer
+ *           nullable: true
+ *           description: Frequency in days. Required and must be > 0 when watering_notification_enabled is true.
  *           example: 3
- *         next_watered_at:
- *           type: string
- *           format: date-time
- *           nullable: true
- *           example: "2025-03-20T08:00:00.000Z"
- *         last_watered_at:
- *           type: string
- *           format: date-time
- *           nullable: true
- *           example: null
+ *
  *         fertilizer_notification_enabled:
  *           type: boolean
+ *           description: Toggle fertilizer notifications on or off.
  *           example: false
  *         fertilizer_preferred_time:
  *           type: string
+ *           format: time
  *           nullable: true
- *           example: null
+ *           description: Required when fertilizer_notification_enabled is true.
+ *           example: "09:00:00"
  *         fertilizer_reminder_frequency:
  *           type: integer
- *           example: 0
- *         next_fertilized_at:
- *           type: string
- *           format: date-time
  *           nullable: true
- *           example: null
- *         last_fertilized_at:
- *           type: string
- *           format: date-time
- *           nullable: true
- *           example: null
+ *           description: Frequency in days. Required and must be > 0 when fertilizer_notification_enabled is true.
+ *           example: 15
+ *
  *         pruning_notification_enabled:
  *           type: boolean
+ *           description: Toggle pruning notifications on or off.
  *           example: false
  *         pruning_reminder_frequency:
  *           type: integer
- *           example: 0
- *         next_pruned_at:
- *           type: string
- *           format: date-time
  *           nullable: true
- *           example: null
- *         last_pruned_at:
- *           type: string
- *           format: date-time
- *           nullable: true
- *           example: null
+ *           description: Frequency in days. Required and must be > 0 when pruning_notification_enabled is true.
+ *           example: 30
+ *
  *         generic_notification_enabled:
  *           type: boolean
+ *           description: Toggle generic care notifications on or off.
  *           example: false
  *         generic_care_reminder_frequency:
  *           type: integer
- *           example: 0
- *         next_generic_care_at:
- *           type: string
- *           format: date-time
  *           nullable: true
- *           example: null
- *         last_generic_care_at:
- *           type: string
- *           format: date-time
- *           nullable: true
- *           example: null
- *         health_status:
- *           type: string
- *           example: "healthy"
- *         added_at:
- *           type: string
- *           format: date-time
- *           example: "2025-03-17T09:00:00.000Z"
- *         created_at:
- *           type: string
- *           format: date-time
- *           example: "2025-03-17T09:00:00.000Z"
- *         updated_at:
- *           type: string
- *           format: date-time
- *           example: "2025-03-17T10:30:00.000Z"
+ *           description: Frequency in days. Required and must be > 0 when generic_notification_enabled is true.
+ *           example: 7
  */
 
 /**
@@ -424,16 +350,17 @@ router.get("/:id",auth, getPlantById);
  *   patch:
  *     summary: Update care notification settings for a user's plant
  *     description: |
- *       Partially updates notification settings for one or more care types (watering, fertilizer, pruning, generic).
+ *       Partially updates notification settings using a flat payload (same shape as the add-plant API).
  *
  *       **Rules:**
- *       - Only care types included in the request body are updated — omitted types are untouched.
- *       - When `notification_enabled` is `true`: `reminder_frequency` is required and must be > 0.
- *         `preferred_time` is required only for `watering` and `fertilizer`.
+ *       - Only care types whose `*_notification_enabled` field is present in the request are updated — omitted types are untouched.
+ *       - When `*_notification_enabled` is `true`: `*_reminder_frequency` is required and must be > 0.
+ *         `*_preferred_time` is required for `watering` and `fertilizer` only.
  *         `next_*_at` is recalculated as `NOW() + reminder_frequency days`.
- *       - When `notification_enabled` is `false`: `reminder_frequency` is reset to `0`,
- *         `preferred_time` is set to `null`, and `next_*_at` is **preserved** (not cleared).
- *       - `pruning` and `generic` do not have a `preferred_time` field.
+ *       - When `*_notification_enabled` is `false`: frequency resets to `0`,
+ *         preferred_time is set to `null`, and `next_*_at` is **preserved**.
+ *       - `pruning` and `generic` have no `preferred_time` field.
+ *       - `plant_id` in the body is accepted but ignored — the plant is identified by the path param.
  *     tags:
  *       - My Plants
  *     security:
@@ -457,30 +384,35 @@ router.get("/:id",auth, getPlantById);
  *             toggle_watering_on:
  *               summary: Toggle watering ON
  *               value:
- *                 watering:
- *                   notification_enabled: true
- *                   preferred_time: "08:00:00"
- *                   reminder_frequency: 3
+ *                 watering_notification_enabled: true
+ *                 watering_preferred_time: "09:00:00"
+ *                 watering_reminder_frequency: 3
  *             toggle_fertilizer_off:
  *               summary: Toggle fertilizer OFF
  *               value:
- *                 fertilizer:
- *                   notification_enabled: false
- *             update_multiple:
- *               summary: Update multiple care types at once
+ *                 fertilizer_notification_enabled: false
+ *             full_payload:
+ *               summary: Full flat payload (same as add-plant body)
  *               value:
- *                 watering:
- *                   notification_enabled: true
- *                   preferred_time: "07:00:00"
- *                   reminder_frequency: 2
- *                 fertilizer:
- *                   notification_enabled: false
- *                 pruning:
- *                   notification_enabled: true
- *                   reminder_frequency: 14
- *                 generic:
- *                   notification_enabled: true
- *                   reminder_frequency: 7
+ *                 plant_id: 1
+ *                 watering_notification_enabled: true
+ *                 watering_preferred_time: "09:00:00"
+ *                 watering_reminder_frequency: 3
+ *                 fertilizer_notification_enabled: false
+ *                 fertilizer_preferred_time: "09:00:00"
+ *                 fertilizer_reminder_frequency: 15
+ *                 pruning_notification_enabled: false
+ *                 pruning_reminder_frequency: 30
+ *                 generic_notification_enabled: false
+ *                 generic_care_reminder_frequency: 7
+ *             update_multiple:
+ *               summary: Update a subset of care types
+ *               value:
+ *                 watering_notification_enabled: true
+ *                 watering_preferred_time: "07:00:00"
+ *                 watering_reminder_frequency: 2
+ *                 pruning_notification_enabled: true
+ *                 pruning_reminder_frequency: 14
  *     responses:
  *       200:
  *         description: Notification settings updated successfully
