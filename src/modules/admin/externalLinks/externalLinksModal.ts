@@ -49,7 +49,7 @@ export const fetchExternalLinksFromDB = async (): Promise<Record<string, Externa
   const result: Record<string, ExternalLink> = {};
 
   for (const row of rows) {
-    result[row.id] = row; // ✅ use id instead of key
+    result[row.title] = row; // ✅ use id instead of key
   }
 
   return result;
