@@ -38,12 +38,10 @@ export const externalLinkUpdateValidation: ObjectSchema = Joi.object({
     }),
 
   title: Joi.string()
-    .min(2)
-    .max(100)
+    .valid("Website", "Store", "Courses")
     .optional()
     .messages({
-      "string.min": "Title must be at least 2 characters",
-      "string.max": "Title must not exceed 100 characters",
+      "any.only": "Title must be one of [Website, Store, courses]",
     }),
 
   url: Joi.string()
@@ -55,5 +53,8 @@ export const externalLinkUpdateValidation: ObjectSchema = Joi.object({
     }),
 
   is_active: Joi.boolean()
-    .optional(),
+    .optional()
+    .messages({
+      "boolean.base": "Active flag must be true or false",
+    }),
 });

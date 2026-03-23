@@ -1,5 +1,6 @@
 import { getDB } from "../../core/config/db";
-import { AddUserPlantInput, PaginatedPlants, PaginatedUserPlants, UserPlant } from "../../interface/myPlants";
+import { AddUserPlantInput, CareNotificationInput, CareUpdateFields, FlatUpdateUserPlantInput, PaginatedUserPlants, PlantResponse, UpdateUserPlantInput,  UserPlant } from "../../interface/myPlants";
+import { PaginatedPlants } from "../../interface/plants";
 
 
 
@@ -44,12 +45,19 @@ export const getAllPlantsService = async (
        id,
        scientific_name,
        common_name,
-       description,
+       family,
+       genus,
+       flower_color,
+       foliage_color,
+       edible,
+       bloom_months,
+       growth_months,
+       fruit_months,
+       vegetable,  
        image_url,
-       generic_options,
        created_at,
        updated_at
-     FROM plant_species
+     FROM all_plants
      ${searchCondition}
      ORDER BY created_at DESC
      LIMIT $${limitParam} OFFSET $${offsetParam}`,
@@ -74,23 +82,91 @@ export const getAllPlantsService = async (
  * @returns {Promise<void>} Plant details object.
  * @throws {Error} If plant is not found or database query fails.
  */
-export const getPlantDetailsByIdService = async (plantId: string): Promise<void> => {
+export const getPlantDetailsByIdService = async (plantId: string): Promise<PlantResponse> => {
     try {
         const pool = await getDB();
 
+        const id = Number(plantId);
+
+        if (isNaN(id)) {
+            throw new Error("Invalid plant ID");
+        }
+
+
         const result = await pool.query(
-            `SELECT *
-       FROM plant_species
-       WHERE id = $1`,
-            [plantId]
+            `SELECT scientific_name
+            FROM all_plants
+            WHERE id = $1`,
+            [id]
         );
 
         if (result.rows.length === 0) {
             throw new Error("Plant not found");
         }
 
-        return result.rows[0];
 
+        const plantDetails = await pool.query(
+            `SELECT
+                id,  
+                common_name,
+                scientific_name,
+                family,
+                genus,
+                watering,
+                sunlight,
+                care_level,
+                growth_rate,
+                indoor,
+                temperature_min,
+                temperature_max,
+                humidity_min,
+                humidity_max,
+                light_min,
+                light_max,
+                soil_moisture_min,
+                soil_moisture_max,
+                poisonous_to_humans,
+                poisonous_to_pets,
+                drought_tolerant,
+                tropical boolean,
+                medical boolean,
+                edible boolean,
+                soil,
+                fertilizer,
+                pruning,
+                cycle,
+                pest,
+                diseases,
+                origin,
+                category,
+                climate,
+                color,
+                blooming,
+                description ,
+                image_url,
+                source
+                FROM plant_care
+                WHERE scientific_name = $1`,
+            [result.rows[0].scientific_name]
+        );
+        return {
+            plant: plantDetails.rows[0],
+            reminder: {
+                watering_reminder_frequency: 0,
+                watering_notification_enabled: false,
+                watering_preferred_time: "09:00:00",
+
+                fertilizer_reminder_frequency: 0,
+                fertilizer_notification_enabled: false,
+                fertilizer_preferred_time: "09:00:00",
+                pruning_reminder_frequency: 0,
+                puring_notification_enabled: false,
+                generic_care_reminder_frequency: 0,
+                generic_notification_enabled: false,
+
+            }
+
+        }
     } catch (err) {
         if (err instanceof Error) {
             throw err; // rethrow original error
@@ -131,115 +207,105 @@ export const addPlantToUserService = async (
     const pool = await getDB();
 
     const {
-        plant_species_id,
-        watering_frequency_days,
-        fertilizing_frequency_days,
-        pruning_frequency_days,
-        generic_frequency_days,
-        water_notification_enabled = false,
-        fertilizer_notification_enabled = false,
-        pruning_notification_enabled = false,
-        generic_care_notification_enabled = false,
-        water_preferred_time = "09:00:00",
-        fertilizer_preferred_time = "09:00:00",
+        plant_id,
+        watering_notification_enabled,
+        watering_preferred_time,
+        watering_reminder_frequency,
+        fertilizer_notification_enabled,
+        fertilizer_preferred_time,
+        fertilizer_reminder_frequency,
+        pruning_notification_enabled,
+        pruning_reminder_frequency,
+        generic_notification_enabled,
+        generic_care_reminder_frequency,
     } = payload;
 
-    // ─────────────────────────────────────────────
-    //  Fetch species defaults
-    // ─────────────────────────────────────────────
-    // Assume you are fetching species details (e.g., water reminder frequency)
+    // ── Verify plant species exists ───────────────────────────────────────────
     const species = await pool.query(
-        `SELECT * FROM plant_species WHERE id = $1`,
-        [plant_species_id]
+        `SELECT id FROM All_plants WHERE id = $1`,
+        [plant_id]
     );
 
     if (!species.rows.length) {
         throw new Error("Plant species not found");
     }
 
-    // const speciesDefaults = species.rows[0];
-
-    // ─────────────────────────────────────────────
-    //  Calculate Next Dates for each care action
-    // ─────────────────────────────────────────────
-
+    // ── Calculate next care dates (null when notification disabled) ───────────
     const next_watered_at = calculateNextDate(
-        water_notification_enabled ? watering_frequency_days : null
+        watering_notification_enabled ? (watering_reminder_frequency ?? null) : null
     );
 
     const next_fertilized_at = calculateNextDate(
-        fertilizer_notification_enabled ? fertilizing_frequency_days : null
+        fertilizer_notification_enabled ? (fertilizer_reminder_frequency ?? null) : null
     );
 
     const next_pruned_at = calculateNextDate(
-        pruning_notification_enabled ? pruning_frequency_days : null
+        pruning_notification_enabled ? (pruning_reminder_frequency ?? null) : null
     );
 
     const next_generic_care_at = calculateNextDate(
-        generic_care_notification_enabled ? generic_frequency_days : null
+        generic_notification_enabled ? (generic_care_reminder_frequency ?? null) : null
     );
 
-    // ─────────────────────────────────────────────
-    // Insert User Plant Data into Database
-    // ─────────────────────────────────────────────
+    // ── Insert ────────────────────────────────────────────────────────────────
     try {
         const result = await pool.query(
             `
             INSERT INTO user_plants (
                 user_id,
-                plant_species_id,
-                water_notification_enabled,
-                water_preferred_time,
+                plant_id,
+                watering_notification_enabled,
+                watering_preferred_time,
+                watering_reminder_frequency,
                 next_watered_at,
                 fertilizer_notification_enabled,
                 fertilizer_preferred_time,
+                fertilizer_reminder_frequency,
                 next_fertilized_at,
                 pruning_notification_enabled,
-                pruning_preferred_time,
+                pruning_reminder_frequency,
                 next_pruned_at,
-                generic_care_notification_enabled,
-                generic_care_preferred_time,
-                next_generic_care_at,
-                watering_frequency_days,
-                fertilizing_frequency_days,
-                pruning_frequency_days,
-                generic_frequency_days
+                generic_notification_enabled,
+                generic_care_reminder_frequency,
+                next_generic_care_at
             )
             VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
             )
             RETURNING *
             `,
             [
                 userId,
-                plant_species_id,
-                water_notification_enabled,
-                water_preferred_time,
+                plant_id,
+                watering_notification_enabled ?? false,
+                watering_preferred_time ?? "09:00:00",
+                watering_reminder_frequency ?? 0,
                 next_watered_at,
-                fertilizer_notification_enabled,
-                fertilizer_preferred_time,
+                fertilizer_notification_enabled ?? false,
+                fertilizer_preferred_time ?? "09:00:00",
+                fertilizer_reminder_frequency ?? 0,
                 next_fertilized_at,
-                pruning_notification_enabled,
-                "09:00:00", // Default preferred time for pruning
+                pruning_notification_enabled ?? false,
+                pruning_reminder_frequency ?? 0,
                 next_pruned_at,
-                generic_care_notification_enabled,
-                "09:00:00", // Default preferred time for generic care
+                generic_notification_enabled ?? false,
+                generic_care_reminder_frequency ?? 0,
                 next_generic_care_at,
-                watering_frequency_days,
-                fertilizing_frequency_days,
-                pruning_frequency_days,
-                generic_frequency_days,
             ]
         );
 
         return result.rows[0];
     } catch (err) {
-        if (err instanceof Error && err.message.includes("duplicate key value violates unique constraint")) {
+        if (
+            err instanceof Error &&
+            err.message.includes("duplicate key value violates unique constraint")
+        ) {
             throw new Error("Plant already added to user");
         }
         throw err;
     }
 };
+
 
 /**
  * Retrieves all plants associated with a specific user.
@@ -252,6 +318,63 @@ export const addPlantToUserService = async (
  * @throws {Error} If database query fails.
  */
 // ── Service ───────────────────────────────────────────────────────────────────
+const USER_PLANT_SELECT = `
+    up.id                               AS user_plant_id,
+    ap.id                               AS plant_id,
+    ap.common_name,
+    ap.scientific_name,
+    ap.family,
+    ap.genus,
+    ap.image_url,
+    up.health_status,
+    up.watering_notification_enabled,
+    up.watering_preferred_time,
+    up.watering_reminder_frequency,
+    up.last_watered_at,
+    up.next_watered_at,
+    up.fertilizer_notification_enabled,
+    up.fertilizer_preferred_time,
+    up.fertilizer_reminder_frequency,
+    up.last_fertilized_at,
+    up.next_fertilized_at,
+    up.pruning_notification_enabled,
+    up.pruning_reminder_frequency,
+    up.last_pruned_at,
+    up.next_pruned_at,
+    up.generic_notification_enabled,
+    up.generic_care_reminder_frequency,
+    up.last_generic_care_at,
+    up.next_generic_care_at,
+    up.added_at,
+    up.created_at,
+    up.updated_at
+`;
+/**
+ * Retrieves a paginated list of a user's plants with optional search.
+ *
+ * @param {string} userId - The UUID of the user whose plants are being retrieved.
+ * @param {number} [page=1] - The page number for pagination (1-based). Minimum is 1.
+ * @param {number} [limit=10] - The number of plants per page. Minimum 1, maximum 100.
+ * @param {string} [search] - Optional search string to filter plants by `common_name` or `scientific_name`.
+ *
+ * @returns {Promise<PaginatedUserPlants>} An object containing:
+ *   - `currentPage`: The current page number
+ *   - `totalPages`: Total number of pages available
+ *   - `totalCount`: Total number of matching plants
+ *   - `limit`: Number of plants per page
+ *   - `plants`: Array of `UserPlant` objects for the current page
+ *
+ * @example
+ * const result = await getUserPlantsService("d4e5f6a1-b2c3-4567-89ab-cdef01234567", 1, 10, "rose");
+ * console.log(result.currentPage); // 1
+ * console.log(result.totalPages);  // 5
+ * console.log(result.plants);      // Array of UserPlant objects
+ *
+ * @remarks
+ * - Applies search filtering using ILIKE on both `common_name` and `scientific_name`.
+ * - Pagination is applied using LIMIT and OFFSET.
+ * - The function automatically constrains `page` and `limit` to valid ranges.
+ */
 export const getUserPlantsService = async (
     userId: string,
     page: number = 1,
@@ -261,81 +384,48 @@ export const getUserPlantsService = async (
 
     const pool = await getDB();
 
-    const safePage = Number.isNaN(page) ? 1 : Math.max(1, page);
-    const safeLimit = Number.isNaN(limit) ? 10 : Math.max(1, limit);
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(100, Math.max(1, limit));
     const offset = (safePage - 1) * safeLimit;
 
-    let baseParams: (string | number)[] = [userId];
-    let searchCondition = "";
+    const params: (string | number)[] = [userId];
+    let searchClause = "";
 
-    if (search && search.trim() !== "") {
-        baseParams.push(`%${search.trim()}%`);
-        searchCondition = `
-            AND (
-                ps.scientific_name ILIKE $2
-                OR ps.common_name ILIKE $2
-            )
-        `;
+    if (search?.trim()) {
+        params.push(`%${search.trim()}%`);
+        searchClause = `AND (ap.common_name ILIKE $2 OR ap.scientific_name ILIKE $2)`;
     }
 
-    // TOTAL COUNT
-    const totalQuery = `
-        SELECT COUNT(*)::int AS count
-        FROM user_plants up
-        JOIN plant_species ps ON up.plant_species_id = ps.id
-        WHERE up.user_id = $1
-        ${searchCondition}
-    `;
+    // ── Total count ───────────────────────────────────────────────────────────
+    const countResult = await pool.query<{ count: number }>(
+        `SELECT COUNT(*)::int AS count
+         FROM   user_plants up
+         JOIN   All_plants  ap ON ap.id = up.plant_id
+         WHERE  up.user_id = $1 ${searchClause}`,
+        params
+    );
 
-    const totalResult = await pool.query(totalQuery, baseParams);
-    const totalCount: number = totalResult.rows[0]?.count || 0;
-    const totalPages = totalCount === 0
-        ? 1
-        : Math.ceil(totalCount / safeLimit);
+    const totalCount = countResult.rows[0]?.count ?? 0;
+    const totalPages = totalCount === 0 ? 1 : Math.ceil(totalCount / safeLimit);
 
-    // DATA QUERY
-    const dataQuery = `
-        SELECT
-            up.id AS user_plant_id,
-            ps.common_name AS common_name,
-            ps.scientific_name AS scientific_name,
-            ps.description AS description,  -- Added description from plant_species
-            ps.image_url AS plant_image,
-            up.health_status,
-            up.water_notification_enabled,
-            up.water_preferred_time,
-            up.next_watered_at,
-            up.watering_frequency_days,  -- Added watering frequency from user_plants
-            up.fertilizer_notification_enabled,
-            up.fertilizer_preferred_time,
-            up.next_fertilized_at,
-            up.fertilizing_frequency_days,  -- Added fertilizing frequency from user_plants
-            up.pruning_notification_enabled,
-            up.pruning_preferred_time,
-            up.next_pruned_at,
-            up.pruning_frequency_days,  -- Added pruning frequency from user_plants
-            up.generic_frequency_days,  -- Added generic care frequency from user_plants
-            up.generic_care_notification_enabled,
-            up.generic_care_preferred_time,
-            up.next_generic_care_at,
-            up.created_at
-        FROM user_plants up
-        JOIN plant_species ps ON up.plant_species_id = ps.id
-        WHERE up.user_id = $1
-        ${searchCondition}
-        ORDER BY up.created_at DESC
-        LIMIT $${baseParams.length + 1}
-        OFFSET $${baseParams.length + 2}
-    `;
-
-    const result = await pool.query<UserPlant>(dataQuery, [...baseParams, safeLimit, offset]);
+    // ── Data ──────────────────────────────────────────────────────────────────
+    const dataResult = await pool.query<UserPlant>(
+        `SELECT ${USER_PLANT_SELECT}
+         FROM   user_plants up
+         JOIN   All_plants  ap ON ap.id = up.plant_id
+         WHERE  up.user_id = $1 ${searchClause}
+         ORDER  BY up.created_at DESC
+         LIMIT  $${params.length + 1}
+         OFFSET $${params.length + 2}`,
+        [...params, safeLimit, offset]
+    );
 
     return {
         currentPage: safePage,
         totalPages,
         totalCount,
         limit: safeLimit,
-        plants: result.rows,
+        plants: dataResult.rows,
     };
 };
 
@@ -369,54 +459,401 @@ export const getUserPlantsService = async (
  */
 export const getUserPlantByIdService = async (
     userId: string,
-    userPlantId: string
-): Promise<Record<string, unknown> | null> => {
+    userPlantId: number
+): Promise<UserPlant | null> => {
 
     const pool = await getDB();
+    // const id = Number(userPlantId);
+    // if (isNaN(id)) {
+    //     throw new Error("Invalid user plant ID");
+    // }
 
-    try {
-        const result = await pool.query(
-            `
-           SELECT
-    up.id AS user_plant_id,
-    ps.common_name AS common_name,
-    ps.scientific_name AS scientific_name,
-    ps.description AS description,  -- Added description from plant_species
-    ps.image_url AS plant_image,
-    up.health_status,
-    up.water_notification_enabled,
-    up.water_preferred_time,
-    up.next_watered_at,
-    up.watering_frequency_days,  -- Added watering frequency from user_plants
-    up.fertilizer_notification_enabled,
-    up.fertilizer_preferred_time,
-    up.next_fertilized_at,
-    up.fertilizing_frequency_days,  -- Added fertilizing frequency from user_plants
-    up.pruning_notification_enabled,
-    up.pruning_preferred_time,
-    up.next_pruned_at,
-    up.pruning_frequency_days,  -- Added pruning frequency from user_plants
-    up.generic_frequency_days,  -- Added generic care frequency from user_plants
-    up.generic_care_notification_enabled,
-    up.generic_care_preferred_time,
-    up.next_generic_care_at,
-    up.created_at
-    FROM user_plants up
-    JOIN plant_species ps ON up.plant_species_id = ps.id
-    WHERE up.user_id = $1  -- Filter by the user's ID (replace with the actual user ID when querying)
-    AND up.id = $2;  -- Filter by the specific plant's ID (replace with the actual plant ID when querying)
-            `,
-            [userId, userPlantId]
-        );
+    const result = await pool.query<UserPlant>(
+        `SELECT ${USER_PLANT_SELECT}
+         FROM   user_plants up
+         JOIN   All_plants  ap ON ap.id = up.plant_id
+         WHERE  up.plant_id = $1 AND up.user_id = $2`,
+        [userPlantId, userId]
+    );
 
-        if (!result.rows.length) return null;
-
-        return result.rows[0];
-
-    } catch (err) {
-        if (err instanceof Error) throw err;
-        throw new Error("Error retrieving plant");
-    }
+    return result.rows[0] ?? null;
 };
 
 
+
+const CARE_TYPES_WITH_PREFERRED_TIME = new Set(["watering", "fertilizer"]);
+
+/**
+ * Validates a single care block object for a plant care type.
+ *
+ * Throws an error if validation fails based on the following rules:
+ * 1. If `notification_enabled` is `true`:
+ *    - `reminder_frequency` must be provided and greater than 0.
+ *    - If the care type supports a preferred time (`CARE_TYPES_WITH_PREFERRED_TIME`),
+ *      `preferred_time` must also be provided.
+ *
+ * @param {string} careType - The type of care (e.g., "watering", "fertilizer", "pruning", "generic").
+ * @param {CareNotificationInput} block - The care block object containing `notification_enabled`,
+ *                                         `reminder_frequency`, and optionally `preferred_time`.
+ *
+ * @throws {Error} If `notification_enabled` is true but `reminder_frequency` is missing or ≤ 0,
+ *                 or if a preferred time is required but missing.
+ *
+ * @example
+ * validateCareBlock("watering", {
+ *   notification_enabled: true,
+ *   reminder_frequency: 3,
+ *   preferred_time: "08:00:00"
+ * });
+ *
+ * // Throws an error if reminder_frequency is missing:
+ * validateCareBlock("fertilizer", { notification_enabled: true });
+ */
+const validateCareBlock = (
+    careType: string,
+    block: CareNotificationInput
+): void => {
+    if (block.notification_enabled) {
+        // eslint-disable-next-line eqeqeq
+        if (block.reminder_frequency == null || block.reminder_frequency <= 0) {
+            throw new Error(
+                `${careType}: reminder_frequency is required and must be > 0 when notification is enabled`
+            );
+        }
+
+        if (CARE_TYPES_WITH_PREFERRED_TIME.has(careType) && !block.preferred_time) {
+            throw new Error(
+                `${careType}: preferred_time is required when notification is enabled`
+            );
+        }
+    }
+};
+/**
+ * Validates the payload for updating a user's plant care notifications.
+ *
+ * Performs the following checks:
+ * 1. Ensures the payload is not empty — at least one care type must be provided.
+ * 2. Iterates over all care types (`watering`, `fertilizer`, `pruning`, `generic`) and
+ *    calls `validateCareBlock` for each block that is defined.
+ *
+ * @param {UpdateUserPlantInput} payload - The update payload containing optional care blocks.
+ *
+ * @throws {Error} If:
+ *   - The payload is empty (no care types provided).
+ *   - Any care block fails validation (e.g., notification enabled but missing
+ *     `reminder_frequency` or `preferred_time` for relevant care types).
+ *
+ * @example
+ * // Valid payload
+ * validateUpdateUserPlantInput({
+ *   watering: { notification_enabled: true, reminder_frequency: 3, preferred_time: "08:00:00" },
+ *   pruning: { notification_enabled: false, reminder_frequency: 0 }
+ * });
+ *
+ * // Throws error: At least one care type must be provided
+ * validateUpdateUserPlantInput({});
+ *
+ * // Throws error: watering: reminder_frequency is required and must be > 0 when notification is enabled
+ * validateUpdateUserPlantInput({ watering: { notification_enabled: true } });
+ */
+export const validateUpdateUserPlantInput = (
+    payload: UpdateUserPlantInput
+): void => {
+    if (!payload || !Object.keys(payload).length) {
+        throw new Error("At least one care type must be provided");
+    }
+
+    const careTypes: Array<keyof UpdateUserPlantInput> = [
+        "watering",
+        "fertilizer",
+        "pruning",
+        "generic",
+    ];
+
+    for (const careType of careTypes) {
+        const block = payload[careType];
+        if (block !== undefined) {
+            validateCareBlock(careType, block);
+        }
+    }
+};
+// ── updateUserPlantReminders.ts ────────────────────────────────────────
+
+// ─── Helper: compute next_*_at from lastDoneAt + frequency (days) ─────────────
+const nextColMap: Record<string, string> = {
+    watering:   "next_watered_at",
+    fertilizer: "next_fertilized_at",
+    pruning:    "next_pruned_at",
+    generic:    "next_generic_care_at",
+};
+
+/**
+ * Builds a normalized care update object from a CareNotificationInput block.
+ *
+ * This function prepares the fields for database update based on whether the
+ * notification is enabled or not:
+ * - If `notification_enabled` is `true`:
+ *   - Uses the provided `preferred_time` or defaults to `"09:00:00"`.
+ *   - Uses the provided `reminder_frequency` or defaults to `0`.
+ *   - Calculates `next_at` using `calculateNextDate`.
+ *   - Marks `recalculate_next` as `true`.
+ * - If `notification_enabled` is `false`:
+ *   - `preferred_time` is set to `null`.
+ *   - `reminder_frequency` is set to `0`.
+ *   - `next_at` is set to `null`.
+ *   - `recalculate_next` is set to `false`.
+ *
+ * @param {CareNotificationInput} block - The input object for a care type.
+ *
+ * @returns {CareUpdateFields} An object containing normalized fields for updating:
+ *   - `notification_enabled`: boolean
+ *   - `preferred_time`: string | null
+ *   - `reminder_frequency`: number
+ *   - `next_at`: string | null (ISO string of next reminder date)
+ *   - `recalculate_next`: boolean, indicates if next_at should be recalculated
+ *
+ * @example
+ * buildCareFields({
+ *   notification_enabled: true,
+ *   preferred_time: "08:00:00",
+ *   reminder_frequency: 3
+ * });
+ * // Returns:
+ * // {
+ * //   notification_enabled: true,
+ * //   preferred_time: "08:00:00",
+ * //   reminder_frequency: 3,
+ * //   next_at: "2026-03-20T08:00:00.000Z",
+ * //   recalculate_next: true
+ * // }
+ *
+ * @example
+ * buildCareFields({ notification_enabled: false });
+ * // Returns:
+ * // {
+ * //   notification_enabled: false,
+ * //   preferred_time: null,
+ * //   reminder_frequency: 0,
+ * //   next_at: null,
+ * //   recalculate_next: false
+ * // }
+ */
+const buildCareFields = (block: CareNotificationInput): CareUpdateFields => ({
+    notification_enabled: block.notification_enabled,
+    preferred_time: block.notification_enabled
+        ? (block.preferred_time ?? "09:00:00")
+        : null,
+    reminder_frequency: block.notification_enabled
+        ? (block.reminder_frequency ?? 0)
+        : 0,
+    next_at: block.notification_enabled
+        ? calculateNextDate(block.reminder_frequency ?? null)
+        : null,
+    recalculate_next: block.notification_enabled,
+});
+
+/**
+ * Updates the notification settings for a user's plant.
+ *
+ * This service performs the following steps:
+ * 1. Validates the input payload using `validateUpdateUserPlantInput`.
+ * 2. Checks that the `userPlantId` belongs to the specified `userId`.
+ * 3. Dynamically builds SQL `SET` clauses for each care type included in the payload:
+ *    - `watering`, `fertilizer`, `pruning`, `generic`
+ *    - Updates `notification_enabled`, `preferred_time` (if applicable), and `reminder_frequency`.
+ *    - Recalculates `next_*_at` only if the notification is being enabled.
+ * 4. Executes the `UPDATE` query and returns the updated row.
+ *
+ * Rules:
+ * - Only care types included in the payload are updated; others are left untouched.
+ * - Toggling a notification off does **not** change the `next_*_at` column.
+ *
+ * @param {string} userId - The UUID of the user performing the update.
+ * @param {string} userPlantId - The UUID of the user_plant record to update.
+ * @param {UpdateUserPlantInput} payload - Object containing optional care type blocks to update.
+ *
+ * @returns {Promise<Record<string, unknown>>} The updated user_plant record.
+ *
+ * @throws {Error} If:
+ *   - The payload is empty or invalid.
+ *   - The specified `userPlantId` does not exist for the given `userId`.
+ *
+ * @example
+ * const updatedPlant = await updateUserPlantService(
+ *   "d4e5f6a1-b2c3-4567-89ab-cdef01234567",
+ *   "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+ *   {
+ *     watering: { notification_enabled: true, reminder_frequency: 3, preferred_time: "08:00:00" },
+ *     pruning: { notification_enabled: false, reminder_frequency: 0 }
+ *   }
+ * );
+ * console.log(updatedPlant.next_watered_at); // ISO date string of next watering
+ */
+export const updateUserPlantService = async (
+    userId: string,
+    userPlantId: string,
+    payload: UpdateUserPlantInput
+): Promise<Record<string, unknown>> => {
+    validateUpdateUserPlantInput(payload);
+
+    const pool = await getDB();
+
+    // ── Verify the user_plant record belongs to this user ─────────────────────
+    const existing = await pool.query(
+        `SELECT id FROM user_plants WHERE id = $1 AND user_id = $2`,
+        [userPlantId, userId]
+    );
+
+    if (!existing.rows.length) {
+        throw new Error("Plant not found for this user");
+    }
+
+    // ── Build dynamic SET clauses ─────────────────────────────────────────────
+    const setClauses: string[] = ["updated_at = NOW()"];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+/**
+ * Appends SQL SET clauses and corresponding values for a specific care type.
+ *
+ * This helper is used to dynamically build the UPDATE query for the `user_plants` table.
+ *
+ * Behavior:
+ * - Always updates `<prefix>_notification_enabled`.
+ * - If the care type supports a preferred time (`CARE_TYPES_WITH_PREFERRED_TIME`), updates `<prefix>_preferred_time`.
+ * - Always updates `<prefix>_reminder_frequency`.
+ * - Updates the `next_*_at` column only if `recalculate_next` is `true` (i.e., when enabling the notification).
+ * - When toggling OFF, `next_*_at` is left unchanged.
+ *
+ * @param {string} prefix - The care type prefix (`watering`, `fertilizer`, `pruning`, `generic`).
+ * @param {CareUpdateFields} fields - The values to update for this care type.
+ *
+ * @example
+ * appendFields("watering", {
+ *   notification_enabled: true,
+ *   preferred_time: "08:00:00",
+ *   reminder_frequency: 3,
+ *   next_at: "2025-03-20T08:00:00.000Z",
+ *   recalculate_next: true
+ * });
+ * // Adds SET clauses for watering_notification_enabled, watering_preferred_time,
+ * // watering_reminder_frequency, and next_watered_at (if recalculate_next is true)
+ */
+    const appendFields = (
+        prefix: string,
+        fields: CareUpdateFields,
+    ):void => {
+        setClauses.push(`${prefix}_notification_enabled = $${paramIndex++}`);
+        values.push(fields.notification_enabled);
+
+        if (CARE_TYPES_WITH_PREFERRED_TIME.has(prefix)) {
+            setClauses.push(`${prefix}_preferred_time = $${paramIndex++}`);
+            values.push(fields.preferred_time);
+        }
+
+        setClauses.push(`${prefix}_reminder_frequency = $${paramIndex++}`);
+        values.push(fields.reminder_frequency);
+
+        // ── Only recalculate next_*_at when toggling ON ───────────────────────
+        if (fields.recalculate_next) {
+            setClauses.push(`${nextColMap[prefix]} = $${paramIndex++}`);
+            values.push(fields.next_at);
+        }
+        // toggling OFF → next_*_at column is left untouched entirely
+    };
+
+    if (payload.watering !== undefined) {
+        appendFields("watering", buildCareFields(payload.watering));
+    }
+    if (payload.fertilizer !== undefined) {
+        appendFields("fertilizer", buildCareFields(payload.fertilizer));
+    }
+    if (payload.pruning !== undefined) {
+        appendFields("pruning", buildCareFields(payload.pruning));
+    }
+    if (payload.generic !== undefined) {
+        appendFields("generic", buildCareFields(payload.generic));
+    }
+
+    // ── Execute update ────────────────────────────────────────────────────────
+    values.push(userPlantId, userId);
+
+    const query = `
+        UPDATE user_plants
+        SET ${setClauses.join(", ")}
+        WHERE id = $${paramIndex++} AND user_id = $${paramIndex++}
+        RETURNING *
+    `;
+
+    const result = await pool.query(query, values);
+    return result.rows[0];
+};
+
+/**
+ * Maps a flat structure of plant care settings to a nested structure.
+ *
+ * The function takes a flat object representing user preferences and settings
+ * for plant care (such as watering, fertilizer, pruning, and generic care), and
+ * converts it into a more nested structure for easier processing or storage.
+ *
+ * @param {FlatUpdateUserPlantInput} flat - The flat structure containing user plant care settings.
+ * @returns {UpdateUserPlantInput} - The nested structure with plant care settings categorized by care type (watering, fertilizer, pruning, generic).
+ *
+ * @example
+ * const flatInput = {
+ *     watering_notification_enabled: true,
+ *     watering_preferred_time: 'morning',
+ *     watering_reminder_frequency: 2,
+ *     fertilizer_notification_enabled: true,
+ *     fertilizer_preferred_time: 'afternoon',
+ *     fertilizer_reminder_frequency: 3,
+ *     pruning_notification_enabled: true,
+ *     pruning_reminder_frequency: 1,
+ *     generic_notification_enabled: false,
+ *     generic_care_reminder_frequency: 5,
+ * };
+ * 
+ * const nestedOutput = mapFlatToNested(flatInput);
+ * // nestedOutput will have a structure like:
+ * // {
+ * //   watering: { notification_enabled: true, preferred_time: 'morning', reminder_frequency: 2 },
+ * //   fertilizer: { notification_enabled: true, preferred_time: 'afternoon', reminder_frequency: 3 },
+ * //   pruning: { notification_enabled: true, reminder_frequency: 1 },
+ * //   generic: { notification_enabled: false, reminder_frequency: 5 },
+ * // }
+ */
+export function mapFlatToNested(flat: FlatUpdateUserPlantInput): UpdateUserPlantInput {
+    const nested: UpdateUserPlantInput = {};
+
+    if (flat.watering_notification_enabled !== undefined) {
+        nested.watering = {
+            notification_enabled: flat.watering_notification_enabled,
+            preferred_time: flat.watering_preferred_time ?? null,
+            reminder_frequency: flat.watering_reminder_frequency ?? 0,
+        };
+    }
+
+    if (flat.fertilizer_notification_enabled !== undefined) {
+        nested.fertilizer = {
+            notification_enabled: flat.fertilizer_notification_enabled,
+            preferred_time: flat.fertilizer_preferred_time ?? null,
+            reminder_frequency: flat.fertilizer_reminder_frequency ?? 0,
+        };
+    }
+
+    if (flat.pruning_notification_enabled !== undefined) {
+        nested.pruning = {
+            notification_enabled: flat.pruning_notification_enabled,
+            reminder_frequency: flat.pruning_reminder_frequency ?? 0,
+        };
+    }
+
+    if (flat.generic_notification_enabled !== undefined) {
+        nested.generic = {
+            notification_enabled: flat.generic_notification_enabled,
+            // Note: your DB column is generic_care_reminder_frequency, not generic_reminder_frequency
+            reminder_frequency: flat.generic_care_reminder_frequency ?? 0,
+        };
+    }
+
+    return nested;
+}

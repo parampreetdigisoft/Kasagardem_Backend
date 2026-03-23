@@ -20,16 +20,16 @@ export async function createExternalLinksTable(): Promise<void> {
         const client = await connectDB();
         const query = `
       CREATE TABLE IF NOT EXISTS external_links (
-     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
-    title VARCHAR(100) NOT NULL,
+     title VARCHAR(100) NOT NULL,
 
-    url TEXT,
+     url TEXT,
 
-    is_active BOOLEAN NOT NULL DEFAULT FALSE,
+     is_active BOOLEAN NOT NULL DEFAULT FALSE,
 
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );`;
         await client.query(query);
         console.error("External links table created successfully!");

@@ -8,7 +8,7 @@ import { error, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
 import { findUserByEmail } from "../auth/authRepository";
 import { getDB } from "../../core/config/db";
-import { IFullUserProfile } from "../../interface/userProfile";
+import { IExternalLink, IFullUserProfile, IProfileResponse, IUserProfileRow } from "../../interface/userProfile";
 import {
   getUserProfileById,
   updateValidatedUserProfile,
@@ -48,7 +48,7 @@ export const getCurrentUserProfile = async (
   }
 
   try {
-    //  Get user basic details
+    // 1. Get user basic details
     const user = await findUserByEmail(userPayload.userEmail);
     if (!user) {
       await error("Profile retrieval failed - User not found", {
@@ -64,54 +64,85 @@ export const getCurrentUserProfile = async (
 
     const client = getDB();
 
-    //  Fetch user profile from PostgreSQL
-    const { rows: profileRows } = await client.query(
-      `
-      SELECT 
-        profile_image,
-        date_of_birth,
-        gender,
-        bio,
-        street,
-        city,
-        state,
-        country,
-        zip_code,
-        occupation,
-        company
-      FROM userprofiles
-      WHERE user_id = $1
-      `,
-      [user.id]
-    );
+    // 2. Run both queries in parallel
+    const [{ rows: profileRows }, { rows: externalLinkRows }] =
+      await Promise.all([
+        client.query<IUserProfileRow>(
+          `
+          SELECT
+            profile_image,
+            date_of_birth,
+            gender,
+            bio,
+            street,
+            city,
+            state,
+            country,
+            zip_code,
+            occupation,
+            company
+          FROM userprofiles
+          WHERE user_id = $1
+          `,
+          [user.id]
+        ),
+        client.query<IExternalLink>(
+          `
+          SELECT
+            id,
+            title,
+            url,
+            is_active,
+            created_at,
+            updated_at
+          FROM external_links
+          WHERE is_active = true
+          `
+        ),
+      ]);
 
-    const userProfile = profileRows[0] || null;
+    // 3. Explicitly type as null to avoid undefined leaking
+    const userProfile: IUserProfileRow | null = profileRows[0] ?? null;
 
-    //  Build full response
+    // 4. Build profile object
     const fullProfile: IFullUserProfile = {
-      name: user.name || null,
-      email: user.email || null,
-      contactNumber: user.phone_number || null,
-      profileImage:
-        (await getSignedFileUrl(userProfile?.profile_image)) || null,
+      name: user.name ?? null,
+      email: user.email ?? null,
+      contactNumber: user.phone_number ?? null,
+      profileImage: userProfile?.profile_image
+        ? (await getSignedFileUrl(userProfile.profile_image)) ?? null
+        : null,
       dateOfBirth: userProfile?.date_of_birth
         ? new Date(userProfile.date_of_birth).toISOString().split("T")[0]
         : null,
-      gender:
-        (userProfile?.gender as "male" | "female" | "other" | null) || null,
-      bio: userProfile?.bio || null,
+      gender: (userProfile?.gender ?? null) as "male" | "female" | "other" | null,
+      bio: userProfile?.bio ?? null,
       address: {
-        street: userProfile?.street || null,
-        city: userProfile?.city || null,
-        state: userProfile?.state || null,
-        country: userProfile?.country || null,
-        zipCode: userProfile?.zip_code || null, // fixed to match DB column
+        street: userProfile?.street ?? null,
+        city: userProfile?.city ?? null,
+        state: userProfile?.state ?? null,
+        country: userProfile?.country ?? null,
+        zipCode: userProfile?.zip_code ?? null,
       },
-      occupation: userProfile?.occupation || null,
-      company: userProfile?.company || null,
+      occupation: userProfile?.occupation ?? null,
+      company: userProfile?.company ?? null,
     };
 
-    res.status(HTTP_STATUS.OK).json(successResponse(fullProfile));
+  const externalLinks: { [key: string]: { url: string | null; isActive: boolean } } = {};
+
+externalLinkRows.forEach((link) => {
+  externalLinks[link.title] = {
+    url: link.url,
+    isActive: link.is_active,
+  };
+});
+
+const responseData: IProfileResponse = {
+  profile: fullProfile,
+  externalLinks,
+};
+
+    res.status(HTTP_STATUS.OK).json(successResponse(responseData));
   } catch (err: unknown) {
     const errorObj: CustomError =
       err instanceof Error
@@ -133,7 +164,6 @@ export const getCurrentUserProfile = async (
     next(errorObj);
   }
 };
-
 /**
  * Updates the authenticated user's profile.
  *

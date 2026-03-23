@@ -50,7 +50,7 @@ function shouldSkipKey(key: string): boolean {
     "is_plant",
     "isplant",
     "ishealthy",
-    "water_notification_enabled",
+    "watering_notification_enabled",
     "fertilizer_notification_enabled",
     "pruning_notification_enabled",
     "generic_care_notification_enabled",
