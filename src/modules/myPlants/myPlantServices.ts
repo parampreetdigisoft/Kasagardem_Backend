@@ -1,5 +1,5 @@
 import { getDB } from "../../core/config/db";
-import { AddUserPlantInput, CareNotificationInput, CareUpdateFields, FlatUpdateUserPlantInput, PaginatedUserPlants, PlantResponse, UpdateUserPlantInput, UserPlant } from "../../interface/myPlants";
+import { AddUserPlantInput, CareNotificationInput, CareUpdateFields, FlatUpdateUserPlantInput, PaginatedUserPlants, PlantDetailsResponse, PlantResponse, UpdateUserPlantInput, UserPlant } from "../../interface/myPlants";
 import { PaginatedPlants } from "../../interface/plants";
 
 
@@ -334,6 +334,7 @@ const USER_PLANT_SELECT = `
     up.watering_preferred_time,
     up.watering_reminder_frequency,
     up.last_watered_at,
+    up.last_watered_at,
     up.next_watered_at,
     up.fertilizer_notification_enabled,
     up.fertilizer_preferred_time,
@@ -463,7 +464,7 @@ export const getUserPlantsService = async (
 export const getUserPlantByIdService = async (
     userId: string,
     userPlantId: number
-): Promise<PlantResponse | null> => {
+): Promise<PlantDetailsResponse | null> => {
 
     const pool = await getDB();
 
@@ -536,21 +537,27 @@ export const getUserPlantByIdService = async (
     );
 
     return {
+        user_plant_id: userPlant.user_plant_id,
         plant: plantDetailsResult.rows[0] ?? fallbackResult.rows[0],
         reminder: {
             watering_notification_enabled:   userPlant.watering_notification_enabled,
             watering_reminder_frequency:     userPlant.watering_reminder_frequency,
             watering_preferred_time:         userPlant.watering_preferred_time,
-
+            next_watered_at:                userPlant.next_watered_at,
+            last_watered_at:                userPlant.last_watered_at,
             fertilizer_notification_enabled: userPlant.fertilizer_notification_enabled,
             fertilizer_reminder_frequency:   userPlant.fertilizer_reminder_frequency,
             fertilizer_preferred_time:       userPlant.fertilizer_preferred_time,
-
+            next_fertilized_at:              userPlant.next_fertilized_at,
+            last_fertilized_at:             userPlant.last_fertilized_at,
             puring_notification_enabled:    userPlant.pruning_notification_enabled,
             pruning_reminder_frequency:      userPlant.pruning_reminder_frequency,
-
+            next_pruned_at:                userPlant.next_pruned_at,
+            last_pruned_at:                userPlant.last_pruned_at,
             generic_notification_enabled:    userPlant.generic_notification_enabled,
             generic_care_reminder_frequency: userPlant.generic_care_reminder_frequency,
+            last_generic_care_at:             userPlant.last_generic_care_at,
+            next_generic_care_at:             userPlant.next_generic_care_at,
         },
     };
 };

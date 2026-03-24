@@ -304,3 +304,29 @@ export interface UpdateUserPlantInput {
     pruning?: CareNotificationInput;
     generic?: CareNotificationInput;
 }
+
+export interface ReminderforUserPlant{
+  watering_reminder_frequency: number | null;
+  watering_preferred_time: string | null;
+  watering_notification_enabled: boolean | null;
+  next_watered_at: string | null;
+  last_watered_at: string | null;
+  fertilizer_reminder_frequency: number | null;
+  fertilizer_preferred_time: string | null;
+  fertilizer_notification_enabled: boolean | null;
+  next_fertilized_at: string | null;
+  last_fertilized_at: string | null;
+  pruning_reminder_frequency: number | null;
+  puring_notification_enabled: boolean | null;
+  next_pruned_at: string | null;
+  last_pruned_at: string | null;
+  generic_care_reminder_frequency: number | null;
+  generic_notification_enabled: boolean | null;
+  last_generic_care_at: string | null;
+  next_generic_care_at: string | null;                                                     
+}
+export type PlantDetailsResponse = {
+    user_plant_id?: string;     
+    plant: Plant;
+    reminder: ReminderforUserPlant;
+};
