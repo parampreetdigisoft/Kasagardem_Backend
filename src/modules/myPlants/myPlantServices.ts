@@ -104,51 +104,52 @@ export const getPlantDetailsByIdService = async (plantId: string): Promise<Plant
 
         const plantDetailsResult = await pool.query(
             `SELECT
-                id,  
-                common_name,
-                scientific_name,
-                family,
-                genus,
-                watering,
-                sunlight,
-                care_level,
-                growth_rate,
-                indoor,
-                temperature_min,
-                temperature_max,
-                humidity_min,
-                humidity_max,
-                light_min,
-                light_max,
-                soil_moisture_min,
-                soil_moisture_max,
-                poisonous_to_humans,
-                poisonous_to_pets,
-                drought_tolerant,
-                tropical,
-                medical,
-                edible,
-                soil,
-                fertilizer,
-                pruning,
-                cycle,
-                pest,
-                diseases,
-                origin,
-                category,
-                climate,
-                color,
-                blooming,
-                description,
-                image_url,
-                source
-            FROM plant_care
-            WHERE scientific_name = $1`,
+                ap.id AS plant_id,  
+                pc.common_name,
+                pc.scientific_name,
+                pc.family,
+                pc.genus,
+                pc.watering,
+                pc.sunlight,
+                pc.care_level,
+                pc.growth_rate,
+                pc.indoor,
+                pc.temperature_min,
+                pc.temperature_max,
+                pc.humidity_min,
+                pc.humidity_max,
+                pc.light_min,
+                pc.light_max,
+                pc.soil_moisture_min,
+                pc.soil_moisture_max,
+                pc.poisonous_to_humans,
+                pc.poisonous_to_pets,
+                pc.drought_tolerant,
+                pc.tropical,
+                pc.medical,
+                pc.edible,
+                pc.soil,
+                pc.fertilizer,
+                pc.pruning,
+                pc.cycle,
+                pc.pest,
+                pc.diseases,
+                pc.origin,
+                pc.category,
+                pc.climate,
+                pc.color,
+                pc.blooming,
+                pc.description,
+                pc.image_url,
+                pc.source
+            FROM plant_care pc
+            JOIN all_plants ap ON ap.scientific_name = pc.scientific_name
+            WHERE pc.scientific_name = $1`,
             [result.rows[0].scientific_name]
         );
 
         const fallbackResult = await pool.query(
-            `SELECT id, common_name, scientific_name, family, genus, image_url
+            `SELECT id AS plant_id, common_name, scientific_name, family, genus, image_url
              FROM all_plants
              WHERE id = $1`,
             [id]
@@ -157,18 +158,18 @@ export const getPlantDetailsByIdService = async (plantId: string): Promise<Plant
         return {
             plant: plantDetailsResult.rows[0] ?? fallbackResult.rows[0],
             reminder: {
-                watering_notification_enabled: false,
-                watering_reminder_frequency: 0,
-                watering_preferred_time: "09:00:00",
+                watering_notification_enabled:   false,
+                watering_reminder_frequency:     0,
+                watering_preferred_time:         "09:00:00",
 
                 fertilizer_notification_enabled: false,
-                fertilizer_reminder_frequency: 0,
-                fertilizer_preferred_time: "09:00:00",
+                fertilizer_reminder_frequency:   0,
+                fertilizer_preferred_time:       "09:00:00",
 
-                puring_notification_enabled: false,
-                pruning_reminder_frequency: 0,
+                puring_notification_enabled:    false,
+                pruning_reminder_frequency:      0,
 
-                generic_notification_enabled: false,
+                generic_notification_enabled:    false,
                 generic_care_reminder_frequency: 0,
             },
         };
@@ -477,58 +478,58 @@ export const getUserPlantByIdService = async (
     if (userPlantResult.rows.length === 0) return null;
 
     const userPlant = userPlantResult.rows[0];
-    
-    if(!userPlant){
-        throw new Error("Plant not found for this user");
-    }
+    if(!userPlant) {
+        throw new Error("User plant not found");
+    };
 
     const plantDetailsResult = await pool.query(
         `SELECT
-            id,  
-            common_name,
-            scientific_name,
-            family,
-            genus,
-            watering,
-            sunlight,
-            care_level,
-            growth_rate,
-            indoor,
-            temperature_min,
-            temperature_max,
-            humidity_min,
-            humidity_max,
-            light_min,
-            light_max,
-            soil_moisture_min,
-            soil_moisture_max,
-            poisonous_to_humans,
-            poisonous_to_pets,
-            drought_tolerant,
-            tropical,
-            medical,
-            edible,
-            soil,
-            fertilizer,
-            pruning,
-            cycle,
-            pest,
-            diseases,
-            origin,
-            category,
-            climate,
-            color,
-            blooming,
-            description,
-            image_url,
-            source
-        FROM plant_care
-        WHERE scientific_name = $1`,
+            ap.id AS plant_id,  
+            pc.common_name,
+            pc.scientific_name,
+            pc.family,
+            pc.genus,
+            pc.watering,
+            pc.sunlight,
+            pc.care_level,
+            pc.growth_rate,
+            pc.indoor,
+            pc.temperature_min,
+            pc.temperature_max,
+            pc.humidity_min,
+            pc.humidity_max,
+            pc.light_min,
+            pc.light_max,
+            pc.soil_moisture_min,
+            pc.soil_moisture_max,
+            pc.poisonous_to_humans,
+            pc.poisonous_to_pets,
+            pc.drought_tolerant,
+            pc.tropical,
+            pc.medical,
+            pc.edible,
+            pc.soil,
+            pc.fertilizer,
+            pc.pruning,
+            pc.cycle,
+            pc.pest,
+            pc.diseases,
+            pc.origin,
+            pc.category,
+            pc.climate,
+            pc.color,
+            pc.blooming,
+            pc.description,
+            pc.image_url,
+            pc.source
+        FROM plant_care pc
+        JOIN all_plants ap ON ap.scientific_name = pc.scientific_name
+        WHERE pc.scientific_name = $1`,
         [userPlant.scientific_name]
     );
 
     const fallbackResult = await pool.query(
-        `SELECT id, common_name, scientific_name, family, genus, image_url
+        `SELECT id AS plant_id, common_name, scientific_name, family, genus, image_url
          FROM all_plants
          WHERE id = $1`,
         [userPlantId]
@@ -537,23 +538,22 @@ export const getUserPlantByIdService = async (
     return {
         plant: plantDetailsResult.rows[0] ?? fallbackResult.rows[0],
         reminder: {
-            watering_notification_enabled: userPlant.watering_notification_enabled,
-            watering_reminder_frequency: userPlant.watering_reminder_frequency,
-            watering_preferred_time: userPlant.watering_preferred_time,
+            watering_notification_enabled:   userPlant.watering_notification_enabled,
+            watering_reminder_frequency:     userPlant.watering_reminder_frequency,
+            watering_preferred_time:         userPlant.watering_preferred_time,
 
             fertilizer_notification_enabled: userPlant.fertilizer_notification_enabled,
-            fertilizer_reminder_frequency: userPlant.fertilizer_reminder_frequency,
-            fertilizer_preferred_time: userPlant.fertilizer_preferred_time,
+            fertilizer_reminder_frequency:   userPlant.fertilizer_reminder_frequency,
+            fertilizer_preferred_time:       userPlant.fertilizer_preferred_time,
 
-            puring_notification_enabled: userPlant.pruning_notification_enabled,
-            pruning_reminder_frequency: userPlant.pruning_reminder_frequency,
+            puring_notification_enabled:    userPlant.pruning_notification_enabled,
+            pruning_reminder_frequency:      userPlant.pruning_reminder_frequency,
 
-            generic_notification_enabled: userPlant.generic_notification_enabled,
+            generic_notification_enabled:    userPlant.generic_notification_enabled,
             generic_care_reminder_frequency: userPlant.generic_care_reminder_frequency,
         },
     };
 };
-
 
 
 const CARE_TYPES_WITH_PREFERRED_TIME = new Set(["watering", "fertilizer"]);
