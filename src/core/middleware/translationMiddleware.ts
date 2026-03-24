@@ -53,7 +53,8 @@ function shouldSkipKey(key: string): boolean {
     "watering_notification_enabled",
     "fertilizer_notification_enabled",
     "pruning_notification_enabled",
-    "generic_care_notification_enabled",
+    // "generic_care_notification_enabled",
+    "generic_notification_enabled",
     "next_watered_at",
     "next_fertilized_at",
     "next_pruned_at",
@@ -68,6 +69,13 @@ function shouldSkipKey(key: string): boolean {
     "highlight_in_result",
     "verification_badge",
     "rating",
+    "edible",
+    "tropical",
+    "indoor",
+    "poisonous_to_humans",
+    "poisonous_to_pets",
+    "drought_tolerant",
+    "added_at",
   ];
  
   if (skipFields.some((field) => lowerKey.includes(field))) {

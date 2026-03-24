@@ -1,5 +1,5 @@
 import { getDB } from "../../core/config/db";
-import { AddUserPlantInput, CareNotificationInput, CareUpdateFields, FlatUpdateUserPlantInput, PaginatedUserPlants, PlantResponse, UpdateUserPlantInput,  UserPlant } from "../../interface/myPlants";
+import { AddUserPlantInput, CareNotificationInput, CareUpdateFields, FlatUpdateUserPlantInput, PaginatedUserPlants, PlantResponse, UpdateUserPlantInput, UserPlant } from "../../interface/myPlants";
 import { PaginatedPlants } from "../../interface/plants";
 
 
@@ -87,16 +87,14 @@ export const getPlantDetailsByIdService = async (plantId: string): Promise<Plant
         const pool = await getDB();
 
         const id = Number(plantId);
-
         if (isNaN(id)) {
             throw new Error("Invalid plant ID");
         }
 
-
         const result = await pool.query(
             `SELECT scientific_name
-            FROM all_plants
-            WHERE id = $1`,
+             FROM all_plants
+             WHERE id = $1`,
             [id]
         );
 
@@ -104,8 +102,7 @@ export const getPlantDetailsByIdService = async (plantId: string): Promise<Plant
             throw new Error("Plant not found");
         }
 
-
-        const plantDetails = await pool.query(
+        const plantDetailsResult = await pool.query(
             `SELECT
                 id,  
                 common_name,
@@ -128,9 +125,9 @@ export const getPlantDetailsByIdService = async (plantId: string): Promise<Plant
                 poisonous_to_humans,
                 poisonous_to_pets,
                 drought_tolerant,
-                tropical boolean,
-                medical boolean,
-                edible boolean,
+                tropical,
+                medical,
+                edible,
                 soil,
                 fertilizer,
                 pruning,
@@ -142,36 +139,41 @@ export const getPlantDetailsByIdService = async (plantId: string): Promise<Plant
                 climate,
                 color,
                 blooming,
-                description ,
+                description,
                 image_url,
                 source
-                FROM plant_care
-                WHERE scientific_name = $1`,
+            FROM plant_care
+            WHERE scientific_name = $1`,
             [result.rows[0].scientific_name]
         );
+
+        const fallbackResult = await pool.query(
+            `SELECT id, common_name, scientific_name, family, genus, image_url
+             FROM all_plants
+             WHERE id = $1`,
+            [id]
+        );
+
         return {
-            plant: plantDetails.rows[0],
+            plant: plantDetailsResult.rows[0] ?? fallbackResult.rows[0],
             reminder: {
-                watering_reminder_frequency: 0,
                 watering_notification_enabled: false,
+                watering_reminder_frequency: 0,
                 watering_preferred_time: "09:00:00",
 
-                fertilizer_reminder_frequency: 0,
                 fertilizer_notification_enabled: false,
+                fertilizer_reminder_frequency: 0,
                 fertilizer_preferred_time: "09:00:00",
-                pruning_reminder_frequency: 0,
+
                 puring_notification_enabled: false,
-                generic_care_reminder_frequency: 0,
+                pruning_reminder_frequency: 0,
+
                 generic_notification_enabled: false,
-
-            }
-
-        }
+                generic_care_reminder_frequency: 0,
+            },
+        };
     } catch (err) {
-        if (err instanceof Error) {
-            throw err; // rethrow original error
-        }
-
+        if (err instanceof Error) throw err;
         throw new Error("Failed to fetch plant details");
     }
 };
@@ -460,23 +462,96 @@ export const getUserPlantsService = async (
 export const getUserPlantByIdService = async (
     userId: string,
     userPlantId: number
-): Promise<UserPlant | null> => {
+): Promise<PlantResponse | null> => {
 
     const pool = await getDB();
-    // const id = Number(userPlantId);
-    // if (isNaN(id)) {
-    //     throw new Error("Invalid user plant ID");
-    // }
 
-    const result = await pool.query<UserPlant>(
+    const userPlantResult = await pool.query<UserPlant>(
         `SELECT ${USER_PLANT_SELECT}
          FROM   user_plants up
-         JOIN   All_plants  ap ON ap.id = up.plant_id
+         JOIN   all_plants  ap ON ap.id = up.plant_id
          WHERE  up.plant_id = $1 AND up.user_id = $2`,
         [userPlantId, userId]
     );
 
-    return result.rows[0] ?? null;
+    if (userPlantResult.rows.length === 0) return null;
+
+    const userPlant = userPlantResult.rows[0];
+    
+    if(!userPlant){
+        throw new Error("Plant not found for this user");
+    }
+
+    const plantDetailsResult = await pool.query(
+        `SELECT
+            id,  
+            common_name,
+            scientific_name,
+            family,
+            genus,
+            watering,
+            sunlight,
+            care_level,
+            growth_rate,
+            indoor,
+            temperature_min,
+            temperature_max,
+            humidity_min,
+            humidity_max,
+            light_min,
+            light_max,
+            soil_moisture_min,
+            soil_moisture_max,
+            poisonous_to_humans,
+            poisonous_to_pets,
+            drought_tolerant,
+            tropical,
+            medical,
+            edible,
+            soil,
+            fertilizer,
+            pruning,
+            cycle,
+            pest,
+            diseases,
+            origin,
+            category,
+            climate,
+            color,
+            blooming,
+            description,
+            image_url,
+            source
+        FROM plant_care
+        WHERE scientific_name = $1`,
+        [userPlant.scientific_name]
+    );
+
+    const fallbackResult = await pool.query(
+        `SELECT id, common_name, scientific_name, family, genus, image_url
+         FROM all_plants
+         WHERE id = $1`,
+        [userPlantId]
+    );
+
+    return {
+        plant: plantDetailsResult.rows[0] ?? fallbackResult.rows[0],
+        reminder: {
+            watering_notification_enabled: userPlant.watering_notification_enabled,
+            watering_reminder_frequency: userPlant.watering_reminder_frequency,
+            watering_preferred_time: userPlant.watering_preferred_time,
+
+            fertilizer_notification_enabled: userPlant.fertilizer_notification_enabled,
+            fertilizer_reminder_frequency: userPlant.fertilizer_reminder_frequency,
+            fertilizer_preferred_time: userPlant.fertilizer_preferred_time,
+
+            puring_notification_enabled: userPlant.pruning_notification_enabled,
+            pruning_reminder_frequency: userPlant.pruning_reminder_frequency,
+
+            generic_notification_enabled: userPlant.generic_notification_enabled,
+            generic_care_reminder_frequency: userPlant.generic_care_reminder_frequency,
+        },
+    };
 };
 
 
@@ -581,10 +656,10 @@ export const validateUpdateUserPlantInput = (
 
 // ─── Helper: compute next_*_at from lastDoneAt + frequency (days) ─────────────
 const nextColMap: Record<string, string> = {
-    watering:   "next_watered_at",
+    watering: "next_watered_at",
     fertilizer: "next_fertilized_at",
-    pruning:    "next_pruned_at",
-    generic:    "next_generic_care_at",
+    pruning: "next_pruned_at",
+    generic: "next_generic_care_at",
 };
 
 /**
@@ -712,36 +787,36 @@ export const updateUserPlantService = async (
     const setClauses: string[] = ["updated_at = NOW()"];
     const values: unknown[] = [];
     let paramIndex = 1;
-/**
- * Appends SQL SET clauses and corresponding values for a specific care type.
- *
- * This helper is used to dynamically build the UPDATE query for the `user_plants` table.
- *
- * Behavior:
- * - Always updates `<prefix>_notification_enabled`.
- * - If the care type supports a preferred time (`CARE_TYPES_WITH_PREFERRED_TIME`), updates `<prefix>_preferred_time`.
- * - Always updates `<prefix>_reminder_frequency`.
- * - Updates the `next_*_at` column only if `recalculate_next` is `true` (i.e., when enabling the notification).
- * - When toggling OFF, `next_*_at` is left unchanged.
- *
- * @param {string} prefix - The care type prefix (`watering`, `fertilizer`, `pruning`, `generic`).
- * @param {CareUpdateFields} fields - The values to update for this care type.
- *
- * @example
- * appendFields("watering", {
- *   notification_enabled: true,
- *   preferred_time: "08:00:00",
- *   reminder_frequency: 3,
- *   next_at: "2025-03-20T08:00:00.000Z",
- *   recalculate_next: true
- * });
- * // Adds SET clauses for watering_notification_enabled, watering_preferred_time,
- * // watering_reminder_frequency, and next_watered_at (if recalculate_next is true)
- */
+    /**
+     * Appends SQL SET clauses and corresponding values for a specific care type.
+     *
+     * This helper is used to dynamically build the UPDATE query for the `user_plants` table.
+     *
+     * Behavior:
+     * - Always updates `<prefix>_notification_enabled`.
+     * - If the care type supports a preferred time (`CARE_TYPES_WITH_PREFERRED_TIME`), updates `<prefix>_preferred_time`.
+     * - Always updates `<prefix>_reminder_frequency`.
+     * - Updates the `next_*_at` column only if `recalculate_next` is `true` (i.e., when enabling the notification).
+     * - When toggling OFF, `next_*_at` is left unchanged.
+     *
+     * @param {string} prefix - The care type prefix (`watering`, `fertilizer`, `pruning`, `generic`).
+     * @param {CareUpdateFields} fields - The values to update for this care type.
+     *
+     * @example
+     * appendFields("watering", {
+     *   notification_enabled: true,
+     *   preferred_time: "08:00:00",
+     *   reminder_frequency: 3,
+     *   next_at: "2025-03-20T08:00:00.000Z",
+     *   recalculate_next: true
+     * });
+     * // Adds SET clauses for watering_notification_enabled, watering_preferred_time,
+     * // watering_reminder_frequency, and next_watered_at (if recalculate_next is true)
+     */
     const appendFields = (
         prefix: string,
         fields: CareUpdateFields,
-    ):void => {
+    ): void => {
         setClauses.push(`${prefix}_notification_enabled = $${paramIndex++}`);
         values.push(fields.notification_enabled);
 
