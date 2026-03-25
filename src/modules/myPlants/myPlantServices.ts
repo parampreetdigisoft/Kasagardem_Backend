@@ -22,7 +22,7 @@ export const getAllPlantsService = async (
     const offset = (page - 1) * limit;
 
     const searchCondition = search
-        ? `WHERE common_name ILIKE $1 OR scientific_name ILIKE $1 OR description ILIKE $1`
+        ? `WHERE common_name ILIKE $1 OR scientific_name ILIKE $1`
         : "";
 
     const searchParam = search ? [`%${search}%`] : [];
@@ -668,6 +668,13 @@ const nextColMap: Record<string, string> = {
     pruning: "next_pruned_at",
     generic: "next_generic_care_at",
 };
+const reminderFreqColMap: Record<string, string> = {
+    watering:   "watering_reminder_frequency",
+    fertilizer: "fertilizer_reminder_frequency",
+    pruning:    "pruning_reminder_frequency",
+    generic:    "generic_care_reminder_frequency",  // different from pattern
+};
+
 
 /**
  * Builds a normalized care update object from a CareNotificationInput block.
@@ -733,6 +740,12 @@ const buildCareFields = (block: CareNotificationInput): CareUpdateFields => ({
         : null,
     recalculate_next: block.notification_enabled,
 });
+
+
+
+
+
+
 
 /**
  * Updates the notification settings for a user's plant.
@@ -832,7 +845,7 @@ export const updateUserPlantService = async (
             values.push(fields.preferred_time);
         }
 
-        setClauses.push(`${prefix}_reminder_frequency = $${paramIndex++}`);
+          setClauses.push(`${reminderFreqColMap[prefix]} = $${paramIndex++}`);
         values.push(fields.reminder_frequency);
 
         // ── Only recalculate next_*_at when toggling ON ───────────────────────

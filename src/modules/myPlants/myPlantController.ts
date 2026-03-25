@@ -433,10 +433,10 @@ export const updateUserPlantController = async (
 
         const updated = await updateUserPlantService(user.id!, userPlantId, nestedPayload);
 
-        res.status(200).json({
-            message: "Plant notifications updated successfully",
-            data: updated,
-        });
+        res.status(200).json(successResponse(
+            updated,
+            "Plant notifications updated successfully"
+        ));
     } catch (err) {
         if (err instanceof Error) {
             res.status(400).json({ message: err.message });

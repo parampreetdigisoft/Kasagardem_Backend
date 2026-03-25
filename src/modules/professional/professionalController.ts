@@ -713,7 +713,7 @@ export async function leadCreatedByProfessional(req: AuthRequest, res: Response)
       return;
     }
 
-    await leadCreatedByProfessionalService(req.body.professionalIds, user.id);
+    await leadCreatedByProfessionalService(req.body.professionalIds, user.id,user.email,user.name);
 
     res.status(HTTP_STATUS.CREATED).json(successResponse(null, "Lead created successfully"));
   } catch (error) {

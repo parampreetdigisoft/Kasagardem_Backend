@@ -1,6 +1,6 @@
 
 import { connectDB, getDB } from "../../core/config/db";
-import { sendLeadsEmailToSuppliers, sendProfessionalWelcomeEmail } from "../../core/services/emailService";
+import { sendLeadCreationEmailTOAdmin, sendLeadCreationEmailToProfessional, sendLeadCreationEmailToUser, sendLeadsEmailToSuppliers, sendProfessionalWelcomeEmail } from "../../core/services/emailService";
 import { csvUser } from "../../interface/auth";
 import { GetProfessionalsParams, GetProfessionalsResponse, InsertResult, PartnerProfile, professionalProfileResponse, ProfessionalProfileResponse, RequestingUser } from "../../interface/professional";
 import bcrypt from "bcryptjs";
@@ -1207,7 +1207,7 @@ export async function fetchSortedProfessionals(
         user_location: { lat: userLat, lng: userLng },
         data: paginated.map((pro) => ({
             id: pro.userid, // ✅ return userID for frontend to fetch profile details
-            userid : pro.userid,
+            userid: pro.userid,
             company_name: pro.company_name,
             category: pro.category,
             description: pro.description,
@@ -1320,42 +1320,98 @@ export const professionalProfileById = async (id: string): Promise<professionalP
  *
  * @param {string[]} professionalIds - Array of professional UUIDs.
  * @param {string} userId - UUID of the user creating the lead.
+ * @param {string} userEmail - Email of the user creating the lead (for notifications).
+ * @param {string} userName - Name of the user creating the lead (for notifications).
  * @returns {Promise<void>}
  * @throws {Error} If insertion fails.
  */
 export const leadCreatedByProfessionalService = async (
     professionalIds: string[],
-    userId: string
+    userId: string,
+    userEmail: string,
+    userName: string
 ): Promise<void> => {
+    if (!professionalIds.length) {
+        throw new Error("No professional IDs provided");
+    }
+
     const client = await getDB();
 
     try {
-        for (const professionalId of professionalIds) {
+        await client.query("BEGIN");
 
-            // Check if lead already exists for this user + professional
-            const existing = await client.query(
-                `SELECT id FROM leads_Schema 
-                 WHERE user_id = $1 
-                 AND partner_profile_ids = $2 
-                 AND is_deleted = false`,
+        for (const professionalId of professionalIds) {
+            // Check for duplicate lead
+            const { rows: existing } = await client.query<{ id: string }>(
+                `SELECT id FROM leads_schema
+                 WHERE user_id = $1
+                   AND partner_profile_ids = $2
+                   AND is_deleted = false
+                 LIMIT 1`,
                 [userId, professionalId]
             );
 
-            if (existing.rows.length > 0) {
-                throw new Error("Professional already added to the lead schema");
+            if (existing.length > 0) {
+                throw new Error(
+                    `Lead already exists for professional: ${professionalId}`
+                );
             }
 
+            // Insert lead + fetch professional email in parallel
             await client.query(
-                `INSERT INTO leads_Schema 
-                 (partner_profile_ids, user_id, leads_status, is_deleted)  
-                 VALUES ($1, $2, 'new', false)`,
+                `INSERT INTO leads_schema
+         (partner_profile_ids, user_id, leads_status, is_deleted)
+         VALUES ($1, $2, 'new', false)`,
                 [professionalId, userId]
             );
+
+            // ✅ Then fetch email separately
+            const professionalEmailResult = await client.query<{ email: string }>(
+                `SELECT email FROM users WHERE id = $1`,
+                [professionalId]
+            );
+
+            const professionalEmail = professionalEmailResult.rows[0]?.email;
+
+            if (!professionalEmail) {
+                console.error(`No email found for professional: ${professionalId}. Lead created, skipping emails.`);
+                // throw new Error(`Professional email not found for ID: ${professionalId}`);
+                continue; // ✅ Safe now — insert already staged for commit
+            }
+
+
+
+            // Send all notification emails in parallel
+            await Promise.all([
+                sendLeadCreationEmailToProfessional({
+                    professionalEmail,
+                    subject: "New Lead Created",
+                    userEmail,
+                    userName,
+                }),
+                sendLeadCreationEmailToUser({
+                    userEmail,
+                    subject: "Lead Created Successfully",
+                    professionalEmail,
+                }),
+                sendLeadCreationEmailTOAdmin({
+                    subject: "New Lead Created",
+                    userEmail,
+                    professionalEmail,
+                }),
+            ]);
         }
+
+        await client.query("COMMIT");
     } catch (error: unknown) {
+        await client.query("ROLLBACK");
+
+        const message = error instanceof Error ? error.message : String(error);
+        const stack = error instanceof Error ? error.stack : undefined;
+
         console.error("Error creating lead:", {
-            error: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
+            message,
+            stack,
             userId,
             professionalIds,
         });
@@ -2027,9 +2083,9 @@ export const updateRatingByAdminService = async (
  * @throws {Error} Throws an error if the lead is not found or the update fails.
  */
 export async function updateLeadStatusService(id: string): Promise<void> {
-  const client = await getDB();
+    const client = await getDB();
 
-  const query = `
+    const query = `
     UPDATE leads_schema
     SET leads_status = CASE
         WHEN leads_status = 'new' THEN 'contacted'
@@ -2042,9 +2098,9 @@ export async function updateLeadStatusService(id: string): Promise<void> {
     RETURNING *;
   `;
 
-  const result = await client.query(query, [id]);
+    const result = await client.query(query, [id]);
 
-  if (result.rowCount === 0) {
-    throw new Error("Lead not found");
-  }
+    if (result.rowCount === 0) {
+        throw new Error("Lead not found");
+    }
 }
