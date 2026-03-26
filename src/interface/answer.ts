@@ -28,16 +28,25 @@ export interface IPartnerRecommendation {
   whyRecommended?: string;
 }
 
-export interface ISelectedAddress {
-  state: string;
-  city: string;
-}
+// export interface ISelectedAddress {
+//   state: string;
+//   city: string;
+// }
 
+// export interface IUserAnswer {
+//   questionId: string;
+//   type: number; // 1 = option, 2 = address
+//   selectedOption?: string;
+//   selectedAddress?: ISelectedAddress;
+// }
 export interface IUserAnswer {
-  questionId: string;
-  type: number; // 1 = option, 2 = address
+  questionId?: string;
+  type?: string;
   selectedOption?: string;
-  selectedAddress?: ISelectedAddress;
+  selectedAddress?: {
+    state?: string;
+    city?: string;
+  } | undefined;
 }
 
 export interface IPlantRecommendation {

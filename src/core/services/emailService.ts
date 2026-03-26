@@ -8,6 +8,9 @@ import {
 } from "../../templates/leadsGeneratedEmail";
 import { professionalWelcomeEmailTemplate } from "../../templates/sendWelcomeEmail";
 import { leadTemplateForSuppliers } from "../../templates/leademalForSupplier";
+import { leadNotificationForProfessional } from "../../templates/LeadNotificationForProfessional";
+import { leadNotificationForUser } from "../../templates/LeadNotificationForUser";
+import { leadNotificationForAdmin } from "../../templates/leadNotificationForAdmin";
 
 /**
  * Creates and configures an email transporter using Nodemailer.
@@ -23,7 +26,7 @@ export const createTransporter = (): Transporter => {
       user: config.EMAIL_USER,
       pass: config.EMAIL_PASS, // Use app password for Gmail
     },
-   
+
   });
 };
 
@@ -150,10 +153,10 @@ export const sendLeadEmails = async (
 };
 
 interface WelcomeEmailData {
-    email: string;
-    name: string;
-    password: string;
-    trialEndDate: string;
+  email: string;
+  name: string;
+  password: string;
+  trialEndDate: string;
 }
 /**
  * Sends a welcome email to a newly registered professional user.
@@ -218,15 +221,15 @@ export const sendProfessionalWelcomeEmail = async (
 export const sendLeadsEmailToSuppliers = async (
   userData: {
     email: string;
-    name: string; 
+    name: string;
   },
   suppliersData: Array<{
     email: string;
     company_name: string;
-  }>,               
+  }>,
 ): Promise<void> => {
   const transporter = createTransporter();
-const supplierMailPromises = suppliersData.map((supplier) =>
+  const supplierMailPromises = suppliersData.map((supplier) =>
     transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: supplier.email,
@@ -236,4 +239,108 @@ const supplierMailPromises = suppliersData.map((supplier) =>
   );
 
   await Promise.all(supplierMailPromises);
-  };
+};
+
+/**
+ * Sends an email notification to the professional when a new lead is created.
+ *
+ * @async
+ * @function sendLeadCreationEmailToProfessional
+ * @param {Object} params - Function parameters
+ * @param {string} params.professionalEmail - Email address of the professional receiving the lead
+ * @param {string} params.subject - Subject line of the email
+ * @param {string} params.userEmail - Email address of the user who created the lead
+ * @param {string} params.userName - Name of the user who created the lead
+ * @returns {Promise<void>} Resolves when the email is successfully sent
+ */
+export const sendLeadCreationEmailToProfessional = async ({
+  professionalEmail,
+  subject,
+  userEmail,
+  userName
+}: {
+  professionalEmail: string;
+  subject: string;
+  userEmail: string;
+  userName: string;
+}): Promise<void> => {
+  const transporter = createTransporter();
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: professionalEmail,
+    subject: subject,
+    html: leadNotificationForProfessional(
+      professionalEmail,
+      userName,
+      userEmail,
+    ),
+  });
+}
+
+/**
+ * Sends a confirmation email to the user after a lead is created.
+ *
+ * @async
+ * @function sendLeadCreationEmailToUser
+ * @param {Object} params - Function parameters
+ * @param {string} params.userEmail - Email address of the user
+ * @param {string} params.subject - Subject line of the email
+ * @param {string} params.professionalEmail - Email address of the professional associated with the lead
+ * @returns {Promise<void>} Resolves when the email is successfully sent
+ */
+export const sendLeadCreationEmailToUser = async ({
+  userEmail,
+  subject,
+  professionalEmail
+}: {
+  userEmail: string;
+  subject: string;
+
+  professionalEmail: string;
+}): Promise<void> => {
+  const transporter = createTransporter();
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: userEmail,
+    subject: subject,
+    html: leadNotificationForUser(
+      userEmail,
+      professionalEmail,
+      ),
+  }); 
+}
+
+/**
+ * Sends a notification email to the admin when a new lead is created.
+ *
+ * @async
+ * @function sendLeadCreationEmailTOAdmin
+ * @param {Object} params - Function parameters
+ * @param {string} params.subject - Subject line of the email
+ * @param {string} params.userEmail - Email address of the user who created the lead
+ * @param {string} params.professionalEmail - Email address of the professional assigned to the lead
+ * @returns {Promise<void>} Resolves when the email is successfully sent
+ */
+export const sendLeadCreationEmailTOAdmin = async ({
+  subject,
+  userEmail,
+  professionalEmail
+}: {
+  subject: string;
+  userEmail: string;
+  professionalEmail: string;
+
+}): Promise<void> => {
+
+  const transporter = createTransporter();
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: process.env.ADMIN_EMAIL,
+    subject: subject,
+
+    html: leadNotificationForAdmin(
+      userEmail,
+      professionalEmail,
+    ),
+  });
+}

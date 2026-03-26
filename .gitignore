@@ -1,5 +1,5 @@
 node_modules
 uploads
-
+/dist
 # Firebase keys
 src/core/config/*.json                      

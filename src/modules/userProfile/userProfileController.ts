@@ -8,7 +8,7 @@ import { error, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
 import { findUserByEmail } from "../auth/authRepository";
 import { getDB } from "../../core/config/db";
-import { IExternalLink, IFullUserProfile, IProfileResponse, IUserProfileRow } from "../../interface/userProfile";
+import {  IFullUserProfile, IUserProfileRow } from "../../interface/userProfile";
 import {
   getUserProfileById,
   updateValidatedUserProfile,
@@ -65,46 +65,30 @@ export const getCurrentUserProfile = async (
     const client = getDB();
 
     // 2. Run both queries in parallel
-    const [{ rows: profileRows }, { rows: externalLinkRows }] =
-      await Promise.all([
-        client.query<IUserProfileRow>(
-          `
-          SELECT
-            profile_image,
-            date_of_birth,
-            gender,
-            bio,
-            street,
-            city,
-            state,
-            country,
-            zip_code,
-            occupation,
-            company
-          FROM userprofiles
-          WHERE user_id = $1
-          `,
-          [user.id]
-        ),
-        client.query<IExternalLink>(
-          `
-          SELECT
-            id,
-            title,
-            url,
-            is_active,
-            created_at,
-            updated_at
-          FROM external_links
-          WHERE is_active = true
-          `
-        ),
-      ]);
+  //  const client = getDB();
 
-    // 3. Explicitly type as null to avoid undefined leaking
+    const { rows: profileRows } = await client.query<IUserProfileRow>(
+      `
+      SELECT
+        profile_image,
+        date_of_birth,
+        gender,
+        bio,
+        street,
+        city,
+        state,
+        country,
+        zip_code,
+        occupation,
+        company
+      FROM userprofiles
+      WHERE user_id = $1
+      `,
+      [user.id]
+    );
+
     const userProfile: IUserProfileRow | null = profileRows[0] ?? null;
 
-    // 4. Build profile object
     const fullProfile: IFullUserProfile = {
       name: user.name ?? null,
       email: user.email ?? null,
@@ -128,21 +112,10 @@ export const getCurrentUserProfile = async (
       company: userProfile?.company ?? null,
     };
 
-  const externalLinks: { [key: string]: { url: string | null; isActive: boolean } } = {};
-
-externalLinkRows.forEach((link) => {
-  externalLinks[link.title] = {
-    url: link.url,
-    isActive: link.is_active,
-  };
-});
-
-const responseData: IProfileResponse = {
-  profile: fullProfile,
-  externalLinks,
-};
-
-    res.status(HTTP_STATUS.OK).json(successResponse(responseData));
+    res.status(HTTP_STATUS.OK).json(successResponse(
+      fullProfile,
+      "User profile retrieved successfully"
+    ));
   } catch (err: unknown) {
     const errorObj: CustomError =
       err instanceof Error
