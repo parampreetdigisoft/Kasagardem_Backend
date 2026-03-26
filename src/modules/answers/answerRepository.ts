@@ -670,12 +670,12 @@ function buildSpaceTypeCondition(
   const v = value.toLowerCase().trim();
  
   const habitMap: Record<string, string[]> = {
-    "home garden":            ["%Tree%", "%Shrub%", "%Forb/herb%"],
-    "balcony":                ["%Forb/herb%", "%Subshrub%", "%Shrub%"],
+    "home garden":            [ "%Shrub%", "%Forb/herb%", "%Tree%"],
+    "balcony":                ["%Forb/herb%", "%Shrub%"],
     "apartment balcony":      ["%Forb/herb%", "%Subshrub%"],
     "corporate outdoor area": ["%Tree%", "%Shrub%"],
     "corporate indoor":       ["%Forb/herb%", "%Subshrub%"],
-    "urban park":             ["%Tree%", "%Shrub%", "%Forb/herb%"],
+    "urban park":             ["%Tree%", "%Shrub%",],
     "park":                   ["%Tree%", "%Shrub%"],
     "farm":                   ["%Forb/herb%", "%Graminoid%", "%Tree%"],
     "avenue":                 ["%Tree%"],
@@ -1282,7 +1282,7 @@ export const getRecommendedPlants = async (
         ph_maximum
       FROM All_plants
       ${whereClause}
-      LIMIT 20;
+      LIMIT 10;
     `;
  
     const result = await client.query(query, params);

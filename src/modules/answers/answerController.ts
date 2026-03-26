@@ -10,7 +10,7 @@ import {
   getRecommendedPlants,
 } from "./answerRepository";
 import { translateObject } from "./answerUtility";
-import { ISurveyAnswer } from "../../interface/answer";
+import { ISurveyAnswer, IUserAnswer } from "../../interface/answer";
 import { detectLanguage } from "../../core/middleware/translationMiddleware";
 import { getDB } from "../../core/config/db";
 import { createSurveyResponse } from "./answerModel";
@@ -365,12 +365,31 @@ export const getRecommendedPlantsController = async (
  
     const client = await getDB();
  
-    // Fetch survey answers for this response, ordered consistently
+    // ─────────────────────────────────────────────────────────────
+    // Fetch survey answers joined with their question ORDER.
+    //
+    // The questions table has an `order` column (integer 1–5) that
+    // tells us which FieldIndex each answer belongs to:
+    //   order 1 → space_types      (FieldIndex 0)
+    //   order 2 → area_sizes       (FieldIndex 1)
+    //   order 3 → challenges       (FieldIndex 2)
+    //   order 4 → tech_preferences (FieldIndex 3)
+    //   order 5 → locations        (FieldIndex 4)
+    //
+    // We JOIN on questions so we can sort by question order,
+    // and only include active questions (is_deleted = false).
+    // ─────────────────────────────────────────────────────────────
     const result = await client.query(
-      `SELECT question_id, answer_type, selected_option
-       FROM survey_answers
-       WHERE response_id = $1
-       ORDER BY question_id ASC`,
+      `SELECT
+         sa.question_id,
+         sa.answer_type,
+         sa.selected_option,
+         q.order AS question_order
+       FROM survey_answers sa
+       JOIN questions q ON q.id = sa.question_id
+       WHERE sa.response_id = $1
+         AND q.is_deleted = false
+       ORDER BY q.order ASC`,
       [responseId]
     );
  
@@ -379,36 +398,63 @@ export const getRecommendedPlantsController = async (
       return;
     }
  
-    // Map DB rows to IUserAnswer shape.
-    // Location answers may be stored as JSON:
-    //   '{"state":"São Paulo","city":"Campinas"}'
-    // or as plain state name string.
-    const answers = result.rows.map((row) => {
+    // ─────────────────────────────────────────────────────────────
+    // Build the answers array in FieldIndex order (0-based).
+    //
+    // question.order is 1-based (1–5), FieldIndex is 0-based (0–4).
+    // We place each answer at index = question_order - 1.
+    //
+    // Location answers (order 5) may be stored as:
+    //   - JSON string: '{"state":"São Paulo","city":"Campinas"}'
+    //   - Plain state string: "São Paulo"
+    // ─────────────────────────────────────────────────────────────
+    const answers: IUserAnswer[] = new Array(5).fill(null);
+ 
+    for (const row of result.rows) {
+      const fieldIndex = row.question_order - 1; // convert 1-based to 0-based
+ 
+      if (fieldIndex < 0 || fieldIndex > 4) continue; // skip out-of-range orders
+ 
       let selectedAddress: { state?: string; city?: string } | undefined;
  
-      if (row.answer_type === "location") {
-        try {
-          selectedAddress = JSON.parse(row.selected_option);
-        } catch {
-          selectedAddress = { state: row.selected_option };
+      // Order 5 = location question
+      if (row.question_order === 5) {
+        if (row.selected_option) {
+          try {
+            // Try to parse as JSON first
+            const parsed = JSON.parse(row.selected_option);
+            if (parsed && typeof parsed === "object") {
+              selectedAddress = {
+                state: parsed.state ?? parsed.State ?? undefined,
+                city: parsed.city ?? parsed.City ?? undefined,
+              };
+            }
+          } catch {
+            // Not JSON — treat the raw value as state name
+            selectedAddress = { state: row.selected_option };
+          }
         }
       }
  
-      return {
+      answers[fieldIndex] = {
         questionId: row.question_id,
         type: row.answer_type,
         selectedOption: row.selected_option,
         selectedAddress,
       };
-    });
+    }
  
+    // ─────────────────────────────────────────────────────────────
+    // Get recommendations — nulls in the answers array mean the
+    // user skipped that question; getRecommendedPlants handles them.
+    // ─────────────────────────────────────────────────────────────
     const recommendedPlants = await getRecommendedPlants(answers);
  
     const plantRecommendations = recommendedPlants.map((p) => ({
       id: p.id,
       name: p.common_name ?? p.scientific_name,
       // scientific: p.scientific_name,
-      image: p.image_url ?? null,
+      // image: p.image_url ?? null,
       // family: p.family,
       // genus: p.genus,
       // growthHabit: p.growth_habit,
