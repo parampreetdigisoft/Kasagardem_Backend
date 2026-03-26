@@ -159,71 +159,71 @@ async function updateSurveyAnswersTranslation(
  * @param res Express response object
  * @param next Express next function for error handling
  */
-export const getRecommendedPlantsController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { responseId } = req.params;
+// export const getRecommendedPlantsController = async (
+//   req: Request,
+//   res: Response,
+//   next: NextFunction
+// ): Promise<void> => {
+//   try {
+//     const { responseId } = req.params;
 
-    if (!responseId) {
-      res.status(400).json({ message: "responseId is required" });
-      return;
-    }
+//     if (!responseId) {
+//       res.status(400).json({ message: "responseId is required" });
+//       return;
+//     }
 
-    const client = await getDB();
+//     const client = await getDB();
 
-    // Fetch all answers for this response
-    const result = await client.query(
-      `SELECT question_id, answer_type, selected_option
-       FROM survey_answers
-       WHERE response_id = $1`,
-      [responseId]
-    );
+//     // Fetch all answers for this response
+//     const result = await client.query(
+//       `SELECT question_id, answer_type, selected_option
+//        FROM survey_answers
+//        WHERE response_id = $1`,
+//       [responseId]
+//     );
 
-    if (result.rows.length === 0) {
-      res.status(404).json({ message: "No answers found for this responseId" });
-      return;
-    }
+//     if (result.rows.length === 0) {
+//       res.status(404).json({ message: "No answers found for this responseId" });
+//       return;
+//     }
 
-    const answers = result.rows.map((row) => ({
-      questionId: row.question_id,
-      type: row.answer_type,
-      selectedOption: row.selected_option,
-    }));
+//     const answers = result.rows.map((row) => ({
+//       questionId: row.question_id,
+//       type: row.answer_type,
+//       selectedOption: row.selected_option,
+//     }));
 
-    // Get plant recommendations
-    const recommendedPlants = await getRecommendedPlants(answers);
+//     // Get plant recommendations
+//     const recommendedPlants = await getRecommendedPlants(answers);
 
-    const plantRecommendations = await Promise.all(
-      recommendedPlants.map(async (p) => ({
-        id: p.id,
-        name: p.common_name,
-        scientific: p.scientific_name,
-        image: (await getSignedFileUrl(p.image_search_url!)) || null,
-        description: p.description,
-        whyRecommended: p.whyRecommended,
-      }))
-    );
+//     const plantRecommendations = await Promise.all(
+//       recommendedPlants.map(async (p) => ({
+//         id: p.id,
+//         name: p.common_name,
+//         scientific: p.scientific_name,
+//         image: (await getSignedFileUrl(p.image_search_url!)) || null,
+//         description: p.description,
+//         whyRecommended: p.whyRecommended,
+//       }))
+//     );
 
-    res.status(200).json(
-      successResponse(
-        {
-          plantRecommendations,
-        },
-        "Plant recommendations fetched successfully"
-      )
-    );
-  } catch (err) {
-    res.status(500).json(
-      errorResponse("Failed to fetch plant recommendations", {
-        details: (err as Error).message,
-      })
-    );
-    next(err);
-  }
-};
+//     res.status(200).json(
+//       successResponse(
+//         {
+//           plantRecommendations,
+//         },
+//         "Plant recommendations fetched successfully"
+//       )
+//     );
+//   } catch (err) {
+//     res.status(500).json(
+//       errorResponse("Failed to fetch plant recommendations", {
+//         details: (err as Error).message,
+//       })
+//     );
+//     next(err);
+//   }
+// };
 
 /**
  * Get recommended professional partners based on survey answers linked to a specific response ID.
@@ -314,6 +314,125 @@ export const getRecommendedPartnersController = async (
   } catch (err) {
     res.status(500).json(
       errorResponse("Failed to fetch partner recommendations", {
+        details: (err as Error).message,
+      })
+    );
+    next(err);
+  }
+};
+
+
+
+/**
+ * Controller to fetch recommended plants based on a user's survey response.
+ *
+ * @route GET /recommended-plants/:responseId
+ *
+ * @param {Request} req - Express request object containing route params.
+ * @param {Response} res - Express response object used to return API response.
+ * @param {NextFunction} next - Express next middleware function for error handling.
+ *
+ * @returns {Promise<void>} Sends a JSON response with recommended plants or an error.
+ *
+ * @description
+ * This controller:
+ * 1. Validates the presence of `responseId` in request params.
+ * 2. Fetches survey answers from the database for the given response.
+ * 3. Parses answers into the `IUserAnswer` format.
+ *    - Handles "location" type answers which may be:
+ *      - JSON string (e.g., {"state":"X","city":"Y"})
+ *      - Plain string (treated as state)
+ * 4. Calls the recommendation service to get plant suggestions.
+ * 5. Transforms plant data into a simplified response format.
+ * 6. Returns the result using a standardized success response.
+ *
+ * @throws {400} If responseId is missing
+ * @throws {404} If no survey answers are found
+ * @throws {500} If any internal error occurs
+ */
+export const getRecommendedPlantsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { responseId } = req.params;
+ 
+    if (!responseId) {
+      res.status(400).json({ message: "responseId is required" });
+      return;
+    }
+ 
+    const client = await getDB();
+ 
+    // Fetch survey answers for this response, ordered consistently
+    const result = await client.query(
+      `SELECT question_id, answer_type, selected_option
+       FROM survey_answers
+       WHERE response_id = $1
+       ORDER BY question_id ASC`,
+      [responseId]
+    );
+ 
+    if (result.rows.length === 0) {
+      res.status(404).json({ message: "No answers found for this responseId" });
+      return;
+    }
+ 
+    // Map DB rows to IUserAnswer shape.
+    // Location answers may be stored as JSON:
+    //   '{"state":"São Paulo","city":"Campinas"}'
+    // or as plain state name string.
+    const answers = result.rows.map((row) => {
+      let selectedAddress: { state?: string; city?: string } | undefined;
+ 
+      if (row.answer_type === "location") {
+        try {
+          selectedAddress = JSON.parse(row.selected_option);
+        } catch {
+          selectedAddress = { state: row.selected_option };
+        }
+      }
+ 
+      return {
+        questionId: row.question_id,
+        type: row.answer_type,
+        selectedOption: row.selected_option,
+        selectedAddress,
+      };
+    });
+ 
+    const recommendedPlants = await getRecommendedPlants(answers);
+ 
+    const plantRecommendations = recommendedPlants.map((p) => ({
+      id: p.id,
+      name: p.common_name ?? p.scientific_name,
+      // scientific: p.scientific_name,
+      image: p.image_url ?? null,
+      // family: p.family,
+      // genus: p.genus,
+      // growthHabit: p.growth_habit,
+      // growthRate: p.growth_rate,
+      // heightCm: p.average_height_cm ?? p.maximum_height_cm ?? null,
+      // light: p.light,
+      // groundHumidity: p.ground_humidity,
+      // edible: p.edible,
+      // vegetable: p.vegetable,
+      distributions: p.distributions,
+      // flowerColor: p.flower_color,
+      // foliageColor: p.foliage_color,
+      whyRecommended: p.whyRecommended,
+    }));
+ 
+    res.status(200).json(
+      successResponse(
+        { plantRecommendations },
+        "Plant recommendations fetched successfully"
+      )
+    );
+  } catch (err) {
+    res.status(500).json(
+      errorResponse("Failed to fetch plant recommendations", {
         details: (err as Error).message,
       })
     );
