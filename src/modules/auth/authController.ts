@@ -219,6 +219,22 @@ export const login = async (
       return;
     }
 
+    if (user.isdeleted) {
+      await warn(
+        "Login failed - user profile is deleted",
+        { email, userId: user.id },
+        { source: "auth.login", req }
+      );
+
+      await error(
+        "Login attempt for deleted user profile",
+        { email, userId: user.id },
+        { userId: user.id!, source: "auth.login", req }
+      );
+      res.status(HTTP_STATUS.OK).json(errorResponse("User profile is deleted"));
+      return;
+    }
+
     // Validate password
     const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
@@ -262,7 +278,7 @@ export const login = async (
       );
       return;
     }
-    
+
     //  Generate JWT
     if (loginType === "professional" && roleName === "professional") {
       let professionalStatus;

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   getCurrentUserProfile,
+  softDeleteUserProfile,
   updateUserProfile,
 } from "./userProfileController";
 import { updateUserProfileValidation } from "./userProfileValidations";
@@ -113,6 +114,95 @@ router.put(
   auth,
   validateRequest(updateUserProfileValidation),
   updateUserProfile
+);
+
+/**
+ * @swagger
+ * /api/v1/userProfile/soft-delete:
+ *   patch:
+ *     summary: Soft delete the current user's profile
+ *     tags: [UserProfile]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Marks the current user's profile as deleted (`is_deleted = true`) without
+ *       removing the record from the database. Returns an appropriate response
+ *       if the profile is already deleted or if the user/profile is not found.
+ *     responses:
+ *       200:
+ *         description: User profile soft deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "User profile soft deleted successfully"
+ *                 data:
+ *                   type: object
+ *                   nullable: true
+ *                   example: null
+ *       401:
+ *         description: Unauthorized request (missing or invalid token)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Unauthorized request"
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "User profile not found"
+ *       410:
+ *         description: Profile already deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "User profile already deleted"
+ *       500:
+ *         description: Server error during soft deletion
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "An unknown error occurred"
+ */
+router.patch(
+  "/soft-delete",
+  auth,
+  softDeleteUserProfile
 );
 
 export default router;

@@ -13,6 +13,7 @@ export interface IUser {
   profile_picture?: string;
   password_reset_token?: string | null;
   password_reset_expires?: Date | null;
+  isdeleted?: boolean;
   created_at?: Date;
   updated_at?: Date;
 }
