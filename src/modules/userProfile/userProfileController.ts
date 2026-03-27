@@ -8,7 +8,7 @@ import { error, warn } from "../../core/utils/logger";
 import { CustomError } from "../../interface/Error";
 import { findUserByEmail } from "../auth/authRepository";
 import { getDB } from "../../core/config/db";
-import {  IFullUserProfile, IUserProfileRow } from "../../interface/userProfile";
+import { IFullUserProfile, IUserProfileRow } from "../../interface/userProfile";
 import {
   getUserProfileById,
   updateValidatedUserProfile,
@@ -65,7 +65,7 @@ export const getCurrentUserProfile = async (
     const client = getDB();
 
     // 2. Run both queries in parallel
-  //  const client = getDB();
+    //  const client = getDB();
 
     const { rows: profileRows } = await client.query<IUserProfileRow>(
       `
@@ -121,10 +121,10 @@ export const getCurrentUserProfile = async (
       err instanceof Error
         ? (err as CustomError)
         : ({
-            name: "UnknownError",
-            message:
-              typeof err === "string" ? err : "An unknown error occurred",
-          } as CustomError);
+          name: "UnknownError",
+          message:
+            typeof err === "string" ? err : "An unknown error occurred",
+        } as CustomError);
 
     await error("Profile retrieval error", {
       email: userPayload?.userEmail,
@@ -269,9 +269,9 @@ export const updateUserProfile = async (
       err instanceof Error
         ? (err as CustomError)
         : ({
-            name: "UnknownError",
-            message: "An unknown error occurred",
-          } as CustomError);
+          name: "UnknownError",
+          message: "An unknown error occurred",
+        } as CustomError);
 
     await error("Profile updation error", {
       email: userPayload?.userEmail,
@@ -284,3 +284,133 @@ export const updateUserProfile = async (
     next(errorObj);
   }
 };
+
+
+/**
+ * Soft deletes the current user's profile by setting `is_deleted = true`.
+ * 
+ * This endpoint:
+ * - Requires authentication (retrieves user's email from JWT in `req.user`).
+ * - Marks the user's profile as deleted without removing the record from the database.
+ * - Handles cases where the user or profile is not found.
+ * - Returns appropriate HTTP status codes based on the operation result.
+ *
+ * @param {AuthRequest} req - Express request object with `user` payload from authentication middleware.
+ * @param {Response} res - Express response object used to send HTTP responses.
+ * @param {NextFunction} next - Express next function for error handling middleware.
+ * 
+ * @returns {Promise<void>} - Sends HTTP response directly; does not return a value.
+ * 
+ * @throws {CustomError} - Passes unknown errors to the next middleware.
+ * 
+ * @example
+ * // Using Express route
+ * router.delete('/api/v1/userProfile/soft-delete', softDeleteUserProfile);
+ *
+ * Responses:
+ *  - 200 OK: Profile soft deleted successfully
+ *  - 401 Unauthorized: Missing or invalid authentication token
+ *  - 404 Not Found: User or profile not found
+ *  - 410 Gone: Profile already soft deleted
+ *  - 500 Internal Server Error: Unexpected server error
+ */
+export const softDeleteUserProfile = async (
+  req: AuthRequest,
+  res: Response,
+
+  next: NextFunction
+): Promise<void> => {
+  const userPayload = req.user as { userEmail?: string } | undefined;
+
+  if (!userPayload?.userEmail) {
+    res
+      .status(HTTP_STATUS.UNAUTHORIZED)
+      .json(errorResponse("Unauthorized request"));
+    return;
+  }
+
+  try {
+
+    //  Find user
+
+    const user = await findUserByEmail(userPayload.userEmail);
+
+    if (!user) {
+      await error("Profile soft delete failed - User not found", {
+        email: userPayload.userEmail,
+        action: "softDeleteUserProfile",
+        req,
+      });
+      res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .json(errorResponse(MESSAGES.PROFILE_USER_NOTFOUND));
+      return;
+    }
+
+    const client = getDB();
+    //  Find existing profile
+
+    const checkProfileResult = await client.query(
+      `SELECT isdeleted FROM users WHERE id = $1`,
+      [user.id]
+    );
+
+
+    if (checkProfileResult.rowCount === 0) {
+      await warn("Profile soft delete failed - Profile not found", {
+        email: userPayload.userEmail,
+        userId: user.id,
+        action: "softDeleteUserProfile",
+        req,
+      });
+        res.status(HTTP_STATUS.NOT_FOUND).json(errorResponse("User profile not found"));
+
+    }
+    if (checkProfileResult.rows[0]?.isdeleted) {
+      res
+        .status(HTTP_STATUS.GONE)
+        .json(errorResponse("User profile already deleted"));
+      return;
+    }
+
+
+    const result = await client.query(
+      `UPDATE users SET isdeleted = true WHERE id  = $1 RETURNING id`,
+      [user.id]
+    );
+    if (result.rowCount === 0) {
+      await warn("Profile soft delete failed - Profile not found", {
+        email: userPayload.userEmail,
+        userId: user.id,
+        action: "softDeleteUserProfile",
+        req,
+      });
+    }
+    res
+      .status(HTTP_STATUS.OK)
+      .json(successResponse(null, "User profile soft deleted successfully"));
+  }
+
+  catch (err: unknown) {
+
+    const errorObj: CustomError =
+      err instanceof Error
+        ? (err as CustomError)
+        : ({
+          name: "UnknownError",
+          message: "An unknown error occurred",
+        }
+
+        );
+
+    await error("Profile soft deletion error", {
+      email: userPayload?.userEmail,
+      error: errorObj.message,
+      stack: errorObj.stack,
+      action: "softDeleteUserProfile",
+      req,
+    });
+
+    next(errorObj);
+  }
+}

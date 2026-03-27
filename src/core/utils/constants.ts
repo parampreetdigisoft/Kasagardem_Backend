@@ -10,6 +10,7 @@ export const HTTP_STATUS = {
   CONFLICT: 409,
   INTERNAL_SERVER_ERROR: 500,
   TOO_MANY_REQUESTS: 429,
+  GONE: 410,
 } as const;
 
 export const MESSAGES = {
