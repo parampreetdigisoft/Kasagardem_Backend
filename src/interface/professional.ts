@@ -161,3 +161,29 @@ export interface UserPartner {
 }
 
 export type PartnerProfile = ProfessionalPartner | UserPartner;
+
+
+
+
+export interface ILeadItem {
+  lead_id: string;
+  leads_status: string;
+  quoter_id: string;
+  quoter_name: string;
+  quoter_email: string;
+  partner_id: string;
+  partner_display_name: string | null;
+  partner_image_url: string | null;
+  partner_speciality: string | null;
+  partner_address: string | null;
+  partner_city: string | null;
+  partner_state: string | null;
+}
+
+export interface ILeadsPaginated {
+  leads: ILeadItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
