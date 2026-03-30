@@ -6,7 +6,7 @@ import {
   successResponse,
 } from "../../../core/utils/responseFormatter";
 import { error } from "../../../core/utils/logger";
-import { createLead, findAllLeads, findAllLeadsForMonths, updateLeadStatus } from "./leadsModule";
+import { createLead, findAllLeads,  findAllLeadsForAdmin, findAllLeadsForMonths, updateLeadStatus } from "./leadsModule";
 import { sendLeadEmails } from "../../../core/services/emailService";
 import config from "../../../core/config/env";
 import { getDB } from "../../../core/config/db";
@@ -319,5 +319,52 @@ export const getAllLeadsForMonths = async (
   }
 } 
 
+/**
+ * Controller to fetch paginated leads for admin users.
+ *
+ * Performs authentication and role-based authorization before fetching data.
+ *
+ * Query Parameters:
+ * - `page` (optional): Page number, defaults to 1
+ * - `limit` (optional): Number of leads per page, defaults to 10
+ *
+ * Responses:
+ * - 200: Returns paginated leads with a success message
+ * - 400: Validation errors from Zod
+ * - 401: Unauthorized (missing or invalid user)
+ * - 403: Forbidden (user does not have Admin role)
+ *
+ * @param {AuthRequest} req  Express request object with authenticated user
+ * @param {Response} res  Express response object
+ * @param {NextFunction} next  Express next middleware function
+ * @returns {Promise<Response | void>} JSON response or passes error to next middleware
+ */
+export const getAllLeadsForAdmin = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<Response | void> => {
+  const userPayload = req.user as AuthUserPayload | undefined;
+  if (!userPayload?.userEmail) {
+    return res.status(401).json(errorResponse("Unauthorized"));
+  }
 
+  if (userPayload.role !== "Admin") {
+    return res.status(403).json(errorResponse("Unauthorized Role"));
+  }
 
+  const page  = Math.max(1, parseInt(req.query.page  as string) || 1);
+  const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
+
+  try {
+    const data = await findAllLeadsForAdmin(page, limit);
+     res.status(HTTP_STATUS.OK).json(
+      successResponse(data, "All leads fetched successfully")
+    );
+  } catch (err: unknown) {
+    if (err instanceof ZodError) {
+      return res.status(400).json({ errors: err.issues });
+    }
+    return next(err);
+  }
+};

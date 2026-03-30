@@ -2,6 +2,7 @@ import { ZodError } from "zod";
 import { createLeadDto } from "../../../dto/leadDto";
 import { getDB } from "../../../core/config/db";
 import { ILead, ILeadGrouped } from "../../../interface/leads";
+import { ILeadItem, ILeadsPaginated } from "../../../interface/professional";
 
 // Create a partial schema for updates
 const updateLeadDto = createLeadDto.partial();
@@ -278,3 +279,86 @@ export async function findAllLeadsForMonths(
 }
 
 
+/**
+ * Fetches paginated leads data for admin users from the database.
+ *
+ * Performs a total count query and returns leads along with pagination info.
+ *
+ * @param {number} page - Page number (1-based index)
+ * @param {number} limit - Number of leads per page
+ * @returns {Promise<ILeadsPaginated>} Paginated leads data including:
+ *   - leads: Array of lead items
+ *   - total: Total number of leads
+ *   - page: Current page
+ *   - limit: Page size
+ *   - totalPages: Total number of pages
+ */
+export const findAllLeadsForAdmin = async (
+  page: number,
+  limit: number
+): Promise<ILeadsPaginated> => {
+  const client = await getDB();
+  const offset = (page - 1) * limit;
+
+  // total count query
+  const { rows: countRows } = await client.query<{ total: string }>(
+    `SELECT COUNT(*) AS total
+     FROM leads_schema
+     WHERE is_deleted = false`
+  );
+  const total = parseInt(countRows[0]?.total ?? "0", 10);
+
+  const { rows } = await client.query<ILeadItem>(
+  `
+  SELECT
+    l.id                                AS lead_id,
+    l.leads_status,
+
+    -- quoter
+    u.id                                AS quoter_id,
+    u.name                              AS quoter_name,
+    u.email                             AS quoter_email,
+
+    -- professional
+    pu.id                               AS partner_id,
+    COALESCE(
+      NULLIF(TRIM(pp.company_name), ''),
+      pu.name
+    )                                   AS partner_display_name,
+    pp.image_url                        AS partner_image_url,
+    pp.category                         AS partner_speciality,
+    pp.address                          AS partner_address,
+    pp.city                             AS partner_city,
+    pp.state                            AS partner_state
+
+  FROM leads_schema l
+
+  JOIN users u
+    ON u.id = l.user_id
+
+  JOIN users pu
+    ON pu.id = l.partner_profile_ids
+
+  LEFT JOIN professional_accounts pa
+    ON pa.user_id = l.partner_profile_ids
+
+  LEFT JOIN professional_profiles pp
+    ON pp.id = pa.professional_profile_id
+
+  WHERE l.is_deleted = false
+  ORDER BY l.created_at DESC
+  LIMIT $1 OFFSET $2
+  `,
+  [limit, offset]
+);
+
+ const result = {
+    leads: rows,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+  // console.log("🔥 RESULT:", JSON.stringify(result.leads[0]));
+  return result;
+};

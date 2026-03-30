@@ -4,6 +4,7 @@ import validateRequest from "../../../core/middleware/validateRequest";
 import {
   createLeadController,
   getAllLeads,
+  getAllLeadsForAdmin,
   getAllLeadsForMonths,
   updateLeadStatusController} from "./leadsController";
 import { leadValidation, updateLeadStatus } from "./leadsValidation";
@@ -247,7 +248,77 @@ router.put(
  */
 router.get("/getLeadsForMonth", auth, getAllLeadsForMonths);
 
-
-
+/**
+ * @swagger
+ * /api/v1/admin/admin/leads:
+ *   get:
+ *     summary: Fetch all leads for admin (paginated)
+ *     description: Retrieves a paginated list of all leads for admin users, including total count and lead details.
+ *     tags:
+ *       - Leads
+ *     security:
+ *       - bearerAuth: [] # Ensure the user is authenticated
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 10
+ *         description: Number of leads per page
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved paginated leads.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 total:
+ *                   type: integer
+ *                   description: Total number of leads
+ *                 page:
+ *                   type: integer
+ *                   description: Current page number
+ *                 limit:
+ *                   type: integer
+ *                   description: Number of leads per page
+ *                 leads:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         description: Unique identifier for the lead
+ *                       name:
+ *                         type: string
+ *                         description: Name of the lead
+ *                       email:
+ *                         type: string
+ *                         description: Email of the lead
+ *                       phone:
+ *                         type: string
+ *                         description: Phone number of the lead
+ *                       status:
+ *                         type: string
+ *                         description: Current status of the lead (e.g., new, contacted, closed)
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Lead creation timestamp
+ *       401:
+ *         description: Unauthorized, no user or invalid token provided.
+ *       500:
+ *         description: Internal server error.
+ */
+router.get("/admin/leads", auth, getAllLeadsForAdmin);
 
 export default router;
